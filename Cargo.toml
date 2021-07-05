@@ -1,0 +1,15 @@
+[package]
+name = "graph_os"
+version = "0.1.0"
+edition = "2018"
+authors = ["Moe Frumkin <moegf1@gmail.com>"]
+
+[features]
+
+default = []
+
+qemu= []
+raspi3 = []
+
+
+[dependencies]
