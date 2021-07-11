@@ -16,7 +16,7 @@ fn main(){
 			}
 			if s == ")"{
 				if paren_layer <= 0 {
-					panic!("unbalanced parens") //TODO
+					panic!("unbalanced parens")
 				}
 				paren_layer -= 1;
 			}
@@ -34,7 +34,7 @@ fn main(){
 			}
 		}
 		if paren_layer != 0{
-			//panic("unbalanced parens") TODO
+			panic!("unbalanced parens")
 		}
 		match operator_index {
 			Some (x) => return tr(v[x])/parse(v[0..x].to_vec())/parse(v[x+1..].to_vec()),
@@ -46,6 +46,7 @@ fn main(){
 		if v[0] == "(" && v[v.len() - 1] == ")" {
 			return parse(v[1..v.len()-1].to_vec());
 		}
-		return tr(""); //TODO error message
+		panic!("some other error");
 	}
+	assert_eq!(parse(vec!["(", "1", "+", "2", ")", "*", "3"]), tr("*")/(tr("+")/tr("1")/tr("2"))/tr("3"));	
 }
