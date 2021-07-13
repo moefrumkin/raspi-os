@@ -6,7 +6,10 @@ SECTIONS
     .text : { *(.text) }
     .data : { *(.data) }
     .rodata : { *(.rodata) }
+    
+    BSS_START = .;
     .bss : { *(.bss) }
+    BSS_END = .;
 
     . = ALIGN(8);
     . = . + 0x4000;

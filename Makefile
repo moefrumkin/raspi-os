@@ -29,7 +29,7 @@ GDB_CMD = $(GDB) -x $(GDB_SCRIPT)
 
 .PHONY: all
 
-all: build doc run
+all: build test doc
 
 qemu:
 	make PLATFORM=qemu
@@ -37,6 +37,9 @@ qemu:
 
 build:
 	$(BUILD_CMD)
+
+image:
+	objcopy --strip-all -O binary $(KERNEL_ELF) kernel8.img
 
 run:
 	$(QEMU_CMD)
@@ -54,4 +57,10 @@ clean:
 	cargo clean
 
 doc:
+	cargo doc --features=$(PLATFORM)
+
+test:
+	cargo test --features=$(PLATFORM)
+
+open-doc:
 	cargo doc --features=$(PLATFORM) --open

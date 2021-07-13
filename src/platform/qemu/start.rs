@@ -1,5 +1,6 @@
 use core::ptr;
 
+#[cfg(not(test))]
 global_asm!(include_str!("start.s"));
 
 /// QEMU start function

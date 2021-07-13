@@ -10,9 +10,20 @@ _start:
     b hang //otherwise branch to hang
 
 master:
+    ldr x0, =BSS_START //load bss bounds into registers x0 and x1
+    ldr x1, =BSS_END
+    b bss_init
+
+bss_init:
+    cmp x0, x1
+    beq enter_rust
+    str xzr, [x0]
+    add x0, x0, #8
+
+enter_rust:
     ldr     x30, =LD_STACK_PTR //Copy intial value of the Stack Pointer, as defined by the linker to general purpose register 30 
     mov     sp, x30 //Copy the value from x30 to the stack pointer
-    bl      start //Enter the start function
+    bl start //Enter the start function
 
 hang:
     b hang //Loop by branching back to the hang label
