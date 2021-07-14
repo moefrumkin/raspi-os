@@ -45,19 +45,19 @@ impl Pin {
 
     /// Sets the output of an output pin to the desired level
     /// Note: this does not check that the pin is set to output
-    pub fn set_out(&self, output: Output_level) {
-        if output == Output_level::High {
+    pub fn set_out(&self, output: OutputLevel) {
+        if output == OutputLevel::High {
             gpio_mem::write_at_offset(self.get_gpset() | (1 << self.gpset_offset()), (GPSET_BASE_OFFSET + self.gpset_block() * 4) as usize);
         }
     }
 
     /// Gets the output value of a pin
-    pub fn get_out(&self) -> Result<Output_level, ()> {
+    pub fn get_out(&self) -> Result<OutputLevel, ()> {
         let offset = self.gpset_offset();
 
         match (self.get_gpset() & (1 << offset)) >> offset {
-            0 => Ok(Output_level::Low),
-            1 => Ok(Output_level::High),
+            0 => Ok(OutputLevel::Low),
+            1 => Ok(OutputLevel::High),
             n => Err(())
         }
     }
@@ -104,7 +104,7 @@ pub enum Mode {
 /// Represents the possible output values of a pin
 #[derive(PartialEq)]
 #[derive(Debug)]
-enum Output_level {
+enum OutputLevel {
     High,
     Low
 }
@@ -128,7 +128,7 @@ impl Mode {
 
 #[cfg(test)]
 mod tests {
-    use crate::platform::gpio::{Pin, PINS, Mode, Output_level};
+    use crate::platform::gpio::{Pin, PINS, Mode, OutputLevel};
     const ZERO: Pin = Pin { number : 0 };
     const NINE: Pin = Pin { number : 9 };
     const TWELVE: Pin = Pin { number : 12 };
@@ -208,20 +208,20 @@ mod tests {
 
     #[test]
     fn set_out() {
-        ZERO.set_out(Output_level::Low);
-        NINE.set_out(Output_level::High);
-        TWELVE.set_out(Output_level::High);
-        TWENTY.set_out(Output_level::Low);
-        TWENTY_FIVE.set_out(Output_level::High);
-        FIFTY.set_out(Output_level::High);
-        FIFTY_THREE.set_out(Output_level::High);
+        ZERO.set_out(OutputLevel::Low);
+        NINE.set_out(OutputLevel::High);
+        TWELVE.set_out(OutputLevel::High);
+        TWENTY.set_out(OutputLevel::Low);
+        TWENTY_FIVE.set_out(OutputLevel::High);
+        FIFTY.set_out(OutputLevel::High);
+        FIFTY_THREE.set_out(OutputLevel::High);
 
-        assert_eq!(ZERO.get_out().unwrap(), Output_level::Low);
-        assert_eq!(NINE.get_out().unwrap(), Output_level::High);
-        assert_eq!(TWELVE.get_out().unwrap(), Output_level::High);
-        assert_eq!(TWENTY.get_out().unwrap(), Output_level::Low);
-        assert_eq!(TWENTY_FIVE.get_out().unwrap(), Output_level::High);
-        assert_eq!(FIFTY.get_out().unwrap(), Output_level::High);
-        assert_eq!(FIFTY_THREE.get_out().unwrap(), Output_level::High);
+        assert_eq!(ZERO.get_out().unwrap(), OutputLevel::Low);
+        assert_eq!(NINE.get_out().unwrap(), OutputLevel::High);
+        assert_eq!(TWELVE.get_out().unwrap(), OutputLevel::High);
+        assert_eq!(TWENTY.get_out().unwrap(), OutputLevel::Low);
+        assert_eq!(TWENTY_FIVE.get_out().unwrap(), OutputLevel::High);
+        assert_eq!(FIFTY.get_out().unwrap(), OutputLevel::High);
+        assert_eq!(FIFTY_THREE.get_out().unwrap(), OutputLevel::High);
     }
 }
