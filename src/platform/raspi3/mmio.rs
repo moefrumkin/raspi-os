@@ -6,17 +6,17 @@ pub use test::*;
 
 #[cfg(not(test))]
 mod board {
-    pub const GPIO_START: usize = 0x3F000000;
+    pub const MMIO_START: usize = 0x3F000000;
 
     pub fn write_at_offset(data: u32, offset: usize) {
         unsafe {
-            *((GPIO_START + offset) as *mut u32) = data;
+            *((MMIO_START + offset) as *mut u32) = data;
         }
     }
 
     pub fn read_at_offset(offset: usize) -> u32 {
         unsafe {
-            *((GPIO_START + offset) as *const u32)
+            *((MMIO_START + offset) as *const u32)
         }
     }
 }
@@ -28,8 +28,6 @@ mod test {
     pub fn write_at_offset(data: u32, offset: usize) {
         unsafe {
             storage[offset] = data;
-            println!("writing {:#034b} to {}", data, offset);
-            println!("{:?}", storage);
         }
     }
 

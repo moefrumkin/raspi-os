@@ -1,5 +1,7 @@
 //! This module provides support for the raspberry pi's general purpose input output (gpio) pins
 
+use super::mmio;
+
 const PINS: u32 = 53;
 
 const GPFSEL_SIZE: u32 = 10;
@@ -7,8 +9,6 @@ const GPFSEL_BASE_OFFSET: u32 = 0;
 
 const GPSET_SIZE: u32 = 32;
 const GPSET_BASE_OFFSET: u32 = 28;
-
-mod gpio_mem;
 
 /// Pin is a wrapper class for a u32 representing the pin number which ensures that any number inside is a valid pin number
 pub struct Pin {
@@ -33,7 +33,7 @@ impl Pin {
 
         data &= !(111 << offset);
         data |= (mode as u32) << offset;
-        gpio_mem::write_at_offset(data, (GPFSEL_BASE_OFFSET +  self.gpfsel_block() * 4) as usize);
+        mmio::write_at_offset(data, (GPFSEL_BASE_OFFSET +  self.gpfsel_block() * 4) as usize);
     }
 
     /// Gets the mode of the pin or an empty tuple if the mode is not recognized. If Err(()) is returned, something has gone really wrong.
@@ -47,7 +47,7 @@ impl Pin {
     /// Note: this does not check that the pin is set to output
     pub fn set_out(&self, output: OutputLevel) {
         if output == OutputLevel::High {
-            gpio_mem::write_at_offset(self.get_gpset() | (1 << self.gpset_offset()), (GPSET_BASE_OFFSET + self.gpset_block() * 4) as usize);
+            mmio::write_at_offset(self.get_gpset() | (1 << self.gpset_offset()), (GPSET_BASE_OFFSET + self.gpset_block() * 4) as usize);
         }
     }
 
@@ -63,7 +63,7 @@ impl Pin {
     }
 
     fn get_gpfsel(&self) -> u32 {
-        gpio_mem::read_at_offset((GPFSEL_BASE_OFFSET + self.gpfsel_block() * 4) as usize)
+        mmio::read_at_offset((GPFSEL_BASE_OFFSET + self.gpfsel_block() * 4) as usize)
     }
 
     fn gpfsel_block(&self) -> u32 {
@@ -75,7 +75,7 @@ impl Pin {
     }
 
     fn get_gpset(&self) -> u32 {
-        gpio_mem::read_at_offset((GPSET_BASE_OFFSET + self.gpset_block() * 4) as usize)
+        mmio::read_at_offset((GPSET_BASE_OFFSET + self.gpset_block() * 4) as usize)
     }
 
     fn gpset_block(&self) -> u32 {
