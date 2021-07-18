@@ -29,7 +29,7 @@ GDB_CMD = $(GDB) -x $(GDB_SCRIPT)
 
 .PHONY: all
 
-all: build test doc
+all: build test doc-noopen
 
 qemu:
 	make PLATFORM=qemu
@@ -58,6 +58,9 @@ clean:
 
 doc:
 	cargo doc --features=$(PLATFORM) --open
+
+doc-noopen:
+	cargo doc --features=$(PLATFORM)
 
 test:
 	cargo test --features=$(PLATFORM)
