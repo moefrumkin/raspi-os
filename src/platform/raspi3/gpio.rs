@@ -104,7 +104,7 @@ pub enum Mode {
 /// Represents the possible output values of a pin
 #[derive(PartialEq)]
 #[derive(Debug)]
-enum OutputLevel {
+pub enum OutputLevel {
     High,
     Low
 }
