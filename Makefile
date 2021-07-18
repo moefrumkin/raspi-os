@@ -57,10 +57,7 @@ clean:
 	cargo clean
 
 doc:
-	cargo doc --features=$(PLATFORM)
+	cargo doc --features=$(PLATFORM) --open
 
 test:
 	cargo test --features=$(PLATFORM)
-
-open-doc:
-	cargo doc --features=$(PLATFORM) --open
