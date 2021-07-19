@@ -2,7 +2,7 @@
 
 use super::mmio;
 
-const TIMER_BASE_OFFSET: usize = 0x300;
+const TIMER_BASE_OFFSET: usize = 0x3000;
 const CLO_OFFSET: usize = 4;
 const CHI_OFFSET: usize = 8;
 
