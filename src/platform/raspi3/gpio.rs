@@ -4,11 +4,13 @@ use super::mmio;
 
 const PINS: u32 = 53;
 
+const GPIO_BASE_OFFSET: u32 = 0x00200000;
+
 const GPFSEL_SIZE: u32 = 10;
-const GPFSEL_BASE_OFFSET: u32 = 0;
+const GPFSEL_BASE_OFFSET: u32 = GPIO_BASE_OFFSET + 0;
 
 const GPSET_SIZE: u32 = 32;
-const GPSET_BASE_OFFSET: u32 = 28;
+const GPSET_BASE_OFFSET: u32 = GPIO_BASE_OFFSET + 28;
 
 /// Pin is a wrapper class for a u32 representing the pin number which ensures that any number inside is a valid pin number
 pub struct Pin {

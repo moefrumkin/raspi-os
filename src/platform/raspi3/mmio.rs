@@ -23,7 +23,7 @@ mod board {
 
 #[cfg(test)]
 mod test {
-    static mut storage: &'static mut [u32] = &mut [0; 44];
+    static mut storage: &'static mut [u32] = &mut [0; 0x00200050];
     
     pub fn write_at_offset(data: u32, offset: usize) {
         unsafe {
