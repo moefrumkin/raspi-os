@@ -1,5 +1,0 @@
-[build]
-target="aarch64-unknown-none.json"
-
-[unstable]
-build-std = ["core"]

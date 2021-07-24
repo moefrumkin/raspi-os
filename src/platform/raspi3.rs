@@ -4,3 +4,4 @@ pub mod gpio;
 pub mod timer;
 pub mod mmio;
 pub mod start;
+pub mod gpu;

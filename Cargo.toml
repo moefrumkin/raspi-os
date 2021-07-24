@@ -15,7 +15,5 @@ raspi3 = []
 [dependencies]
 
 [profile.dev]
-panic = "abort"
 
 [profile.release]
-panic = "abort"

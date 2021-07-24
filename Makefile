@@ -18,7 +18,11 @@ else
 endif
 
 CPU = cortex-a53
-QEMU_CMD = $(QEMU) -machine $(MACHINE) -m 1024M -cpu $(CPU) -smp $(CORES) -nographic -kernel $(KERNEL_ELF)
+QEMU_CMD = $(QEMU) \
+	-machine $(MACHINE) \
+	-m 1024M -cpu $(CPU) \
+	-smp $(CORES) \
+	-kernel $(KERNEL_ELF)
 
 OBJDUMP = objdump
 OBJDUMP_CMD = $(OBJDUMP) --disassemble-all $(KERNEL_ELF)
