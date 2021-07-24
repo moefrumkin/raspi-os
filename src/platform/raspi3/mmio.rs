@@ -10,13 +10,13 @@ mod board {
 
     pub fn write_at_offset(data: u32, offset: usize) {
         unsafe {
-            *((MMIO_START + offset) as *mut u32) = data;
+            core::ptr::write_volatile((MMIO_START + offset) as *mut u32, data);
         }
     }
 
     pub fn read_at_offset(offset: usize) -> u32 {
         unsafe {
-            *((MMIO_START + offset) as *const u32)
+            core::ptr::read_volatile((MMIO_START + offset) as *const u32)
         }
     }
 }
