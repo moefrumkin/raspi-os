@@ -42,7 +42,7 @@ impl Pin {
     pub fn get_mode(&self) -> Result<Mode, ()> {
         let offset = self.gpfsel_offset();
 
-        Mode::from_u32((self.get_gpfsel() & (111 << offset)) >> offset)
+        Mode::from_u32(self.get_gpfsel() >> offset & 111)
     }
 
     /// Sets the output of an output pin to the desired level
@@ -57,10 +57,10 @@ impl Pin {
     pub fn get_out(&self) -> Result<OutputLevel, ()> {
         let offset = self.gpset_offset();
 
-        match (self.get_gpset() & (1 << offset)) >> offset {
+        match self.get_gpset() >> offset & 1 {
             0 => Ok(OutputLevel::Low),
             1 => Ok(OutputLevel::High),
-            n => Err(())
+            _ => Err(())
         }
     }
 
