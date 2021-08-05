@@ -1,29 +1,37 @@
-.global _start
-.extern LD_STACK_PTR
-
 .section ".text.boot"
 
+.global _start
+
 _start:
-    mrs x0, mpidr_el1 //Copy the value from the aarch64 Multi-Processor Affinity Register to general purpose register 0
-    and x0, x0, #0xFF //Save the unsigned lowest 8 bits of mpidr_el1  in x0
-    cbz x0, master //if the value of x0 is 0, branch to master
-    b hang //otherwise branch to hang
+    // read cpu id, stop slave cores
+    mrs     x1, mpidr_el1
+    and     x1, x1, #3
+    cbz     x1, 2f
+    // cpu id > 0, stop
+1:  wfe
+    b       1b
+2:  // cpu id == 0
 
-master:
-    ldr x0, =BSS_START //load bss bounds into registers x0 and x1
-    ldr x1, =BSS_END
-    b bss_init
+    // set stack before our code
+    ldr     x1, =_start
+    mov     sp, x1
 
-bss_init:
-    cmp x0, x1
-    beq enter_rust
-    str xzr, [x0]
-    add x0, x0, #8
+    // clear bss
+    ldr     x1, =__bss_start
+    ldr     w2, =__bss_size
+3:  cbz     w2, 4f
+    str     xzr, [x1], #8
+    sub     w2, w2, #1
+    cbnz    w2, 3b
 
-enter_rust:
-    ldr     x30, =LD_STACK_PTR //Copy intial value of the Stack Pointer, as defined by the linker to general purpose register 30 
-    mov     sp, x30 //Copy the value from x30 to the stack pointer
-    bl start //Enter the start function
-
-hang:
-    b hang //Loop by branching back to the hang label
+    // jump to C code, should not return
+4:  mov x2, 0x8
+    mov x0, 0x1c
+    movk x2, #0x3f20, lsl #16
+    movk x0, #0x3f20, lsl #16
+    mov w3, #0x8
+    mov w1, #0x200000
+    str w3, [x2]
+    str w1, [x0]
+    b       main
+    b       1b

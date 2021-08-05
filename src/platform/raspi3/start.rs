@@ -1,13 +1,10 @@
 #[cfg(not(test))]
 global_asm!(include_str!("start.s"));
 
-use super::gpu;
-
 #[no_mangle]
-pub extern "C" fn start() {
-    let fb = gpu::init();
-    
-    if let Ok(fbi) = fb {
-        fbi.draw();
+pub fn main() {
+    unsafe {
+        core::ptr::write_volatile(0x3f200008 as *mut u32, 0x08);
+        core::ptr::write_volatile(0x3f20001c as *mut u32, 0x200000);
     }
 }
