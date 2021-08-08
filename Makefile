@@ -33,7 +33,7 @@ GDB_CMD = $(GDB) -x $(GDB_SCRIPT)
 
 .PHONY: all
 
-all: build img doc-noopen
+all: build doc-noopen
 
 qemu:
 	make PLATFORM=qemu

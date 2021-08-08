@@ -2,7 +2,11 @@ mod sp {
     pub struct Register {}
 
     impl Register {
-        crate::sysreg_write!(u64, "sp");
+        pub fn write(&self, value: usize) {
+            unsafe {
+                asm!("mov sp, {}", in(reg) value);
+            }
+        }
     }
 }
 
