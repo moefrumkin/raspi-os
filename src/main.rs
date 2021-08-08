@@ -6,6 +6,7 @@
 #![feature(lang_items)]
 
 mod aarch64;
+#[cfg(not(test))]
 mod panic;
 mod platform;
 

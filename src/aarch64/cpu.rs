@@ -1,9 +1,5 @@
 use super::registers::MPIDR_EL1;
 
-<<<<<<< HEAD
-pub fn core_id() -> u64 {
-    MPIDR_EL1.read() & 0b11
-=======
 /// Returns the id of the cpu core as reported by the arm MPIDR_EL1 system register
 pub fn core_id() -> u64 {
     MPIDR_EL1.read() & 0xff
@@ -17,7 +13,6 @@ pub fn init_region(start: *mut usize, end: *mut usize, init_val: usize) {
             *start = *start.offset(1);
         }
     }
->>>>>>> blink
 }
 
 pub fn wait_for_cycles(cycles: u64) {
