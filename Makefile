@@ -24,7 +24,7 @@ QEMU_CMD = $(QEMU) \
 	-smp $(CORES) \
 	-kernel $(KERNEL_ELF)
 
-OBJDUMP = objdump
+OBJDUMP = aarch64-none-elf-objdump
 OBJDUMP_CMD = $(OBJDUMP) --disassemble-all $(KERNEL_ELF)
 
 GDB = gdb-multiarch
@@ -33,7 +33,7 @@ GDB_CMD = $(GDB) -x $(GDB_SCRIPT)
 
 .PHONY: all
 
-all: build test doc-noopen
+all: build doc-noopen
 
 qemu:
 	make PLATFORM=qemu
@@ -43,7 +43,7 @@ build:
 	$(BUILD_CMD)
 
 image:
-	objcopy --strip-all -O binary $(KERNEL_ELF) kernel8.img
+	aarch64-none-elf-objcopy --strip-all -O binary $(KERNEL_ELF) kernel8.img
 
 run:
 	$(QEMU_CMD)
@@ -59,6 +59,7 @@ gdb:
 
 clean:
 	cargo clean
+	del *.img
 
 doc:
 	cargo doc --features=$(PLATFORM) --open

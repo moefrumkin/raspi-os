@@ -10,7 +10,10 @@ const GPFSEL_SIZE: u32 = 10;
 const GPFSEL_BASE_OFFSET: u32 = GPIO_BASE_OFFSET + 0;
 
 const GPSET_SIZE: u32 = 32;
-const GPSET_BASE_OFFSET: u32 = GPIO_BASE_OFFSET + 28;
+const GPSET_BASE_OFFSET: u32 = GPIO_BASE_OFFSET + 0x1c;
+
+const GPCLR_SIZE: u32 = 32;
+const GPCLR_BASE_OFFSET: u32 = GPIO_BASE_OFFSET + 0x28;
 
 /// Pin is a wrapper class for a u32 representing the pin number which ensures that any number inside is a valid pin number
 pub struct Pin {
@@ -48,8 +51,19 @@ impl Pin {
     /// Sets the output of an output pin to the desired level
     /// Note: this does not check that the pin is set to output
     pub fn set_out(&self, output: OutputLevel) {
-        if output == OutputLevel::High {
-            mmio::write_at_offset(self.get_gpset() | (1 << self.gpset_offset()), (GPSET_BASE_OFFSET + self.gpset_block() * 4) as usize);
+        match output {
+            OutputLevel::High => {
+                mmio::write_at_offset(
+                    self.get_gpset() | (1 << self.gpset_offset()),
+                    (GPSET_BASE_OFFSET + self.gpset_block() * 4) as usize
+                );
+            },
+            OutputLevel::Low => {
+                mmio::write_at_offset(
+                    self.get_gpclr() | 1 << self.gpclr_offset(),
+                    (GPCLR_BASE_OFFSET + self.gpclr_block() * 4) as usize
+                );
+            }
         }
     }
 
@@ -86,6 +100,18 @@ impl Pin {
 
     fn gpset_offset(&self) -> u32 {
         self.number % GPSET_SIZE
+    }
+
+    fn get_gpclr(&self) -> u32 {
+        mmio::read_at_offset((GPCLR_BASE_OFFSET + self.gpclr_block() * 4) as usize)
+    }
+
+    fn gpclr_block(&self) -> u32 {
+        self.number / GPCLR_SIZE
+    }
+
+    fn gpclr_offset(&self) -> u32 {
+        self.number % GPCLR_SIZE
     }
 }
 
@@ -187,6 +213,27 @@ mod tests {
         assert_eq!(TWENTY_FIVE.gpset_offset(), 25);
         assert_eq!(FIFTY.gpset_offset(), 18);
         assert_eq!(FIFTY_THREE.gpset_offset(), 21);
+    }
+
+    #[test]
+    fn gpclr_block() {
+        assert_eq!(ZERO.gpclr_block(), 0);
+        assert_eq!(NINE.gpclr_block(), 0);
+        assert_eq!(TWELVE.gpclr_block(), 0);
+        assert_eq!(TWENTY_FIVE.gpclr_block(), 0);
+        assert_eq!(FIFTY.gpclr_block(), 1);
+        assert_eq!(FIFTY_THREE.gpclr_block(), 1);
+    }
+
+    #[test]
+    fn gpclr_offset() {
+        assert_eq!(ZERO.gpclr_offset(), 0);
+        assert_eq!(NINE.gpclr_offset(), 9);
+        assert_eq!(TWELVE.gpclr_offset(), 12);
+        assert_eq!(TWENTY.gpclr_offset(), 20);
+        assert_eq!(TWENTY_FIVE.gpclr_offset(), 25);
+        assert_eq!(FIFTY.gpclr_offset(), 18);
+        assert_eq!(FIFTY_THREE.gpclr_offset(), 21)
     }
 
     #[test]

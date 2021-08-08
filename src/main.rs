@@ -3,7 +3,12 @@
 #![feature(global_asm)]
 #![feature(asm)]
 #![feature(naked_functions)]
+#![feature(lang_items)]
 
 mod aarch64;
 mod panic;
 mod platform;
+
+#[cfg(not(test))]
+#[lang = "eh_personality"]
+pub extern fn eh_personality() {}

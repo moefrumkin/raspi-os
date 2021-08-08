@@ -1,17 +1,21 @@
 ENTRY(_start)
 SECTIONS
 {
-    . = 0x0;
-    .text.boot : { *(.text.boot) }
-    .text : { *(.text) }
-    .data : { *(.data) }
-    .rodata : { *(.rodata) }
-    
-    BSS_START = .;
-    .bss : { *(.bss) }
-    BSS_END = .;
+    . = 0x80000;
+    STACK_PTR = .;
+    .text : { KEEP(*(.text.boot)) *(.text .text.* .gnu.linkonce.t*) }
+    .rodata : { *(.rodata .rodata.* .gnu.linkonce.r*) }
+    PROVIDE(_data = .);
+    .data : { *(.data .data.* .gnu.linkonce.d*) }
+    .bss (NOLOAD) : {
+        . = ALIGN(16);
+        bss_start = .;
+        *(.bss .bss.*)
+        *(COMMON)
+        bss_end = .;
+    }
+    _end = .;
 
-    . = ALIGN(8);
-    . = . + 0x4000;
-    LD_STACK_PTR = .;
+   /DISCARD/ : { *(.comment) *(.gnu*) *(.note*) *(.eh_frame*) }
 }
+bss_size = (bss_end - bss_start)>>3;
