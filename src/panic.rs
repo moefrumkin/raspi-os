@@ -3,7 +3,6 @@
 //! The standard library has the default options of stack unwinding or aborting, however neither of those can be used, as the full standard library is not included
 
 use core::panic::PanicInfo;
-#[ignore = "unresolved import"]
 use super::platform::gpio::{Pin, Mode, OutputLevel};
 
 ///The global panic handler
