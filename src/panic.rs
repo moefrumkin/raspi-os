@@ -4,23 +4,18 @@
 
 use core::panic::PanicInfo;
 #[cfg(feature = "raspi3")]
-use super::platform::gpio::{Pin, Mode, OutputLevel};
+use super::platform::gpio::{StatusLight, OutputLevel};
 
 ///The global panic handler
 #[cfg(feature = "raspi3")]
 #[panic_handler]
 fn on_panic(_info: &PanicInfo) -> ! {
-    let red_pin = Pin::new(17).unwrap();
-    let blue_pin = Pin::new(22).unwrap();
-    let green_pin = Pin::new(27).unwrap();
+    let status_light = StatusLight::init();
 
-    red_pin.set_mode(Mode::OUT);
-    blue_pin.set_mode(Mode::OUT);
-    green_pin.set_mode(Mode::OUT);
+    status_light.set_green(OutputLevel::Low);
+    status_light.set_blue(OutputLevel::Low);
 
-    red_pin.set_out(OutputLevel::High);
-    blue_pin.set_out(OutputLevel::Low);
-    green_pin.set_out(OutputLevel::Low);
+    status_light.set_red(OutputLevel::High);
     
     loop {}
 }

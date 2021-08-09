@@ -15,6 +15,52 @@ const GPSET_BASE_OFFSET: u32 = GPIO_BASE_OFFSET + 0x1c;
 const GPCLR_SIZE: u32 = 32;
 const GPCLR_BASE_OFFSET: u32 = GPIO_BASE_OFFSET + 0x28;
 
+/// Structure that represents the RGB status light.
+/// All methods assume that pin mode has not changed and when turning on a light that the other ones are off
+pub struct StatusLight {
+    red_pin: Pin,
+    green_pin: Pin,
+    blue_pin: Pin,
+}
+
+impl StatusLight {
+    const RED_PIN: u32 = 17;
+    const GREEN_PIN: u32 = 27;
+    const BLUE_PIN: u32 = 22;
+
+    /// Initializes a status light and sets the pins to output mode
+    pub fn init() -> Self {
+        let red_pin = Pin::new(StatusLight::RED_PIN).unwrap();
+        let green_pin = Pin::new(StatusLight::GREEN_PIN).unwrap();
+        let blue_pin = Pin::new(StatusLight::BLUE_PIN).unwrap();
+
+        red_pin.set_mode(Mode::OUT);
+        green_pin.set_mode(Mode::OUT);
+        blue_pin.set_mode(Mode::OUT);
+
+        StatusLight {
+            red_pin,
+            green_pin,
+            blue_pin
+        }
+    }
+
+    /// sets the right light
+    pub fn set_red(&self, level: OutputLevel) {
+        self.red_pin.set_out(level);
+    }
+
+    /// sets the green light
+    pub fn set_green(&self, level: OutputLevel) {
+        self.green_pin.set_out(level);
+    }
+
+    /// sets the blue light
+    pub fn set_blue(&self, level: OutputLevel) {
+        self.blue_pin.set_out(level);
+    }
+}
+
 /// Pin is a wrapper class for a u32 representing the pin number which ensures that any number inside is a valid pin number
 pub struct Pin {
     number: u32,

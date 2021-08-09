@@ -1,5 +1,5 @@
 use super::{
-    gpio::{Mode, OutputLevel, Pin},
+    gpio::{StatusLight, OutputLevel},
     timer,
 };
 use crate::aarch64::{cpu, registers::SP};
@@ -32,27 +32,21 @@ pub fn _start() {
 }
 
 pub fn blink_sequence(interval: u64) {
-    let red_pin = Pin::new(17).unwrap();
-    let blue_pin = Pin::new(22).unwrap();
-    let green_pin = Pin::new(27).unwrap();
+    let status_light = StatusLight::init();
 
-    red_pin.set_mode(Mode::OUT);
-    blue_pin.set_mode(Mode::OUT);
-    green_pin.set_mode(Mode::OUT);
-
-    green_pin.set_out(OutputLevel::High);
+    status_light.set_green(OutputLevel::High);
 
     timer::delay(interval);
 
-    green_pin.set_out(OutputLevel::Low);
-    blue_pin.set_out(OutputLevel::High);
+    status_light.set_green(OutputLevel::Low);
+    status_light.set_blue(OutputLevel::High);
 
     timer::delay(interval);
 
-    blue_pin.set_out(OutputLevel::Low);
-    red_pin.set_out(OutputLevel::High);
+    status_light.set_blue(OutputLevel::Low);
+    status_light.set_red(OutputLevel::High);
 
     timer::delay(interval);
 
-    red_pin.set_out(OutputLevel::Low);
+    status_light.set_red(OutputLevel::Low);
 }
