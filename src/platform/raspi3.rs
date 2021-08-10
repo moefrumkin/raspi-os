@@ -6,3 +6,4 @@ pub mod mmio;
 #[cfg(not(test))]
 pub mod start;
 pub mod gpu;
+pub mod uart;

@@ -1,6 +1,7 @@
 use super::{
     gpio::{StatusLight, OutputLevel},
     timer,
+    uart
 };
 use crate::aarch64::{cpu, registers::SP};
 
@@ -26,6 +27,10 @@ pub fn _start() {
         }
 
         blink_sequence(500);
+
+        uart::init();
+
+        uart::send_str("Hello, World!");
     }
 
     loop {}

@@ -1,6 +1,7 @@
 //! This module provides support for the raspberry pi's general purpose input output (gpio) pins
 
 use super::mmio;
+use crate::aarch64::cpu;
 
 const PINS: u32 = 53;
 
@@ -14,6 +15,11 @@ const GPSET_BASE_OFFSET: u32 = GPIO_BASE_OFFSET + 0x1c;
 
 const GPCLR_SIZE: u32 = 32;
 const GPCLR_BASE_OFFSET: u32 = GPIO_BASE_OFFSET + 0x28;
+
+const GPPPUD: u32 = GPIO_BASE_OFFSET + 0x94;
+
+const GPPUDCLK_SIZE: u32 = 32;
+const GPPUDCLK_BASE_OFFSET: u32 = GPCLR_BASE_OFFSET + 0x98;
 
 /// Structure that represents the RGB status light.
 /// All methods assume that pin mode has not changed and when turning on a light that the other ones are off
@@ -124,6 +130,27 @@ impl Pin {
         }
     }
 
+    /// Sets the pullup mode of a register
+    /// You should remember this, there is no way of reading the mode once set
+    /// It takes > 300 clock cycles for this instuction to run because of the wait time after setting the pull mode
+    /// TODO: this should have an array slice version because the waits take a while
+    pub fn pull(&self, mode: Pull) {
+        let gppudckl_offset = GPPUDCLK_BASE_OFFSET + 4 * self.gppudclk_block();
+
+        mmio::write_at_offset(mode as u32, GPPPUD as usize);
+
+        cpu::wait_for_cycles(150);
+
+        mmio::write_at_offset(
+            1 << self.gppudclk_offset(),
+            gppudckl_offset as usize
+        );
+
+        cpu::wait_for_cycles(150);
+
+        mmio::write_at_offset(0, gppudckl_offset as usize);
+    }
+
     fn get_gpfsel(&self) -> u32 {
         mmio::read_at_offset((GPFSEL_BASE_OFFSET + self.gpfsel_block() * 4) as usize)
     }
@@ -159,6 +186,14 @@ impl Pin {
     fn gpclr_offset(&self) -> u32 {
         self.number % GPCLR_SIZE
     }
+
+    fn gppudclk_block(&self) -> u32 {
+        self.number / GPPUDCLK_SIZE
+    }
+
+    fn gppudclk_offset(&self) -> u32 {
+        self.number % GPPUDCLK_SIZE
+    }
 }
 
 /// All possible pinmodes for a gpio pin
@@ -181,6 +216,12 @@ pub enum Mode {
 pub enum OutputLevel {
     High,
     Low
+}
+
+pub enum Pull {
+    Off = 0b00,
+    Down = 0b01,
+    Up = 0b10
 }
 
 impl Mode {
@@ -281,6 +322,28 @@ mod tests {
         assert_eq!(FIFTY.gpclr_offset(), 18);
         assert_eq!(FIFTY_THREE.gpclr_offset(), 21)
     }
+
+    #[test]
+    fn gppudclk_block() {
+        assert_eq!(ZERO.gppudclk_block(), 0);
+        assert_eq!(NINE.gppudclk_block(), 0);
+        assert_eq!(TWELVE.gppudclk_block(), 0);
+        assert_eq!(TWENTY_FIVE.gppudclk_block(), 0);
+        assert_eq!(FIFTY.gppudclk_block(), 1);
+        assert_eq!(FIFTY_THREE.gppudclk_block(), 1);
+    }
+
+        #[test]
+    fn gppudclk_offset() {
+        assert_eq!(ZERO.gppudclk_offset(), 0);
+        assert_eq!(NINE.gppudclk_offset(), 9);
+        assert_eq!(TWELVE.gppudclk_offset(), 12);
+        assert_eq!(TWENTY.gppudclk_offset(), 20);
+        assert_eq!(TWENTY_FIVE.gppudclk_offset(), 25);
+        assert_eq!(FIFTY.gppudclk_offset(), 18);
+        assert_eq!(FIFTY_THREE.gppudclk_offset(), 21)
+    }
+
 
     #[test]
     fn set_mode() {
