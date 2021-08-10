@@ -1,7 +1,8 @@
 use super::{
-    gpio::{StatusLight, OutputLevel},
-    timer,
-    uart
+    gpio::{GPIOController, StatusLight, OutputLevel},
+    timer::Timer,
+    uart::UARTController,
+    mmio::MMIOController
 };
 use crate::aarch64::{cpu, registers::SP};
 
@@ -26,32 +27,36 @@ pub fn _start() {
             SP.write(STACK_PTR);
         }
 
-        blink_sequence(500);
+        let mmio = MMIOController::default();
+        let gpio = GPIOController::new(&mmio);
+        let timer = Timer::new(&mmio);
+        let uart = UARTController::init(&gpio, &mmio);
+        let status_light = StatusLight::init(&gpio);
 
-        uart::init();
+        blink_sequence(&status_light, &timer, 250);
 
-        uart::send_str("Hello, World!");
+        uart.writeln("UART Connection Initialized");
+
     }
 
     loop {}
 }
 
-pub fn blink_sequence(interval: u64) {
-    let status_light = StatusLight::init();
+pub fn blink_sequence(status_light: &StatusLight, timer: &Timer, interval: u64) {
 
     status_light.set_green(OutputLevel::High);
 
-    timer::delay(interval);
+    timer.delay(interval);
 
     status_light.set_green(OutputLevel::Low);
     status_light.set_blue(OutputLevel::High);
 
-    timer::delay(interval);
+    timer.delay(interval);
 
     status_light.set_blue(OutputLevel::Low);
     status_light.set_red(OutputLevel::High);
 
-    timer::delay(interval);
+    timer.delay(interval);
 
     status_light.set_red(OutputLevel::Low);
 }

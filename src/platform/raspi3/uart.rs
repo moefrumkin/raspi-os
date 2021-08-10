@@ -1,5 +1,6 @@
+use core::fmt;
 use crate::aarch64::cpu;
-use super::{gpio::{Pin, Mode, Pull}, mmio};
+use super::{gpio::{GPIOController, Pin, Mode, Pull}, mmio::MMIOController};
 
 const UART_BASE_OFFSET: u32 = 0x215000;
 
@@ -14,63 +15,85 @@ const AUX_MU_LSR: u32 = UART_BASE_OFFSET + 0x54;
 const AUX_MU_CNTL: u32 = UART_BASE_OFFSET + 0x60;
 const AUX_MU_BAUD: u32 = UART_BASE_OFFSET + 0x68;
 
-
-pub fn init() {
-    //Enable UART
-    mmio::write_at_offset(
-        mmio::read_at_offset(AUX_ENABLE as usize) | 1,
-        AUX_ENABLE as usize
-    );
-
-    //Disable Tx and Rx
-    mmio::write_at_offset(0, AUX_MU_CNTL as usize);
-
-    //Set data format to 8 bit
-    mmio::write_at_offset(0b11, AUX_MU_LCR as usize);
-
-    //Set rts line high
-    mmio::write_at_offset(0, AUX_MU_MCR as usize);
-
-    //Disable interrupts
-    mmio::write_at_offset(0, AUX_MU_IER as usize);
-
-    //Clear fifo bits
-    mmio::write_at_offset(0b11000110, AUX_MU_IIR as usize);
-
-    //Set baud rate to 115,200
-    mmio::write_at_offset(270, AUX_MU_BAUD as usize);
-
-    let tx = Pin::new(14).unwrap();
-    let rx = Pin::new(15).unwrap();
-
-    tx.set_mode(Mode::AF5);
-    rx.set_mode(Mode::AF5);
-    
-    //enable Tx and Rx
-    mmio::write_at_offset(3, AUX_MU_CNTL as usize);
+pub struct UARTController<'a> {
+    gpio: &'a GPIOController<'a>,
+    mmio: &'a MMIOController
 }
 
-pub fn send_char(c: char) {
-    while mmio::read_at_offset(AUX_MU_LSR as usize) & 0b100000 == 0 {
-        unsafe {
-            asm!("nop");
-        }
-    }
-    mmio::write_at_offset(c as u32, AUX_MU_IO as usize);
-}
+impl<'a> UARTController<'a> {
+    pub fn init(
+            gpio: &'a GPIOController,
+            mmio: &'a MMIOController
+        ) -> Self {
+        //Enable UART
+        mmio.write_at_offset(
+            mmio.read_at_offset(AUX_ENABLE as usize) | 1,
+            AUX_ENABLE as usize
+        );
 
-pub fn send_str(s: &str) {
-    for c in s.chars() {
-        send_char(c);
-    }
-}
+        //Disable Tx and Rx
+        mmio.write_at_offset(0, AUX_MU_CNTL as usize);
 
-pub fn read() -> Result<char, ()> {
-    while mmio::read_at_offset(AUX_MU_LSR as usize) & 0b1 == 0 {
-        unsafe {
-            asm!("nop");
+        //Set data format to 8 bit
+        mmio.write_at_offset(0b11, AUX_MU_LCR as usize);
+
+        //Set rts line high
+        mmio.write_at_offset(0, AUX_MU_MCR as usize);
+
+        //Disable interrupts
+        mmio.write_at_offset(0, AUX_MU_IER as usize);
+
+        //Clear fifo bits
+        mmio.write_at_offset(0b11000110, AUX_MU_IIR as usize);
+
+        //Set baud rate to 115,200
+        mmio.write_at_offset(270, AUX_MU_BAUD as usize);
+
+        let tx = Pin::new(14).unwrap();
+        let rx = Pin::new(15).unwrap();
+
+        gpio.set_mode(tx, Mode::AF5);
+        gpio.set_mode(rx, Mode::AF5);
+
+        //enable Tx and Rx
+        mmio.write_at_offset(3, AUX_MU_CNTL as usize);
+
+        UARTController {
+            gpio,
+            mmio
         }
     }
 
-    core::char::from_u32(mmio::read_at_offset(AUX_MU_IO as usize)).ok_or(())
+    pub fn putc(&self, c: char) {
+        while self.mmio.read_at_offset(AUX_MU_LSR as usize) & 0b100000 == 0 {
+            unsafe {
+                asm!("nop");
+            }
+        }
+        self.mmio.write_at_offset(c as u32, AUX_MU_IO as usize);
+    }
+
+    pub fn write(&self, s: &str) {
+        for c in s.chars() {
+            self.putc(c);
+        }
+    }
+
+    pub fn writeln(&self, s: &str) {
+        for c in s.chars() {
+            self.putc(c);
+        }
+        self.putc('\n');
+        self.putc('\r');
+    }
+
+    pub fn read(&self) -> Result<char, ()> {
+        while self.mmio.read_at_offset(AUX_MU_LSR as usize) & 0b1 == 0 {
+            unsafe {
+                asm!("nop");
+            }
+        }
+
+        core::char::from_u32(self.mmio.read_at_offset(AUX_MU_IO as usize)).ok_or(())
+    }
 }

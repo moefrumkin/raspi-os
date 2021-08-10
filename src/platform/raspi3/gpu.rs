@@ -1,6 +1,6 @@
 //! This module provides an interface to the raspberry pi's built in gpu
 
-use super::mmio;
+/*use super::mmio;
 
 const MBOX_BASE_OFFSET: usize = 0x0000b880;
 
@@ -112,4 +112,4 @@ impl FBInfo {
             }
         }
     }
-}
+}*/

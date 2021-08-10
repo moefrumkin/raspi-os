@@ -1,7 +1,7 @@
 PLATFORM ?= raspi3
 
 ARCH = aarch64-unknown-none
-BUILD_CMD = cargo build -Zbuild-std --features=$(PLATFORM) --target=$(ARCH).json --release
+BUILD_CMD = cargo build -Zbuild-std=core --features=$(PLATFORM) --target=$(ARCH).json --release
 
 KERNEL_ELF = target/$(ARCH)/release/graph_os
 

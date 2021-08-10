@@ -4,13 +4,23 @@
 
 use core::panic::PanicInfo;
 #[cfg(feature = "raspi3")]
-use super::platform::gpio::{StatusLight, OutputLevel};
+use super::platform::{
+    gpio::{StatusLight, GPIOController, OutputLevel},
+    mmio::MMIOController,
+    uart::UARTController,
+    timer::Timer
+};
 
 ///The global panic handler
 #[cfg(feature = "raspi3")]
 #[panic_handler]
 fn on_panic(_info: &PanicInfo) -> ! {
-    let status_light = StatusLight::init();
+    let mmio = MMIOController::default();
+    let gpio = GPIOController::new(&mmio);
+    let timer = Timer::new(&mmio);
+    let uart = UARTController::init(&gpio, &mmio);
+    let status_light = StatusLight::init(&gpio);
+
 
     status_light.set_green(OutputLevel::Low);
     status_light.set_blue(OutputLevel::Low);

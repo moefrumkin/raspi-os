@@ -1,7 +1,7 @@
 //! This module provides support for the raspberry pi's general purpose input output (gpio) pins
 
-use super::mmio;
 use crate::aarch64::cpu;
+use super::mmio::MMIOController;
 
 const PINS: u32 = 53;
 
@@ -21,53 +21,130 @@ const GPPPUD: u32 = GPIO_BASE_OFFSET + 0x94;
 const GPPUDCLK_SIZE: u32 = 32;
 const GPPUDCLK_BASE_OFFSET: u32 = GPCLR_BASE_OFFSET + 0x98;
 
+pub struct GPIOController<'a> {
+    mmio: &'a MMIOController
+}
+
+impl<'a> GPIOController<'a> {
+    pub fn new(mmio: &'a MMIOController) -> Self {
+        GPIOController {
+            mmio
+        }
+    }
+
+    pub fn set_mode(&self, pin: Pin, mode: Mode) {
+        let mut fsel = self.get_gpfsel(pin);
+        let offset = pin.gpfsel_offset();
+
+        fsel &= !(111 << offset);
+        fsel |= (mode as u32) << offset;
+        self.mmio.write_at_offset(fsel, (GPFSEL_BASE_OFFSET +  pin.gpfsel_block() * 4) as usize);
+    }
+
+    /// Sets the output of an output pin to the desired level
+    /// Note: this does not check that the pin is set to output
+    pub fn set_out(&self, pin: Pin, output: OutputLevel) {
+        match output {
+            OutputLevel::High => {
+                self.mmio.write_at_offset(
+                    self.get_gpset(pin) | (1 << pin.gpset_offset()),
+                    (GPSET_BASE_OFFSET + pin.gpset_block() * 4) as usize
+                );
+            },
+            OutputLevel::Low => {
+                self.mmio.write_at_offset(
+                    self.get_gpclr(pin) | 1 << pin.gpclr_offset(),
+                    (GPCLR_BASE_OFFSET + pin.gpclr_block() * 4) as usize
+                );
+            }
+        }
+    }
+
+    /// Sets the pullup mode of a register
+    /// You should remember this, there is no way of reading the mode once set
+    /// It takes > 300 clock cycles for this instuction to run because of the wait time after setting the pull mode
+    /// TODO: this should have an array slice version because the waits take a while
+    pub fn pull(&self, pin: Pin, mode: Pull) {
+        let gppudckl_offset = GPPUDCLK_BASE_OFFSET + 4 * pin.gppudclk_block();
+
+        self.mmio.write_at_offset(mode as u32, GPPPUD as usize);
+
+        cpu::wait_for_cycles(150);
+
+        self.mmio.write_at_offset(
+            1 << pin.gppudclk_offset(),
+            gppudckl_offset as usize
+        );
+
+        cpu::wait_for_cycles(150);
+
+        self.mmio.write_at_offset(0, gppudckl_offset as usize);
+    }
+
+    fn get_gpfsel(&self, pin: Pin) -> u32 {
+        self.mmio.read_at_offset((GPFSEL_BASE_OFFSET + pin.gpfsel_block() * 4) as usize)
+    }
+
+    fn get_gpset(&self, pin: Pin) -> u32 {
+        self.mmio.read_at_offset((GPSET_BASE_OFFSET + pin.gpset_block() * 4) as usize)
+    }
+
+    fn get_gpclr(&self, pin: Pin) -> u32 {
+        self.mmio.read_at_offset((GPCLR_BASE_OFFSET + pin.gpclr_block() * 4) as usize)
+    }
+}
+
 /// Structure that represents the RGB status light.
 /// All methods assume that pin mode has not changed and when turning on a light that the other ones are off
-pub struct StatusLight {
+pub struct StatusLight<'a> {
     red_pin: Pin,
     green_pin: Pin,
     blue_pin: Pin,
+    gpio_controller: &'a GPIOController<'a>
 }
 
-impl StatusLight {
+impl<'a> StatusLight<'a> {
     const RED_PIN: u32 = 17;
     const GREEN_PIN: u32 = 27;
     const BLUE_PIN: u32 = 22;
 
     /// Initializes a status light and sets the pins to output mode
-    pub fn init() -> Self {
+    pub fn init(gpio_controller: &'a GPIOController<'a>) -> Self {
         let red_pin = Pin::new(StatusLight::RED_PIN).unwrap();
         let green_pin = Pin::new(StatusLight::GREEN_PIN).unwrap();
         let blue_pin = Pin::new(StatusLight::BLUE_PIN).unwrap();
 
-        red_pin.set_mode(Mode::OUT);
-        green_pin.set_mode(Mode::OUT);
-        blue_pin.set_mode(Mode::OUT);
+        gpio_controller.set_mode(red_pin, Mode::OUT);
+        gpio_controller.set_mode(green_pin, Mode::OUT);
+        gpio_controller.set_mode(blue_pin, Mode::OUT);
 
         StatusLight {
             red_pin,
             green_pin,
-            blue_pin
+            blue_pin,
+            gpio_controller
         }
     }
 
     /// sets the right light
     pub fn set_red(&self, level: OutputLevel) {
-        self.red_pin.set_out(level);
+        self.gpio_controller.set_out(self.red_pin, level);
     }
 
     /// sets the green light
     pub fn set_green(&self, level: OutputLevel) {
-        self.green_pin.set_out(level);
+        self.gpio_controller.set_out(self.green_pin, level);
     }
 
     /// sets the blue light
     pub fn set_blue(&self, level: OutputLevel) {
-        self.blue_pin.set_out(level);
+        self.gpio_controller.set_out(self.blue_pin, level);
     }
 }
 
 /// Pin is a wrapper class for a u32 representing the pin number which ensures that any number inside is a valid pin number
+#[derive(Copy)]
+#[derive(Clone)]
 pub struct Pin {
     number: u32,
 }
@@ -83,78 +160,6 @@ impl Pin {
         }
     }
 
-    /// Sets the mode of the pin
-    pub fn set_mode(&self, mode: Mode) {
-        let mut data = self.get_gpfsel();
-        let offset = self.gpfsel_offset();
-
-        data &= !(111 << offset);
-        data |= (mode as u32) << offset;
-        mmio::write_at_offset(data, (GPFSEL_BASE_OFFSET +  self.gpfsel_block() * 4) as usize);
-    }
-
-    /// Gets the mode of the pin or an empty tuple if the mode is not recognized. If Err(()) is returned, something has gone really wrong.
-    pub fn get_mode(&self) -> Result<Mode, ()> {
-        let offset = self.gpfsel_offset();
-
-        Mode::from_u32(self.get_gpfsel() >> offset & 111)
-    }
-
-    /// Sets the output of an output pin to the desired level
-    /// Note: this does not check that the pin is set to output
-    pub fn set_out(&self, output: OutputLevel) {
-        match output {
-            OutputLevel::High => {
-                mmio::write_at_offset(
-                    self.get_gpset() | (1 << self.gpset_offset()),
-                    (GPSET_BASE_OFFSET + self.gpset_block() * 4) as usize
-                );
-            },
-            OutputLevel::Low => {
-                mmio::write_at_offset(
-                    self.get_gpclr() | 1 << self.gpclr_offset(),
-                    (GPCLR_BASE_OFFSET + self.gpclr_block() * 4) as usize
-                );
-            }
-        }
-    }
-
-    /// Gets the output value of a pin
-    pub fn get_out(&self) -> Result<OutputLevel, ()> {
-        let offset = self.gpset_offset();
-
-        match self.get_gpset() >> offset & 1 {
-            0 => Ok(OutputLevel::Low),
-            1 => Ok(OutputLevel::High),
-            _ => Err(())
-        }
-    }
-
-    /// Sets the pullup mode of a register
-    /// You should remember this, there is no way of reading the mode once set
-    /// It takes > 300 clock cycles for this instuction to run because of the wait time after setting the pull mode
-    /// TODO: this should have an array slice version because the waits take a while
-    pub fn pull(&self, mode: Pull) {
-        let gppudckl_offset = GPPUDCLK_BASE_OFFSET + 4 * self.gppudclk_block();
-
-        mmio::write_at_offset(mode as u32, GPPPUD as usize);
-
-        cpu::wait_for_cycles(150);
-
-        mmio::write_at_offset(
-            1 << self.gppudclk_offset(),
-            gppudckl_offset as usize
-        );
-
-        cpu::wait_for_cycles(150);
-
-        mmio::write_at_offset(0, gppudckl_offset as usize);
-    }
-
-    fn get_gpfsel(&self) -> u32 {
-        mmio::read_at_offset((GPFSEL_BASE_OFFSET + self.gpfsel_block() * 4) as usize)
-    }
-
     fn gpfsel_block(&self) -> u32 {
         self.number / GPFSEL_SIZE
     }
@@ -163,20 +168,12 @@ impl Pin {
         3 * (self.number % GPFSEL_SIZE)
     }
 
-    fn get_gpset(&self) -> u32 {
-        mmio::read_at_offset((GPSET_BASE_OFFSET + self.gpset_block() * 4) as usize)
-    }
-
     fn gpset_block(&self) -> u32 {
         self.number / GPSET_SIZE
     }
 
     fn gpset_offset(&self) -> u32 {
         self.number % GPSET_SIZE
-    }
-
-    fn get_gpclr(&self) -> u32 {
-        mmio::read_at_offset((GPCLR_BASE_OFFSET + self.gpclr_block() * 4) as usize)
     }
 
     fn gpclr_block(&self) -> u32 {
