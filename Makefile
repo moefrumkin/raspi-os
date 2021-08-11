@@ -68,4 +68,4 @@ doc-noopen:
 	cargo doc --features=$(PLATFORM)
 
 test:
-	cargo test --features=$(PLATFORM)
+	cargo test --features=$(PLATFORM) -- --nocapture

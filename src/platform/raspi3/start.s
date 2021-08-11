@@ -2,7 +2,7 @@
 
 .global _start
 
-start:
+_start:
     // read cpu id, stop slave cores
     mrs     x1, mpidr_el1
     and     x1, x1, #3
@@ -25,13 +25,4 @@ start:
     cbnz    w2, 3b
 
     // jump to C code, should not return
-4:  mov x2, 0x8
-    mov x0, 0x1c
-    movk x2, #0x3f20, lsl #16
-    movk x0, #0x3f20, lsl #16
-    mov w3, #0x8
-    mov w1, #0x200000
-    str w3, [x2]
-    str w1, [x0]
-    b       _start
-    b       1b
+4:  b       main

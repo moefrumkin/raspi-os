@@ -2,44 +2,36 @@ use super::{
     gpio::{GPIOController, StatusLight, OutputLevel},
     timer::Timer,
     uart::UARTController,
-    mmio::MMIOController
+    mmio::MMIOController,
+    gpu
 };
 use crate::aarch64::{cpu, registers::SP};
 
-extern "C" {
-    static STACK_PTR: usize;
-
-    static bss_start: *mut usize;
-    static bss_end: *mut usize;
-}
+global_asm!(include_str!("start.s"));
 
 #[no_mangle]
-#[naked]
-pub fn _start() {
-    if cpu::core_id() == 0 {
-        //Zero BSS
+pub fn main() {
+    let mmio = MMIOController::default();
+    let gpio = GPIOController::new(&mmio);
+    let timer = Timer::new(&mmio);
+    let uart = UARTController::init(&gpio, &mmio);
+    let status_light = StatusLight::init(&gpio);
+
+    blink_sequence(&status_light, &timer, 250);
+
+    uart.writeln("UART Connection Initialized");
+
+    uart.write_hex(&uart as *const UARTController as usize);
+
+    uart.writeln("");
+
+    unsafe {gpu::fn_init(&mmio, &uart);}
+
+    loop {
         unsafe {
-            cpu::init_region(bss_start, bss_end, 0);
+            gpu::draw_stuff();
         }
-
-        //Set stack pointer
-        unsafe {
-            SP.write(STACK_PTR);
-        }
-
-        let mmio = MMIOController::default();
-        let gpio = GPIOController::new(&mmio);
-        let timer = Timer::new(&mmio);
-        let uart = UARTController::init(&gpio, &mmio);
-        let status_light = StatusLight::init(&gpio);
-
-        blink_sequence(&status_light, &timer, 250);
-
-        uart.writeln("UART Connection Initialized");
-
     }
-
-    loop {}
 }
 
 pub fn blink_sequence(status_light: &StatusLight, timer: &Timer, interval: u64) {

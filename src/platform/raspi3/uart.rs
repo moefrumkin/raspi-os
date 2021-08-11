@@ -73,6 +73,18 @@ impl<'a> UARTController<'a> {
         self.mmio.write_at_offset(c as u32, AUX_MU_IO as usize);
     }
 
+    pub fn write_hex(&self, n: usize) {
+        self.putc('0');
+        self.putc('x');
+
+        for c in (0..=60).step_by(4) {
+            let mut n = (n >> (60 - c)) & 0b1111;
+
+            n += if n > 9 { 0x37 } else {0x30};
+            self.putc(n as u8 as char);
+        }
+    }
+
     pub fn write(&self, s: &str) {
         for c in s.chars() {
             self.putc(c);

@@ -46,16 +46,16 @@ mod board {
 mod test {
     use super::MMIOController;
 
-    static mut storage: &'static mut [u32] = &mut [0; MMIOController.length];
+    static mut storage: &'static mut [u32] = &mut [0;super::LENGTH];
     
     impl MMIOController {
-        pub fn write_at_offset(data: u32, offset: usize) {
+        pub fn write_at_offset(&self, data: u32, offset: usize) {
             unsafe {
                 storage[offset] = data;
             }
         }
 
-        pub fn read_at_offset(offset: usize) -> u32 {
+        pub fn read_at_offset(&self, offset: usize) -> u32 {
             unsafe {
                 storage[offset]
             }

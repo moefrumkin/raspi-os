@@ -26,6 +26,8 @@ fn on_panic(_info: &PanicInfo) -> ! {
     status_light.set_blue(OutputLevel::Low);
 
     status_light.set_red(OutputLevel::High);
+
+    uart.writeln("A Fatal Kernel Panic Occured");
     
     loop {}
 }
