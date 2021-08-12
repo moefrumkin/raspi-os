@@ -13,11 +13,10 @@ pub struct MMIOController {
 }
 
 impl Default for MMIOController {
-
     fn default() -> Self {
         MMIOController {
             start: START,
-            length: LENGTH
+            length: LENGTH,
         }
     }
 }
@@ -41,9 +40,7 @@ mod board {
             if offset > self.length {
                 panic!("Tried to read from mmio out of bounds");
             }
-            unsafe {
-                core::ptr::read_volatile((self.start + offset) as *const u32)
-            }
+            unsafe { core::ptr::read_volatile((self.start + offset) as *const u32) }
         }
     }
 }
@@ -52,8 +49,8 @@ mod board {
 mod test {
     use super::MMIOController;
 
-    static mut storage: &'static mut [u32] = &mut [0;super::LENGTH];
-    
+    static mut storage: &'static mut [u32] = &mut [0; super::LENGTH];
+
     impl MMIOController {
         pub fn write_at_offset(&self, data: u32, offset: usize) {
             unsafe {
@@ -62,9 +59,7 @@ mod test {
         }
 
         pub fn read_at_offset(&self, offset: usize) -> u32 {
-            unsafe {
-                storage[offset]
-            }
+            unsafe { storage[offset] }
         }
     }
 }

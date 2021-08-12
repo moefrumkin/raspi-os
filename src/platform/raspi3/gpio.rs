@@ -1,7 +1,7 @@
 //! This module provides support for the raspberry pi's general purpose input output (gpio) pins
 
-use crate::aarch64::cpu;
 use super::mmio::MMIOController;
+use crate::aarch64::cpu;
 
 const PINS: u32 = 53;
 
@@ -24,15 +24,13 @@ const GPPUDCLK_SIZE: u32 = 32;
 const GPPUDCLK_BASE_OFFSET: u32 = GPCLR_BASE_OFFSET + 0x98;
 
 pub struct GPIOController<'a> {
-    mmio: &'a MMIOController
+    mmio: &'a MMIOController,
 }
 
 #[allow(dead_code)]
 impl<'a> GPIOController<'a> {
     pub fn new(mmio: &'a MMIOController) -> Self {
-        GPIOController {
-            mmio
-        }
+        GPIOController { mmio }
     }
 
     pub fn set_mode(&self, pin: Pin, mode: Mode) {
@@ -41,7 +39,8 @@ impl<'a> GPIOController<'a> {
 
         fsel &= !(111 << offset);
         fsel |= (mode as u32) << offset;
-        self.mmio.write_at_offset(fsel, (GPFSEL_BASE_OFFSET +  pin.gpfsel_block() * 4) as usize);
+        self.mmio
+            .write_at_offset(fsel, (GPFSEL_BASE_OFFSET + pin.gpfsel_block() * 4) as usize);
     }
 
     /// Sets the output of an output pin to the desired level
@@ -51,13 +50,13 @@ impl<'a> GPIOController<'a> {
             OutputLevel::High => {
                 self.mmio.write_at_offset(
                     self.get_gpset(pin) | (1 << pin.gpset_offset()),
-                    (GPSET_BASE_OFFSET + pin.gpset_block() * 4) as usize
+                    (GPSET_BASE_OFFSET + pin.gpset_block() * 4) as usize,
                 );
-            },
+            }
             OutputLevel::Low => {
                 self.mmio.write_at_offset(
                     self.get_gpclr(pin) | 1 << pin.gpclr_offset(),
-                    (GPCLR_BASE_OFFSET + pin.gpclr_block() * 4) as usize
+                    (GPCLR_BASE_OFFSET + pin.gpclr_block() * 4) as usize,
                 );
             }
         }
@@ -74,10 +73,8 @@ impl<'a> GPIOController<'a> {
 
         cpu::wait_for_cycles(150);
 
-        self.mmio.write_at_offset(
-            1 << pin.gppudclk_offset(),
-            gppudckl_offset as usize
-        );
+        self.mmio
+            .write_at_offset(1 << pin.gppudclk_offset(), gppudckl_offset as usize);
 
         cpu::wait_for_cycles(150);
 
@@ -85,15 +82,18 @@ impl<'a> GPIOController<'a> {
     }
 
     fn get_gpfsel(&self, pin: Pin) -> u32 {
-        self.mmio.read_at_offset((GPFSEL_BASE_OFFSET + pin.gpfsel_block() * 4) as usize)
+        self.mmio
+            .read_at_offset((GPFSEL_BASE_OFFSET + pin.gpfsel_block() * 4) as usize)
     }
 
     fn get_gpset(&self, pin: Pin) -> u32 {
-        self.mmio.read_at_offset((GPSET_BASE_OFFSET + pin.gpset_block() * 4) as usize)
+        self.mmio
+            .read_at_offset((GPSET_BASE_OFFSET + pin.gpset_block() * 4) as usize)
     }
 
     fn get_gpclr(&self, pin: Pin) -> u32 {
-        self.mmio.read_at_offset((GPCLR_BASE_OFFSET + pin.gpclr_block() * 4) as usize)
+        self.mmio
+            .read_at_offset((GPCLR_BASE_OFFSET + pin.gpclr_block() * 4) as usize)
     }
 }
 
@@ -103,7 +103,7 @@ pub struct StatusLight<'a> {
     red_pin: Pin,
     green_pin: Pin,
     blue_pin: Pin,
-    gpio_controller: &'a GPIOController<'a>
+    gpio_controller: &'a GPIOController<'a>,
 }
 
 impl<'a> StatusLight<'a> {
@@ -125,7 +125,7 @@ impl<'a> StatusLight<'a> {
             red_pin,
             green_pin,
             blue_pin,
-            gpio_controller
+            gpio_controller,
         }
     }
 
@@ -146,15 +146,13 @@ impl<'a> StatusLight<'a> {
 }
 
 /// Pin is a wrapper class for a u32 representing the pin number which ensures that any number inside is a valid pin number
-#[derive(Copy)]
-#[derive(Clone)]
+#[derive(Copy, Clone)]
 pub struct Pin {
     number: u32,
 }
 
 #[allow(dead_code)]
 impl Pin {
-
     /// Constructor that returns an error if an out of range number is supplied
     pub fn new(number: u32) -> Result<Self, ()> {
         if number > PINS {
@@ -198,8 +196,7 @@ impl Pin {
 }
 
 /// All possible pinmodes for a gpio pin
-#[derive(PartialEq)]
-#[derive(Debug)]
+#[derive(PartialEq, Debug)]
 #[allow(dead_code)]
 pub enum Mode {
     IN = 0b000,
@@ -209,22 +206,21 @@ pub enum Mode {
     AF2 = 0b110,
     AF3 = 0b111,
     AF4 = 0b011,
-    AF5 = 0b010
+    AF5 = 0b010,
 }
 
 /// Represents the possible output values of a pin
-#[derive(PartialEq)]
-#[derive(Debug)]
+#[derive(PartialEq, Debug)]
 pub enum OutputLevel {
     High,
-    Low
+    Low,
 }
 
 #[allow(dead_code)]
 pub enum Pull {
     Off = 0b00,
     Down = 0b01,
-    Up = 0b10
+    Up = 0b10,
 }
 
 //#[cfg(test)]

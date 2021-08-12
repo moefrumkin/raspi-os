@@ -7,20 +7,18 @@ const CLO_OFFSET: usize = 4;
 const CHI_OFFSET: usize = 8;
 
 pub struct Timer<'a> {
-    mmio: &'a MMIOController
+    mmio: &'a MMIOController,
 }
 
 impl<'a> Timer<'a> {
     pub fn new(mmio: &'a MMIOController) -> Self {
-        Timer {
-            mmio
-        }
+        Timer { mmio }
     }
 
     /// Gets the system time in microseconds.
     /// Because the [mmio](super::mmio) module currently only supports 32 bit reads, this is done as two 32 bit reads which are concatenated.
     pub fn time(&self) -> u64 {
-        let lo =  self.mmio.read_at_offset(TIMER_BASE_OFFSET + CLO_OFFSET) as u64;
+        let lo = self.mmio.read_at_offset(TIMER_BASE_OFFSET + CLO_OFFSET) as u64;
         let hi = self.mmio.read_at_offset(TIMER_BASE_OFFSET + CHI_OFFSET) as u64;
         (hi << 32) + lo
     }

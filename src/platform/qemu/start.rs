@@ -8,11 +8,8 @@ use core::ptr;
 #[naked]
 #[no_mangle]
 pub extern "C" fn _start() {
-    unsafe { 
-        asm!(
-            "ldr x30, =LD_STACK_PTR",
-            "mov sp, x30"
-        );
+    unsafe {
+        asm!("ldr x30, =LD_STACK_PTR", "mov sp, x30");
     }
 
     const UART0: *mut u8 = 0x0900_0000 as *mut u8;

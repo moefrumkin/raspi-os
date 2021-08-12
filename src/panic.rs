@@ -2,13 +2,13 @@
 //!
 //! The standard library has the default options of stack unwinding or aborting, however neither of those can be used, as the full standard library is not included
 
-use core::panic::PanicInfo;
 #[cfg(feature = "raspi3")]
 use super::platform::{
-    gpio::{StatusLight, GPIOController, OutputLevel},
+    gpio::{GPIOController, OutputLevel, StatusLight},
     mmio::MMIOController,
     uart::UARTController,
 };
+use core::panic::PanicInfo;
 
 ///The global panic handler
 #[cfg(feature = "raspi3")]
@@ -18,7 +18,6 @@ fn on_panic(info: &PanicInfo) -> ! {
     let gpio = GPIOController::new(&mmio);
     let uart = UARTController::init(&gpio, &mmio);
     let status_light = StatusLight::init(&gpio);
-
 
     status_light.set_green(OutputLevel::Low);
     status_light.set_blue(OutputLevel::Low);
@@ -44,7 +43,7 @@ fn on_panic(info: &PanicInfo) -> ! {
     } else {
         uart.writeln("No location found");
     }
-    
+
     loop {}
 }
 

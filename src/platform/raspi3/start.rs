@@ -1,10 +1,10 @@
 use super::{
-    gpio::{GPIOController, StatusLight, OutputLevel},
+    gpio::{GPIOController, OutputLevel, StatusLight},
+    gpu::{FBConfig, GPUController},
+    mailbox::MailboxController,
+    mmio::MMIOController,
     timer::Timer,
     uart::UARTController,
-    mmio::MMIOController,
-    mailbox::MailboxController,
-    gpu::{GPUController, FBConfig}
 };
 
 global_asm!(include_str!("start.s"));
@@ -34,7 +34,7 @@ pub fn main() {
 
     uart.writeln("GPU Initialized");
 
-    loop { 
+    loop {
         for offset in 0..64 {
             for y in 0..1080 {
                 for x in 0..1920 {
@@ -50,7 +50,6 @@ pub fn main() {
 }
 
 pub fn blink_sequence(status_light: &StatusLight, timer: &Timer, interval: u64) {
-
     status_light.set_green(OutputLevel::High);
 
     timer.delay(interval);

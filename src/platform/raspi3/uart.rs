@@ -1,4 +1,7 @@
-use super::{gpio::{GPIOController, Pin, Mode}, mmio::MMIOController};
+use super::{
+    gpio::{GPIOController, Mode, Pin},
+    mmio::MMIOController,
+};
 
 const UART_BASE_OFFSET: u32 = 0x215000;
 
@@ -16,18 +19,15 @@ const AUX_MU_BAUD: u32 = UART_BASE_OFFSET + 0x68;
 #[allow(dead_code)]
 pub struct UARTController<'a> {
     gpio: &'a GPIOController<'a>,
-    mmio: &'a MMIOController
+    mmio: &'a MMIOController,
 }
 
 impl<'a> UARTController<'a> {
-    pub fn init(
-            gpio: &'a GPIOController,
-            mmio: &'a MMIOController
-        ) -> Self {
+    pub fn init(gpio: &'a GPIOController, mmio: &'a MMIOController) -> Self {
         //Enable UART
         mmio.write_at_offset(
             mmio.read_at_offset(AUX_ENABLE as usize) | 1,
-            AUX_ENABLE as usize
+            AUX_ENABLE as usize,
         );
 
         //Disable Tx and Rx
@@ -57,10 +57,7 @@ impl<'a> UARTController<'a> {
         //enable Tx and Rx
         mmio.write_at_offset(3, AUX_MU_CNTL as usize);
 
-        UARTController {
-            gpio,
-            mmio
-        }
+        UARTController { gpio, mmio }
     }
 
     pub fn putc(&self, c: char) {
@@ -79,7 +76,7 @@ impl<'a> UARTController<'a> {
         for c in (0..=60).step_by(4) {
             let mut n = (n >> (60 - c)) & 0b1111;
 
-            n += if n > 9 { 0x37 } else {0x30};
+            n += if n > 9 { 0x37 } else { 0x30 };
             self.putc(n as u8 as char);
         }
     }

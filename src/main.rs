@@ -13,4 +13,4 @@ mod platform;
 
 #[cfg(not(test))]
 #[lang = "eh_personality"]
-pub extern fn eh_personality() {}
+pub extern "C" fn eh_personality() {}
