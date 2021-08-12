@@ -8,16 +8,14 @@ use super::platform::{
     gpio::{StatusLight, GPIOController, OutputLevel},
     mmio::MMIOController,
     uart::UARTController,
-    timer::Timer
 };
 
 ///The global panic handler
 #[cfg(feature = "raspi3")]
 #[panic_handler]
-fn on_panic(_info: &PanicInfo) -> ! {
+fn on_panic(info: &PanicInfo) -> ! {
     let mmio = MMIOController::default();
     let gpio = GPIOController::new(&mmio);
-    let timer = Timer::new(&mmio);
     let uart = UARTController::init(&gpio, &mmio);
     let status_light = StatusLight::init(&gpio);
 
@@ -27,7 +25,25 @@ fn on_panic(_info: &PanicInfo) -> ! {
 
     status_light.set_red(OutputLevel::High);
 
+    uart.writeln("");
     uart.writeln("A Fatal Kernel Panic Occured");
+    if let Some(args) = info.message() {
+        if let Some(location) = args.as_str() {
+            uart.writeln(location);
+        } else {
+            uart.writeln("No message supplied");
+        }
+    }
+
+    if let Some(location) = info.location() {
+        uart.write("@ ");
+        uart.write(location.file());
+        uart.write(": ");
+        uart.write_hex(location.line() as usize);
+        uart.writeln("");
+    } else {
+        uart.writeln("No location found");
+    }
     
     loop {}
 }

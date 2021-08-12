@@ -1,6 +1,4 @@
-use core::fmt;
-use crate::aarch64::cpu;
-use super::{gpio::{GPIOController, Pin, Mode, Pull}, mmio::MMIOController};
+use super::{gpio::{GPIOController, Pin, Mode}, mmio::MMIOController};
 
 const UART_BASE_OFFSET: u32 = 0x215000;
 
@@ -15,6 +13,7 @@ const AUX_MU_LSR: u32 = UART_BASE_OFFSET + 0x54;
 const AUX_MU_CNTL: u32 = UART_BASE_OFFSET + 0x60;
 const AUX_MU_BAUD: u32 = UART_BASE_OFFSET + 0x68;
 
+#[allow(dead_code)]
 pub struct UARTController<'a> {
     gpio: &'a GPIOController<'a>,
     mmio: &'a MMIOController
@@ -99,6 +98,7 @@ impl<'a> UARTController<'a> {
         self.putc('\r');
     }
 
+    #[allow(dead_code)]
     pub fn read(&self) -> Result<char, ()> {
         while self.mmio.read_at_offset(AUX_MU_LSR as usize) & 0b1 == 0 {
             unsafe {

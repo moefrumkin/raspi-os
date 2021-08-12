@@ -4,6 +4,7 @@
 #![feature(asm)]
 #![feature(naked_functions)]
 #![feature(lang_items)]
+#![feature(panic_info_message)]
 
 mod aarch64;
 #[cfg(not(test))]

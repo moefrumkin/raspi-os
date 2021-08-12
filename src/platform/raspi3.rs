@@ -7,3 +7,4 @@ pub mod mmio;
 pub mod start;
 pub mod gpu;
 pub mod uart;
+pub mod mailbox;

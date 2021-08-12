@@ -16,8 +16,10 @@ const GPSET_BASE_OFFSET: u32 = GPIO_BASE_OFFSET + 0x1c;
 const GPCLR_SIZE: u32 = 32;
 const GPCLR_BASE_OFFSET: u32 = GPIO_BASE_OFFSET + 0x28;
 
+#[allow(dead_code)]
 const GPPPUD: u32 = GPIO_BASE_OFFSET + 0x94;
 
+#[allow(dead_code)]
 const GPPUDCLK_SIZE: u32 = 32;
 const GPPUDCLK_BASE_OFFSET: u32 = GPCLR_BASE_OFFSET + 0x98;
 
@@ -25,6 +27,7 @@ pub struct GPIOController<'a> {
     mmio: &'a MMIOController
 }
 
+#[allow(dead_code)]
 impl<'a> GPIOController<'a> {
     pub fn new(mmio: &'a MMIOController) -> Self {
         GPIOController {
@@ -149,6 +152,7 @@ pub struct Pin {
     number: u32,
 }
 
+#[allow(dead_code)]
 impl Pin {
 
     /// Constructor that returns an error if an out of range number is supplied
@@ -196,6 +200,7 @@ impl Pin {
 /// All possible pinmodes for a gpio pin
 #[derive(PartialEq)]
 #[derive(Debug)]
+#[allow(dead_code)]
 pub enum Mode {
     IN = 0b000,
     OUT = 0b001,
@@ -215,27 +220,11 @@ pub enum OutputLevel {
     Low
 }
 
+#[allow(dead_code)]
 pub enum Pull {
     Off = 0b00,
     Down = 0b01,
     Up = 0b10
-}
-
-impl Mode {
-    /// Takes a u32 an returns a Mode if the value represents a valid pin mode, otherwise Err(())
-    pub fn from_u32(value: u32) -> Result<Mode, ()> {
-        match value {
-            0b000u32 => Ok(Mode::IN),
-            0b001u32 => Ok(Mode::OUT),
-            0b100u32 => Ok(Mode::AF0),
-            0b101u32 => Ok(Mode::AF1),
-            0b110u32 => Ok(Mode::AF2),
-            0b111u32 => Ok(Mode::AF3),
-            0b011u32 => Ok(Mode::AF4),
-            0b010u32 => Ok(Mode::AF5),
-            _ => Err(())
-        }
-    }
 }
 
 //#[cfg(test)]

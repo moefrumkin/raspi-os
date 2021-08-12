@@ -3,9 +3,9 @@ use super::{
     timer::Timer,
     uart::UARTController,
     mmio::MMIOController,
-    gpu
+    mailbox::MailboxController,
+    gpu::{GPUController, FBConfig}
 };
-use crate::aarch64::{cpu, registers::SP};
 
 global_asm!(include_str!("start.s"));
 
@@ -14,22 +14,37 @@ pub fn main() {
     let mmio = MMIOController::default();
     let gpio = GPIOController::new(&mmio);
     let timer = Timer::new(&mmio);
-    let uart = UARTController::init(&gpio, &mmio);
-    let status_light = StatusLight::init(&gpio);
+    let mailbox = MailboxController::new(&mmio);
 
-    blink_sequence(&status_light, &timer, 250);
+    let uart = UARTController::init(&gpio, &mmio);
 
     uart.writeln("UART Connection Initialized");
 
-    uart.write_hex(&uart as *const UARTController as usize);
+    uart.writeln("Initializing Status Light");
 
-    uart.writeln("");
+    let status_light = StatusLight::init(&gpio);
 
-    unsafe {gpu::fn_init(&mmio, &uart);}
+    uart.writeln("Status Light Initialized");
 
-    loop {
-        unsafe {
-            gpu::draw_stuff();
+    blink_sequence(&status_light, &timer, 100);
+
+    uart.writeln("Initializing GPU");
+
+    let mut gpu = GPUController::init(&mmio, &mailbox, FBConfig::default());
+
+    uart.writeln("GPU Initialized");
+
+    loop { 
+        for offset in 0..64 {
+            for y in 0..1080 {
+                for x in 0..1920 {
+                    let red = (x + 4 * offset) & 0xff;
+                    let blue = (y + 4 * offset) & 0xff;
+                    let green = 4 * offset;
+                    let color = (red << 16) + (blue << 8) + green;
+                    gpu.set(x, y, color);
+                }
+            }
         }
     }
 }
