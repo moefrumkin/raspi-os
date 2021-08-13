@@ -1,7 +1,7 @@
 PLATFORM ?= raspi3
 
 ARCH = aarch64-unknown-none
-BUILD_CMD = cargo build -Zbuild-std=core --features=$(PLATFORM) --target=$(ARCH).json --release
+BUILD_CMD = cargo build -Zbuild-std=core,alloc --features=$(PLATFORM) --target=$(ARCH).json --release
 
 KERNEL_ELF = target/$(ARCH)/release/graph_os
 
@@ -20,8 +20,10 @@ endif
 CPU = cortex-a53
 QEMU_CMD = $(QEMU) \
 	-machine $(MACHINE) \
+	-device ramfb \
 	-m 1024M -cpu $(CPU) \
 	-smp $(CORES) \
+	-serial stdio \
 	-kernel $(KERNEL_ELF)
 
 OBJDUMP = aarch64-none-elf-objdump
@@ -37,7 +39,6 @@ all: build doc-noopen
 
 qemu:
 	make PLATFORM=qemu
-	
 
 build:
 	$(BUILD_CMD)

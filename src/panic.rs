@@ -8,7 +8,7 @@ use super::platform::{
     mmio::MMIOController,
     uart::UARTController,
 };
-use core::panic::PanicInfo;
+use core::{panic::PanicInfo, alloc::Layout};
 
 ///The global panic handler
 #[cfg(feature = "raspi3")]
@@ -47,8 +47,20 @@ fn on_panic(info: &PanicInfo) -> ! {
     loop {}
 }
 
+#[cfg(feature = "raspi3")]
+#[alloc_error_handler]
+fn on_alloc_error(layout: Layout) -> ! {
+    panic!("Unable to allocate: {:?}", layout);
+}
+
 #[cfg(not(feature = "raspi3"))]
 #[panic_handler]
 fn on_panic(_info: &PanicInfo) -> ! {
     loop {}
+}
+
+#[cfg(not(feature = "raspi3"))]
+#[alloc_error_handler]
+fn on_alloc_error(_layout: Layout) -> ! {
+    panic!();
 }
