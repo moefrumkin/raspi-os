@@ -1,3 +1,4 @@
+use crate::ALLOCATOR;
 use super::{
     gpio::{GPIOController, OutputLevel, StatusLight},
     gpu::{FBConfig, GPUController},
@@ -10,21 +11,33 @@ use super::{
 global_asm!(include_str!("start.s"));
 
 #[no_mangle]
-pub fn main() {
+pub fn main(heap_start: usize) {
     let mmio = MMIOController::default();
     let gpio = GPIOController::new(&mmio);
     let timer = Timer::new(&mmio);
     let mailbox = MailboxController::new(&mmio);
 
-    let uart = UARTController::init(&gpio, &mmio);
+    let mut uart = UARTController::init(&gpio, &mmio);
 
+    uart.newline();
+    uart.newline();
     uart.writeln("UART Connection Initialized");
+    uart.newline();
+
+    let heap_size = 65536;
+
+    uart.writeln("Initializing Heap Allocator");
+
+    ALLOCATOR.lock().init(heap_start, heap_size);
+    uart.writefln(format_args!("Heap Allocator initialized at {:#x} with size {}", heap_start, heap_size));
+    uart.newline();
 
     uart.writeln("Initializing Status Light");
 
     let status_light = StatusLight::init(&gpio);
 
     uart.writeln("Status Light Initialized");
+    uart.newline();
 
     blink_sequence(&status_light, &timer, 100);
 
@@ -33,6 +46,7 @@ pub fn main() {
     let mut gpu = GPUController::init(&mmio, &mailbox, FBConfig::default());
 
     uart.writeln("GPU Initialized");
+    uart.newline();
 
     loop {
         for offset in 0..64 {

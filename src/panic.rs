@@ -16,7 +16,7 @@ use core::{panic::PanicInfo, alloc::Layout};
 fn on_panic(info: &PanicInfo) -> ! {
     let mmio = MMIOController::default();
     let gpio = GPIOController::new(&mmio);
-    let uart = UARTController::init(&gpio, &mmio);
+    let mut uart = UARTController::init(&gpio, &mmio);
     let status_light = StatusLight::init(&gpio);
 
     status_light.set_green(OutputLevel::Low);
@@ -35,11 +35,7 @@ fn on_panic(info: &PanicInfo) -> ! {
     }
 
     if let Some(location) = info.location() {
-        uart.write("@ ");
-        uart.write(location.file());
-        uart.write(": ");
-        uart.write_hex(location.line() as usize);
-        uart.writeln("");
+        uart.writefln(format_args!("@ {}:{}", location.file(), location.line()));
     } else {
         uart.writeln("No location found");
     }

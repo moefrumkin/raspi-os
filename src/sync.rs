@@ -15,8 +15,8 @@ impl<T> SpinMutex<T> {
     }
 
     pub fn lock(&self) -> SpinMutexGuard<T> {
-        //TODO: look into better ways to acqurie lock
-        while self.lock.compare_exchange_weak(false, true, Ordering::Acquire, Ordering::Relaxed).is_err() {}
+        //TODO: implement lock on rpi
+        //while self.lock.compare_exchange(false, true, Ordering::Acquire, Ordering::Relaxed).is_err() {}
 
         SpinMutexGuard {
             lock: &self.lock,

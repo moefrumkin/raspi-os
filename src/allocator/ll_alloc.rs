@@ -79,13 +79,13 @@ impl LinkedListAllocator {
             if let Ok(start) = Self::find_start(block, size, align) {
                 let next = block.next.take();
                 let result = Some((
-                    current.next.take().unwrap(),
+                    current.next.take().expect("The current block does not point to another block"),
                     start
                 ));
                 current.next = next;
                 return result;
             } else {
-                current = current.next.as_mut().unwrap();
+                current = current.next.as_mut().expect("Unable to mutably access next block");
             }
         }
 

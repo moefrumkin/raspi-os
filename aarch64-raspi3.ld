@@ -13,6 +13,7 @@ SECTIONS
         *(COMMON)
         bss_end = .;
     }
+    . = ALIGN(16);
     HEAP_START = .;
 
    /DISCARD/ : { *(.comment) *(.gnu*) *(.note*) *(.eh_frame*) }

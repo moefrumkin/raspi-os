@@ -25,4 +25,5 @@ _start:
     cbnz    w2, 3b
 
     // jump to C code, should not return
-4:  b       main
+4:  ldr     x0, =HEAP_START
+    b       main

@@ -52,6 +52,12 @@ run:
 dump:
 	$(OBJDUMP_CMD)
 
+nm:
+	aarch64-none-elf-nm $(KERNEL_ELF)
+
+readelf:
+	aarch64-none-elf-readelf --header $(KERNEL_ELF)
+
 debug:
 	$(QEMU_CMD)	-S -s
 

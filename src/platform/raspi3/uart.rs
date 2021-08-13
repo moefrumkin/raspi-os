@@ -1,3 +1,4 @@
+use core::{ fmt, fmt::{ Arguments, Write, Error } };
 use super::{
     gpio::{GPIOController, Mode, Pin},
     mmio::MMIOController,
@@ -20,6 +21,13 @@ const AUX_MU_BAUD: u32 = UART_BASE_OFFSET + 0x68;
 pub struct UARTController<'a> {
     gpio: &'a GPIOController<'a>,
     mmio: &'a MMIOController,
+}
+
+impl <'a> Write for UARTController<'a> {
+    fn write_str(&mut self, s: &str) -> Result<(), Error> {
+        self.write(s);
+        Ok(())
+    }
 }
 
 impl<'a> UARTController<'a> {
@@ -60,7 +68,7 @@ impl<'a> UARTController<'a> {
         UARTController { gpio, mmio }
     }
 
-    pub fn putc(&self, c: char) {
+    fn putc(&self, c: char) {
         while self.mmio.read_at_offset(AUX_MU_LSR as usize) & 0b100000 == 0 {
             unsafe {
                 asm!("nop");
@@ -69,30 +77,34 @@ impl<'a> UARTController<'a> {
         self.mmio.write_at_offset(c as u32, AUX_MU_IO as usize);
     }
 
-    pub fn write_hex(&self, n: usize) {
-        self.putc('0');
-        self.putc('x');
-
-        for c in (0..=60).step_by(4) {
-            let mut n = (n >> (60 - c)) & 0b1111;
-
-            n += if n > 9 { 0x37 } else { 0x30 };
-            self.putc(n as u8 as char);
-        }
+    pub fn newline(&self) {
+        self.putc('\n');
+        self.putc('\r');
     }
 
+    #[allow(dead_code)]
     pub fn write(&self, s: &str) {
         for c in s.chars() {
             self.putc(c);
         }
     }
-
+    
     pub fn writeln(&self, s: &str) {
-        for c in s.chars() {
-            self.putc(c);
-        }
-        self.putc('\n');
-        self.putc('\r');
+        self.write(s);
+        self.newline();
+    }
+
+    #[allow(dead_code)]
+    pub fn writef(&mut self, args: Arguments) {
+        #[allow(unused_must_use)]
+        fmt::write(self, args);
+    }
+
+    pub fn writefln(&mut self, args: Arguments) {
+        #[allow(unused_must_use)]
+        fmt::write(self, args);
+        self.newline();
+        
     }
 
     #[allow(dead_code)]
