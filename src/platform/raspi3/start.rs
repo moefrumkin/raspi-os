@@ -56,7 +56,7 @@ pub fn main(heap_start: usize) {
                     let blue = (y + 4 * offset) & 0xff;
                     let green = 4 * offset;
                     let color = (red << 16) + (blue << 8) + green;
-                    gpu.set(x, y, color);
+                    gpu.set_pxl(x, y, color);
                 }
             }
         }

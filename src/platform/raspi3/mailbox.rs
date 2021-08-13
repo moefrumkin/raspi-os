@@ -1,4 +1,3 @@
-use super::gpu::{Tag, MBOX_REQUEST};
 use super::mmio::MMIOController;
 
 const MBOX_BASE_OFFSET: usize = 0xB880;
@@ -69,53 +68,4 @@ pub enum Channel {
     Touch = 6,
     Count = 7,
     Prop = 8,
-}
-
-pub static mut MBOX: MailboxData = MailboxData {
-    data: [
-        //Headers: message size and type
-        35 * 4,
-        MBOX_REQUEST,
-        Tag::SetPhyDim as u32,
-        8,
-        8,
-        1920,
-        1080,
-        Tag::SetVirDim as u32,
-        8,
-        8,
-        1920,
-        1080,
-        Tag::SetVirOff as u32,
-        8,
-        8,
-        0,
-        0,
-        Tag::SetDepth as u32,
-        4,
-        4,
-        32,
-        Tag::SetPxlOrdr as u32,
-        4,
-        4,
-        1,
-        Tag::GetFB as u32,
-        8,
-        8,
-        4096,
-        0,
-        Tag::GetPitch as u32,
-        4,
-        4,
-        0,
-        Tag::EndOfMessage as u32,
-        0,
-    ],
-};
-
-#[repr(C)]
-#[repr(align(16))]
-#[allow(dead_code)]
-pub struct MailboxData {
-    pub data: [u32; 36],
 }
