@@ -19,12 +19,15 @@ use allocator::ll_alloc::LinkedListAllocator;
 #[global_allocator]
 static ALLOCATOR: SpinMutex<LinkedListAllocator> =  SpinMutex::new(LinkedListAllocator::new());
 
+#[cfg(not(test))]
 mod aarch64;
 #[cfg(not(test))]
 mod panic;
 mod platform;
 mod allocator;
 mod sync;
+mod canvas;
+mod utils;
 
 #[cfg(not(test))]
 #[lang = "eh_personality"]

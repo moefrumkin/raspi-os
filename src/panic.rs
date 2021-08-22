@@ -35,7 +35,7 @@ fn on_panic(info: &PanicInfo) -> ! {
     }
 
     if let Some(location) = info.location() {
-        uart.writefln(format_args!("@ {}:{}", location.file(), location.line()));
+        uart.writefln(format_args!("@{}:{}", location.file(), location.line()));
     } else {
         uart.writeln("No location found");
     }

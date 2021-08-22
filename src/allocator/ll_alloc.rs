@@ -112,9 +112,17 @@ impl LinkedListAllocator {
 
     /// Expands a layout to the minimum size required to fit a FreeBlock instance 
     fn expand_to_min(layout: Layout) -> (usize, usize) {
+        if layout.align() == 0 {
+            panic!("Layout must have non zero alignment");
+        }
+
+        if layout.align() & (layout.align() << 1) != 0 {
+            panic!("Layout must have power of two alignment");
+        }
         let layout = layout
             .align_to(mem::align_of::<FreeBlock>())
-            .expect("Unable to fit layout to minimum size")
+            //.expect("Unable to fit layout to minimum size")
+            .unwrap()
             .pad_to_align();
         
             ( layout.size().max(mem::size_of::<FreeBlock>()), layout.align() )

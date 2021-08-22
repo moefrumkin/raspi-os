@@ -1,0 +1,25 @@
+global_asm!(include_str!("math.s"));
+
+extern "C" {
+    pub fn sqrt_asm(f: f64) -> f64;
+    pub fn abs_asm(f: f64) -> f64;
+    pub fn round_asm(f: f64) -> isize;
+}
+
+pub fn sqrt(f: f64) -> f64 {
+    unsafe {
+        sqrt_asm(f)
+    }
+}
+
+pub fn abs(f: f64) -> f64 {
+    unsafe {
+        abs_asm(f)
+    }
+}
+
+pub fn round(f: f64) -> isize {
+    unsafe {
+        round_asm(f)
+    }
+}

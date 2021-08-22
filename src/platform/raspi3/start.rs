@@ -1,4 +1,7 @@
+use alloc::boxed::Box;
 use crate::ALLOCATOR;
+use crate::canvas::{canvas2d::Canvas2D, vector::Vector};
+use crate::sync::SpinMutex;
 use super::{
     gpio::{GPIOController, OutputLevel, StatusLight},
     gpu::{FBConfig, GPUController},
@@ -45,22 +48,26 @@ pub fn main(heap_start: usize) {
 
     let mut gpu = GPUController::init(&mmio, &mailbox, FBConfig::default());
 
-    uart.writeln("GPU Initialized");
+    uart.writeln("GPU Initialized with Config:");
+    uart.writefln(format_args!("{:?}", gpu.config()));
     uart.newline();
 
-    loop {
-        for offset in 0..64 {
-            for y in 0..1080 {
-                for x in 0..1920 {
-                    let red = (x + 4 * offset) & 0xff;
-                    let blue = (y + 4 * offset) & 0xff;
-                    let green = 4 * offset;
-                    let color = (red << 16) + (blue << 8) + green;
-                    gpu.set_pxl(x, y, color);
-                }
-            }
+    for y in 0..1080 {
+        for x in 0..1920 {
+            let red = x & 0xff;
+            let blue = y & 0xff;
+            let green = 0;
+            let color = (red << 16) + (green << 8) + blue;
+            gpu.set_pxl(x, y, color as u32);
         }
     }
+
+    uart.writeln("Initializing Canvas");
+
+    let mut canvas = Canvas2D::new(&mut gpu, 1920, 1080);
+
+    uart.writeln("Canvas Initialized");
+    uart.newline();
 }
 
 pub fn blink_sequence(status_light: &StatusLight, timer: &Timer, interval: u64) {

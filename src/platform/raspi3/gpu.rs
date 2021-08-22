@@ -1,3 +1,5 @@
+use crate::canvas::Draw;
+
 use super::mailbox::{Channel, MailboxController};
 use super::mmio::MMIOController;
 
@@ -12,6 +14,12 @@ pub struct GPUController<'a> {
 }
 
 pub const MBOX_REQUEST: u32 = 0;
+
+impl<'a> Draw for GPUController<'a> {
+    fn draw(&mut self, x: usize, y: usize, color: u32) {
+        self.set_pxl(x, y , color);
+    }
+}
 
 impl<'a> GPUController<'a> {
     pub fn init(mmio: &'a MMIOController, mailbox: &'a MailboxController, _: FBConfig) -> Self {
@@ -54,16 +62,21 @@ impl<'a> GPUController<'a> {
         };
     }
 
-    pub fn set_pxl(&mut self, x: u32, y: u32, color: u32) {
+    pub fn config(&self) -> &FBConfig {
+        &self.fb_config
+    }
+
+    pub fn set_pxl(&mut self, x: usize, y: usize, color: u32) {
         self.fb[self.address(x, y)] = color;
     }
 
-    fn address(&self, x: u32, y: u32) -> usize {
-        (self.fb_config.vir_width * y + x) as usize
+    fn address(&self, x: usize, y: usize) -> usize {
+        (self.fb_config.vir_width as usize * y + x) as usize
     }
 }
 
 #[allow(dead_code)]
+#[derive(Debug)]
 pub struct FBConfig {
     phy_width: u32,
     phy_height: u32,
