@@ -1,8 +1,19 @@
-mod accessors;
+#[macro_export]
+macro_rules! read {
+    ($sysreg: literal) => {
+        unsafe { 
+            let value: usize;
+            asm!(concat!("mrs {}, " , $sysreg), out(reg) value);
+            value
+        }
+    }
+}
 
-mod mpidr_el1;
-
-mod sp;
-
-pub use mpidr_el1::MPIDR_EL1;
-pub use sp::SP;
+#[macro_export]
+macro_rules! write_from {
+    ($variable: ident, $sysreg: literal) => {
+        unsafe {
+            asm!(concat!("msr {}, ", $sysreg), in(reg) $variable);
+        }
+    };
+}

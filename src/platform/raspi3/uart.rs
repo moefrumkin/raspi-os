@@ -1,4 +1,5 @@
 use core::{ fmt, fmt::{ Arguments, Write, Error } };
+use crate::aarch64::cpu;
 use super::{
     gpio::{GPIOController, Mode, Pin},
     mmio::MMIOController,
@@ -21,6 +22,27 @@ const AUX_MU_BAUD: u32 = UART_BASE_OFFSET + 0x68;
 pub struct UARTController<'a> {
     gpio: &'a GPIOController<'a>,
     mmio: &'a MMIOController,
+    config: UARTConfig
+}
+
+pub struct UARTConfig {
+    level: LogLevel,
+    lines: u64
+}
+
+impl UARTConfig {
+    pub const fn new() -> Self {
+        Self {
+            level: LogLevel::Plain,
+            lines: 0
+        }
+    }
+}
+
+#[derive(PartialEq)]
+pub enum LogLevel{
+    Plain,
+    Debug
 }
 
 impl <'a> Write for UARTController<'a> {
@@ -65,7 +87,7 @@ impl<'a> UARTController<'a> {
         //enable Tx and Rx
         mmio.write_at_offset(3, AUX_MU_CNTL as usize);
 
-        UARTController { gpio, mmio }
+        UARTController { gpio, mmio, config: UARTConfig::new() }
     }
 
     fn putc(&self, c: char) {
@@ -77,7 +99,7 @@ impl<'a> UARTController<'a> {
         self.mmio.write_at_offset(c as u32, AUX_MU_IO as usize);
     }
 
-    pub fn newline(&self) {
+    pub fn newline(&mut self) {
         self.putc('\n');
         self.putc('\r');
     }
@@ -89,7 +111,8 @@ impl<'a> UARTController<'a> {
         }
     }
     
-    pub fn writeln(&self, s: &str) {
+    pub fn writeln(&mut self, s: &str) {
+        self.update_debug();
         self.write(s);
         self.newline();
     }
@@ -101,6 +124,7 @@ impl<'a> UARTController<'a> {
     }
 
     pub fn writefln(&mut self, args: Arguments) {
+        self.update_debug();
         #[allow(unused_must_use)]
         fmt::write(self, args);
         self.newline();
@@ -116,5 +140,17 @@ impl<'a> UARTController<'a> {
         }
 
         core::char::from_u32(self.mmio.read_at_offset(AUX_MU_IO as usize)).ok_or(())
+    }
+
+    pub fn set_log_level(&mut self, level: LogLevel) {
+        self.config.level = level;
+    }
+
+    fn update_debug(&mut self) {
+        self.config.lines += 1;
+        if self.config.level == LogLevel::Debug {
+            let lines = self.config.lines;
+            self.writef(format_args!("{}](EL{}@{}): ", lines, cpu::current_el(), cpu::core_id()));
+        }
     }
 }

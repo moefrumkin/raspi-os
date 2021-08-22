@@ -8,7 +8,7 @@ use super::{
     mailbox::MailboxController,
     mmio::MMIOController,
     timer::Timer,
-    uart::UARTController,
+    uart::{UARTController, LogLevel},
 };
 
 global_asm!(include_str!("start.s"));
@@ -21,6 +21,7 @@ pub fn main(heap_start: usize) {
     let mailbox = MailboxController::new(&mmio);
 
     let mut uart = UARTController::init(&gpio, &mmio);
+    uart.set_log_level(LogLevel::Debug);
 
     uart.newline();
     uart.newline();
