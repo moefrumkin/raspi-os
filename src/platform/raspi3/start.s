@@ -14,6 +14,7 @@ _start:
 
     // set stack before our code
     ldr     x1, =_start
+    //msr     SPSel, xzr //use sp_el0 as the default sp
     mov     sp, x1
 
     // clear bss
@@ -24,6 +25,8 @@ _start:
     sub     w2, w2, #1
     cbnz    w2, 3b
 
-    // jump to C code, should not return
-4:  ldr     x0, =HEAP_START
+    // set up exception handlers and jump to Rust, should not return
+4:  ldr     x0, =_exception_vector
+    msr     VBAR_EL1, x0
+    ldr     x0, =HEAP_START
     b       main

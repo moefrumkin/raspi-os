@@ -90,7 +90,7 @@ impl<'a> UARTController<'a> {
         UARTController { gpio, mmio, config: UARTConfig::new() }
     }
 
-    fn putc(&self, c: char) {
+    pub fn putc(&self, c: char) {
         while self.mmio.read_at_offset(AUX_MU_LSR as usize) & 0b100000 == 0 {
             unsafe {
                 asm!("nop");
@@ -150,7 +150,7 @@ impl<'a> UARTController<'a> {
         self.config.lines += 1;
         if self.config.level == LogLevel::Debug {
             let lines = self.config.lines;
-            self.writef(format_args!("{}](EL{}@{}): ", lines, cpu::current_el(), cpu::core_id()));
+            self.writef(format_args!("{}](EL{}@{}): ", lines, cpu::el(), cpu::core_id()));
         }
     }
 }
