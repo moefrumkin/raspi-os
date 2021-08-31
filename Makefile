@@ -20,11 +20,11 @@ endif
 CPU = cortex-a53
 QEMU_CMD = $(QEMU) \
 	-machine $(MACHINE) \
-	-device ramfb \
 	-m 1024M -cpu $(CPU) \
 	-smp $(CORES) \
 	-serial stdio \
-	-kernel $(KERNEL_ELF)
+	-kernel $(KERNEL_ELF) \
+	-d int
 
 OBJDUMP = aarch64-none-elf-objdump
 OBJDUMP_CMD = $(OBJDUMP) --disassemble-all $(KERNEL_ELF)

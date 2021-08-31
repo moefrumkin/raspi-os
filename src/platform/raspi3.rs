@@ -8,3 +8,6 @@ pub mod mmio;
 pub mod start;
 pub mod timer;
 pub mod uart;
+pub mod lcd;
+
+mod exception;

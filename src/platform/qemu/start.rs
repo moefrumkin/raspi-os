@@ -25,9 +25,5 @@ pub extern "C" fn main() {
 
     uart.writeln("Allocator Initialized");
 
-    let vec: Vec<u8> = vec![49, 50, 51];
-
-    for n in vec {
-        uart.putc(n as char);
-    }
+    
 }

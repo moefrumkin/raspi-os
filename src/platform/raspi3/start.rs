@@ -4,18 +4,42 @@ use crate::aarch64::cpu;
 use crate::{write, read};
 
 use super::{
-    gpio::{GPIOController, OutputLevel, StatusLight},
+    gpio::{GPIOController, OutputLevel, StatusLight, Pin},
     gpu::{FBConfig, GPUController},
     mailbox::MailboxController,
     mmio::MMIOController,
     timer::Timer,
     uart::{UARTController, LogLevel},
+    lcd::LCDController
 };
 
 global_asm!(include_str!("start.s"));
 
 #[no_mangle]
 pub extern "C" fn main(heap_start: usize) {
+    let mmio = MMIOController::default();
+    let gpio = GPIOController::new(&mmio);
+    let status_light = StatusLight::init(&gpio);
+    let timer = Timer::new(&mmio);
+    let mut uart = UARTController::init(&gpio, &mmio);
+    uart.writeln("Hello");
+    let lcd = LCDController::init(
+        &gpio,
+        &timer,
+        Pin::new(20).unwrap(),
+        Pin::new(16).unwrap(),
+        [
+            Pin::new(26).unwrap(),
+            Pin::new(19).unwrap(),
+            Pin::new(13).unwrap(),
+            Pin::new(6).unwrap()
+        ]
+    );
+
+    lcd.send_data(0b0010_0001);
+    uart.writeln("data sent");
+
+    loop{}
     if cpu::el() == 2 {
         // Counter and Timer Hyp Control
         // allow el 1 and 0 access to the timer and counter reigsters
@@ -56,11 +80,24 @@ pub fn init_el1() {
     let gpio = GPIOController::new(&mmio);
     let status_light = StatusLight::init(&gpio);
     let timer = Timer::new(&mmio);
-    let mut uart = UARTController::init(&gpio, &mmio);
+    let lcd = LCDController::init(
+        &gpio,
+        &timer,
+        Pin::new(20).unwrap(),
+        Pin::new(16).unwrap(),
+        [
+            Pin::new(26).unwrap(),
+            Pin::new(19).unwrap(),
+            Pin::new(13).unwrap(),
+            Pin::new(6).unwrap()
+        ]
+    );
+
+    lcd.send_data('f' as u8);
     
     blink_sequence(&status_light, &timer, 50);
 
-    
+    loop {}
 }
 
 #[inline(never)]

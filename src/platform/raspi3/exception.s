@@ -7,7 +7,7 @@
     mrs     x3, elr_el1
     mrs     x4, spsr_el1
     mrs     x5, far_el1
-    mrs     x6, sp
+    mov     x6, sp
     b       \handler
 .endm   
 

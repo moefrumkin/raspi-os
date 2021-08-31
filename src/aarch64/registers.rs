@@ -10,10 +10,10 @@ macro_rules! read {
 }
 
 #[macro_export]
-macro_rules! write_from {
-    ($variable: ident, $sysreg: literal) => {
+macro_rules! write {
+    ($sysreg: literal, $value: expr) => {
         unsafe {
-            asm!(concat!("msr {}, ", $sysreg), in(reg) $variable);
+            asm!(concat!("msr ", $sysreg, ", {}"), in(reg) $value);
         }
     };
 }
