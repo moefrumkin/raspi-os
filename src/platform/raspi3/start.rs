@@ -1,5 +1,5 @@
 use crate::ALLOCATOR;
-use crate::canvas::{canvas2d::Canvas2D, vector::Vector};
+use crate::canvas::{canvas2d::Canvas2D, vector::Vector, matrix::Matrix};
 use crate::aarch64::cpu;
 use crate::{write, read};
 
@@ -30,7 +30,7 @@ pub extern "C" fn main(heap_start: usize) {
     uart.writeln("UART Connection Initialized");
     uart.newline();
 
-    let heap_size = 65536;
+    let heap_size = 1048576;
 
     uart.writeln("Initializing Heap Allocator");
 
@@ -55,7 +55,7 @@ pub extern "C" fn main(heap_start: usize) {
     uart.writefln(format_args!("{:?}", gpu.config()));
     uart.newline();
 
-    for y in 0..1080 {
+    /*for y in 0..1080 {
         for x in 0..1920 {
             let red = x & 0xff;
             let blue = y & 0xff;
@@ -63,7 +63,7 @@ pub extern "C" fn main(heap_start: usize) {
             let color = (red << 16) + (green << 8) + blue;
             gpu.set_pxl(x, y, 0xffffff as u32);
         }
-    }
+    }*/
 
     uart.writeln("Initializing Canvas");
 
@@ -72,13 +72,20 @@ pub extern "C" fn main(heap_start: usize) {
     uart.writeln("Canvas Initialized");
 
     canvas.add_point(Vector (0.0, 0.0), 0);
-    for x in 0..1080 {
+    for x in 0..250 {
+        let red = (8 * x) & 0xff;
+        let blue = !((8 * x) & 0xff);
+        let green = 0;
+        let color = (red << 16) + (green << 8) + blue;
         canvas.add_point(Vector (x as f64, x as f64), 0);
     }
 
-    canvas.draw(Vector(-960.0, -540.0), 1920.0, 1080.0);
+    let rot = Matrix ( Vector (0.99984769515, -0.01745240643), Vector (0.01745240643, 0.99984769515) );
 
-    loop{}
+    loop{
+        canvas.draw(Vector(-960.0, -540.0), 1920.0, 1080.0);
+        canvas.transform(rot);
+    }
     /*if cpu::el() == 2 {
         // Counter and Timer Hyp Control
         // allow el 1 and 0 access to the timer and counter reigsters

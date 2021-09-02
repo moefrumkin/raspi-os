@@ -5,12 +5,14 @@ use crate::utils::math;
 use super::{Draw, line::Line, matrix::Matrix, vector::Vector};
 
 pub type Color = u32;
+pub type Gradient2D = dyn Fn(usize, usize) -> Color;
 
 #[allow(dead_code)]
 pub struct Canvas2D<'a, T> where T: Draw {
     gpu: &'a mut T,
     pix_width: usize,
     pix_height: usize,
+    background: Box<Gradient2D>,
     points: Vec<(Vector, Color)>,
     lines: Vec<(Line, Color)>
 }
@@ -21,6 +23,7 @@ impl<'a, T> Canvas2D<'a, T> where T: Draw{
             gpu,
             pix_width,
             pix_height,
+            background: Box::new(|x, y| 0xffffff),
             points: Vec::new(),
             lines: Vec::new()
         }
@@ -30,18 +33,22 @@ impl<'a, T> Canvas2D<'a, T> where T: Draw{
         let x_scale = self.pix_width as f64 / width; //1
         let y_scale = self.pix_height as f64 / height; //1
 
+        let gradient = &self.background;
+
+        //draw background
+        for y in 0..self.pix_height {
+            for x in 0..self.pix_width {
+                self.gpu.draw(x, y, gradient(x, y));
+            }
+        }
+
         //draw points
         for &(point, color) in &self.points {
             let Vector (x, y) = point - origin;
-            if (x >= 0.0 && y >= 0.0) && (x <= width && y <= height) {
+            if (x >= 0.0 && y >= 0.0) && (x < width && y < height) {
                 self.gpu.draw((x * x_scale) as usize, (y * y_scale) as usize, color);
             }
         }
-    }
-
-    //TODO: repeatedly using has unnecessary computation
-    fn map(min_in: f64, max_in: f64, min_out: f64, max_out: f64, val: f64) -> f64 {
-        (val - min_in) * (max_out - min_out) / (max_in - min_in) + min_out
     }
 
     pub fn transform(&mut self, transformation: Matrix) {

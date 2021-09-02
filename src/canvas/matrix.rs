@@ -2,15 +2,26 @@
 
 use core::ops::{Mul, Add, Sub, Neg};
 use super::{vector::Vector, line::Line};
+use crate::utils::math;
 
 /// A 2D matrix. Arbitrarily, each of the elements are rows
 #[derive(Copy)]
 #[derive(Clone)]
 #[derive(PartialEq)]
 #[derive(Debug)]
-pub struct Matrix (Vector, Vector);
+pub struct Matrix ( pub Vector, pub Vector);
 
 impl Matrix {
+    pub fn rotation(n: f64) -> Self {
+        let sin = math::sin(n);
+        let cos = math::cos(n);
+
+        Self (
+            Vector (cos, -sin),
+            Vector (sin, cos)
+        )
+    }
+
     pub fn columns(self) -> (Vector, Vector) {
         ( self.0, self.1 )
     }
