@@ -9,6 +9,7 @@ use super::platform::{
     uart::UARTController,
 };
 use core::{panic::PanicInfo, alloc::Layout};
+use crate::ALLOCATOR;
 
 ///The global panic handler
 #[cfg(feature = "raspi3")]
@@ -46,7 +47,19 @@ fn on_panic(info: &PanicInfo) -> ! {
 #[cfg(feature = "raspi3")]
 #[alloc_error_handler]
 fn on_alloc_error(layout: Layout) -> ! {
-    panic!("Unable to allocate: {:?}", layout);
+    let mmio = MMIOController::default();
+    let gpio = GPIOController::new(&mmio);
+    let mut uart = UARTController::init(&gpio, &mmio);
+    let status_light = StatusLight::init(&gpio);
+
+    status_light.set_green(OutputLevel::Low);
+    status_light.set_blue(OutputLevel::Low);
+    status_light.set_red(OutputLevel::High);
+
+    uart.writeln("A Fatal Allocation Error Occured");
+    uart.writefln(format_args!("Unable to allocate: {:?} using allocator: {:?}", layout, ALLOCATOR));
+    
+    loop {}
 }
 
 #[cfg(not(feature = "raspi3"))]

@@ -1,7 +1,9 @@
 use core::mem;
+use core::fmt::{Debug, Formatter, Error};
 use alloc::alloc::{GlobalAlloc, Layout};
 use crate::sync::SpinMutex;
 
+#[derive(Debug)]
 pub struct LinkedListAllocator {
     free_list: FreeBlock
 }
@@ -29,6 +31,12 @@ unsafe impl GlobalAlloc for SpinMutex<LinkedListAllocator> {
         let (size, _) = LinkedListAllocator::expand_to_min(layout);
 
         self.lock().free(ptr as usize, size);
+    }
+}
+
+impl Debug for SpinMutex<LinkedListAllocator> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), Error> {
+        self.lock().fmt(f)
     }
 }
 
@@ -129,6 +137,7 @@ impl LinkedListAllocator {
     }
 }
 
+#[derive(Debug)]
 struct FreeBlock {
     size: usize,
     next: Option<&'static mut FreeBlock>

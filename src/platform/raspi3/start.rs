@@ -19,28 +19,67 @@ global_asm!(include_str!("start.s"));
 pub extern "C" fn main(heap_start: usize) {
     let mmio = MMIOController::default();
     let gpio = GPIOController::new(&mmio);
-    let status_light = StatusLight::init(&gpio);
     let timer = Timer::new(&mmio);
-    let mut uart = UARTController::init(&gpio, &mmio);
-    uart.writeln("Hello");
-    let lcd = LCDController::init(
-        &gpio,
-        &timer,
-        Pin::new(20).unwrap(),
-        Pin::new(16).unwrap(),
-        [
-            Pin::new(26).unwrap(),
-            Pin::new(19).unwrap(),
-            Pin::new(13).unwrap(),
-            Pin::new(6).unwrap()
-        ]
-    );
+    let mailbox = MailboxController::new(&mmio);
 
-    lcd.send_data(0b0010_0001);
-    uart.writeln("data sent");
+    let mut uart = UARTController::init(&gpio, &mmio);
+    uart.set_log_level(LogLevel::Debug);
+
+    uart.newline();
+    uart.newline();
+    uart.writeln("UART Connection Initialized");
+    uart.newline();
+
+    let heap_size = 65536;
+
+    uart.writeln("Initializing Heap Allocator");
+
+    ALLOCATOR.lock().init(heap_start, heap_size);
+    uart.writefln(format_args!("Heap Allocator initialized at {:#x} with size {}", heap_start, heap_size));
+    uart.newline();
+
+    uart.writeln("Initializing Status Light");
+
+    let status_light = StatusLight::init(&gpio);
+
+    uart.writeln("Status Light Initialized");
+    uart.newline();
+
+    blink_sequence(&status_light, &timer, 100);
+
+    uart.writeln("Initializing GPU");
+
+    let mut gpu = GPUController::init(&mmio, &mailbox, FBConfig::default());
+
+    uart.writeln("GPU Initialized with Config:");
+    uart.writefln(format_args!("{:?}", gpu.config()));
+    uart.newline();
+
+    for y in 0..1080 {
+        for x in 0..1920 {
+            let red = x & 0xff;
+            let blue = y & 0xff;
+            let green = 0;
+            let color = (red << 16) + (green << 8) + blue;
+            gpu.set_pxl(x, y, 0xffffff as u32);
+        }
+    }
+
+    uart.writeln("Initializing Canvas");
+
+    let mut canvas = Canvas2D::new(&mut gpu, 1920, 1080);
+
+    uart.writeln("Canvas Initialized");
+
+    canvas.add_point(Vector (0.0, 0.0), 0);
+    for x in 0..1080 {
+        canvas.add_point(Vector (x as f64, x as f64), 0);
+    }
+
+    canvas.draw(Vector(-960.0, -540.0), 1920.0, 1080.0);
 
     loop{}
-    if cpu::el() == 2 {
+    /*if cpu::el() == 2 {
         // Counter and Timer Hyp Control
         // allow el 1 and 0 access to the timer and counter reigsters
         write!("CNTHCTL_EL2", read!("CNTHCTL_EL2") | 0b11);
@@ -67,11 +106,7 @@ pub extern "C" fn main(heap_start: usize) {
         write!("ELR_el2", init_el1 as *const () as usize);
 
         cpu::eret();
-    }
-}
-
-pub fn spin() {
-    loop {}
+    }*/
 }
 
 #[no_mangle]
@@ -80,24 +115,10 @@ pub fn init_el1() {
     let gpio = GPIOController::new(&mmio);
     let status_light = StatusLight::init(&gpio);
     let timer = Timer::new(&mmio);
-    let lcd = LCDController::init(
-        &gpio,
-        &timer,
-        Pin::new(20).unwrap(),
-        Pin::new(16).unwrap(),
-        [
-            Pin::new(26).unwrap(),
-            Pin::new(19).unwrap(),
-            Pin::new(13).unwrap(),
-            Pin::new(6).unwrap()
-        ]
-    );
 
-    lcd.send_data('f' as u8);
-    
     blink_sequence(&status_light, &timer, 50);
 
-    loop {}
+    fun();
 }
 
 #[inline(never)]

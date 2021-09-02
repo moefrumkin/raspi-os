@@ -26,16 +26,16 @@ impl<'a, T> Canvas2D<'a, T> where T: Draw{
         }
     }
 
-    pub fn draw(&mut self, width: f64, height: f64) {
-        let origin = Vector (0.0, 0.0);
-
-        for x in 0..1080 {
-            self.gpu.draw(x, x, 0xffffff);
-        }
+    pub fn draw(&mut self, origin: Vector, width: f64, height: f64) {
+        let x_scale = self.pix_width as f64 / width; //1
+        let y_scale = self.pix_height as f64 / height; //1
 
         //draw points
         for &(point, color) in &self.points {
-            unimplemented!();
+            let Vector (x, y) = point - origin;
+            if (x >= 0.0 && y >= 0.0) && (x <= width && y <= height) {
+                self.gpu.draw((x * x_scale) as usize, (y * y_scale) as usize, color);
+            }
         }
     }
 

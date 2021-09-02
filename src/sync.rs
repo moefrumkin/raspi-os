@@ -1,8 +1,5 @@
 use core::{sync::atomic::{AtomicBool, Ordering}, cell::UnsafeCell, ops::{Deref, DerefMut}};
 
-#[cfg(feature = "raspi3")]
-use crate::platform::uart::UARTController;
-
 pub struct SpinMutex<T> {
     lock: AtomicBool,
     data: UnsafeCell<T>

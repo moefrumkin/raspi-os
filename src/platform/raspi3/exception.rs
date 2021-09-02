@@ -9,8 +9,8 @@ pub extern "C" fn handle_exception(exception_source: usize, exception_type: usiz
     let timer = Timer::new(&mmio);
     let status_light = StatusLight::init(&gpio);
 
-    const LONG_WAIT: u64 = 500;
-    const SHORT_WAIT: u64 = 250;
+    const LONG_WAIT: u64 = 2500;
+    const SHORT_WAIT: u64 = 1000;
 
     loop {
         for i in 0..exception_source + 5{
@@ -31,34 +31,23 @@ pub extern "C" fn handle_exception(exception_source: usize, exception_type: usiz
 
         timer.delay(LONG_WAIT);
 
-        for i in 0..32 {
-            if (esr >> i) & 1 == 1 {
-                status_light.set_green(OutputLevel::High);
-                timer.delay(SHORT_WAIT);
-                status_light.set_green(OutputLevel::Low);
-            } else {
-                status_light.set_blue(OutputLevel::High);
-                timer.delay(SHORT_WAIT);
-                status_light.set_blue(OutputLevel::Low);
-            }
-            timer.delay(SHORT_WAIT);
-        }
+        blink_out(elr, &timer, &status_light, SHORT_WAIT);
 
         timer.delay(LONG_WAIT);
+    }
+}
 
-        for i in 0..32 {
-            if (esr >> i) & 1 == 1 {
-                status_light.set_green(OutputLevel::High);
-                timer.delay(SHORT_WAIT);
-                status_light.set_green(OutputLevel::Low);
-            } else {
-                status_light.set_blue(OutputLevel::High);
-                timer.delay(SHORT_WAIT);
-                status_light.set_blue(OutputLevel::Low);
-            }
-            timer.delay(SHORT_WAIT);
+fn blink_out(n: usize, timer: &Timer, status_light: &StatusLight, wait: u64) {
+    for i in 0..64 {
+        if (n >> (64 - i)) & 1 == 1 {
+            status_light.set_green(OutputLevel::High);
+            timer.delay(wait);
+            status_light.set_green(OutputLevel::Low);
+        } else {
+            status_light.set_blue(OutputLevel::High);
+            timer.delay(wait);
+            status_light.set_blue(OutputLevel::Low);
         }
-
-        timer.delay(LONG_WAIT);
+        timer.delay(wait);
     }
 }
