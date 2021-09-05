@@ -1,5 +1,5 @@
 use crate::ALLOCATOR;
-use crate::canvas::{canvas2d::Canvas2D, vector::Vector, matrix::Matrix};
+use crate::canvas::{canvas2d::Canvas2D, vector::Vector, matrix::Matrix, line::Line};
 use crate::aarch64::cpu;
 use crate::{write, read};
 
@@ -71,21 +71,22 @@ pub extern "C" fn main(heap_start: usize) {
 
     uart.writeln("Canvas Initialized");
 
-    canvas.add_point(Vector (0.0, 0.0), 0);
-    for x in 0..250 {
+    canvas.add_line(Line (Vector (0.0, 0.0), Vector (500.0, 250.0)), 0xaa00ff);
+    canvas.add_line(Line (Vector (500.0, 250.0), Vector (700.0, 270.0)), 0x00aaff);
+    
+    canvas.add_point(Vector (1.0, 0.0), 0x00ff00);
+    /*for x in 0..250 {
         let red = (8 * x) & 0xff;
         let blue = !((8 * x) & 0xff);
         let green = 0;
         let color = (red << 16) + (green << 8) + blue;
         canvas.add_point(Vector (x as f64, x as f64), 0);
-    }
+    }*/
 
     let rot = Matrix ( Vector (0.99984769515, -0.01745240643), Vector (0.01745240643, 0.99984769515) );
 
-    loop{
-        canvas.draw(Vector(-960.0, -540.0), 1920.0, 1080.0);
-        canvas.transform(rot);
-    }
+    uart.writeln("Drawing Canvas");
+    canvas.draw(Vector(-960.0, -540.0), 1920.0, 1080.0);
     /*if cpu::el() == 2 {
         // Counter and Timer Hyp Control
         // allow el 1 and 0 access to the timer and counter reigsters
