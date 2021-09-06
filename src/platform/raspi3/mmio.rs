@@ -1,3 +1,5 @@
+use crate::sync::SpinMutex;
+
 #[cfg(not(test))]
 pub use board::*;
 
@@ -12,12 +14,18 @@ pub struct MMIOController {
     length: usize,
 }
 
-impl Default for MMIOController {
-    fn default() -> Self {
+impl MMIOController {
+    pub const fn new() -> Self {
         MMIOController {
             start: START,
             length: LENGTH,
         }
+    }
+}
+
+impl Default for MMIOController {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

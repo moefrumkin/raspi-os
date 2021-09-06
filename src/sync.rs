@@ -1,4 +1,9 @@
-use core::{sync::atomic::{AtomicBool, Ordering}, cell::UnsafeCell, ops::{Deref, DerefMut}};
+use core::{
+    sync::atomic::{AtomicBool, Ordering},
+    cell::UnsafeCell,
+    ops::{Deref, DerefMut}
+};
+use alloc::boxed::Box;
 
 pub struct SpinMutex<T> {
     lock: AtomicBool,
@@ -23,6 +28,10 @@ impl<T> SpinMutex<T> {
             lock: &self.lock,
             data: unsafe { &mut *self.data.get() }
         }
+    }
+
+    pub fn execute(&mut self, f: impl FnOnce(&mut T)) {
+        f(self.lock().data);
     }
 }
 

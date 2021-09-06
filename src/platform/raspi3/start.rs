@@ -1,7 +1,7 @@
 use crate::ALLOCATOR;
 use crate::canvas::{canvas2d::Canvas2D, vector::Vector, matrix::Matrix, line::Line};
 use crate::aarch64::cpu;
-use crate::{write, read};
+use crate::{write, read, print, println};
 
 use super::{
     gpio::{GPIOController, OutputLevel, StatusLight, Pin},
@@ -9,9 +9,12 @@ use super::{
     mailbox::MailboxController,
     mmio::MMIOController,
     timer::Timer,
-    uart::{UARTController, LogLevel},
+    uart::{UARTController, LogLevel, CONSOLE},
     lcd::LCDController
 };
+
+static MMIO: MMIOController = MMIOController::new();
+static GPIO: GPIOController = GPIOController::new(&MMIO);
 
 global_asm!(include_str!("start.s"));
 
@@ -22,38 +25,39 @@ pub extern "C" fn main(heap_start: usize) {
     let timer = Timer::new(&mmio);
     let mailbox = MailboxController::new(&mmio);
 
-    let mut uart = UARTController::init(&gpio, &mmio);
-    uart.set_log_level(LogLevel::Debug);
+    let mut console = UARTController::init(&GPIO, &MMIO);
+    console.set_log_level(LogLevel::Debug);
+    unsafe { *CONSOLE.lock() = Some(console); }
 
-    uart.newline();
-    uart.newline();
-    uart.writeln("UART Connection Initialized");
-    uart.newline();
+    println!();
+    println!();
+    println!("UART Connection Initialized");
+    println!();
 
     let heap_size = 1048576;
 
-    uart.writeln("Initializing Heap Allocator");
+    println!("Initializing Heap Allocator");
 
     ALLOCATOR.lock().init(heap_start, heap_size);
-    uart.writefln(format_args!("Heap Allocator initialized at {:#x} with size {}", heap_start, heap_size));
-    uart.newline();
+    println!("Heap Allocator initialized at {:#x} with size {}", heap_start, heap_size);
+    println!();
 
-    uart.writeln("Initializing Status Light");
+    println!("Initializing Status Light");
 
     let status_light = StatusLight::init(&gpio);
 
-    uart.writeln("Status Light Initialized");
-    uart.newline();
+    println!("Status Light Initialized");
+    println!();
 
     blink_sequence(&status_light, &timer, 100);
 
-    uart.writeln("Initializing GPU");
+    println!("Initializing GPU");
 
     let mut gpu = GPUController::init(&mmio, &mailbox, FBConfig::default());
 
-    uart.writeln("GPU Initialized with Config:");
-    uart.writefln(format_args!("{:?}", gpu.config()));
-    uart.newline();
+    println!("GPU Initialized with Config:");
+    println!("{:?}", gpu.config());
+    println!();
 
     /*for y in 0..1080 {
         for x in 0..1920 {
@@ -65,11 +69,11 @@ pub extern "C" fn main(heap_start: usize) {
         }
     }*/
 
-    uart.writeln("Initializing Canvas");
+    println!("Initializing Canvas");
 
     let mut canvas = Canvas2D::new(&mut gpu, 1920, 1080);
 
-    uart.writeln("Canvas Initialized");
+    println!("Canvas Initialized");
 
     canvas.add_line(Line (Vector (0.0, 0.0), Vector (500.0, 250.0)), 0xaa00ff);
     canvas.add_line(Line (Vector (500.0, 250.0), Vector (700.0, 270.0)), 0x00aaff);
@@ -85,7 +89,7 @@ pub extern "C" fn main(heap_start: usize) {
 
     let rot = Matrix ( Vector (0.99984769515, -0.01745240643), Vector (0.01745240643, 0.99984769515) );
 
-    uart.writeln("Drawing Canvas");
+    println!("Drawing Canvas");
     canvas.draw(Vector(-960.0, -540.0), 1920.0, 1080.0);
     /*if cpu::el() == 2 {
         // Counter and Timer Hyp Control

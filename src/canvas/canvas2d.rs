@@ -23,7 +23,7 @@ impl<'a, T> Canvas2D<'a, T> where T: Draw{
             gpu,
             pix_width,
             pix_height,
-            background: Box::new(|x, y| 0xffffff),
+            background: Box::new(|x, y| 0x000000),
             points: Vec::new(),
             lines: Vec::new()
         }

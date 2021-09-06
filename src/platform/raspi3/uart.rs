@@ -1,9 +1,49 @@
 use core::{ fmt, fmt::{ Arguments, Write, Error } };
-use crate::aarch64::cpu;
+use crate::{aarch64::cpu, sync::SpinMutex};
 use super::{
     gpio::{GPIOController, Mode, Pin},
     mmio::MMIOController,
 };
+
+pub static mut CONSOLE: SpinMutex<Option<UARTController>> = SpinMutex::new(None);
+
+#[macro_export]
+macro_rules! print {
+    ($($arg:tt)*) => {
+        unsafe {
+            CONSOLE.execute(|console|
+                match console {
+                    Some(console) => console.writef(format_args!($($arg)*)),
+                    None => panic!("Print to Uninitialized Console")
+                }
+            );
+        }
+    };
+}
+
+#[macro_export]
+macro_rules! println {
+    () => {
+        unsafe {
+            CONSOLE.execute(|console|
+                match console {
+                    Some(console) => console.newline(),
+                    None => panic!("Print to Uninitialized Console")
+                }
+            );
+        }
+    };
+    ($($arg:tt)*) => {
+        unsafe {
+            CONSOLE.execute(|console|
+                match console {
+                    Some(console) => console.writefln(format_args!($($arg)*)),
+                    None => panic!("Print to Uninitialized Console")
+                }
+            );
+        }
+    }
+}
 
 const UART_BASE_OFFSET: u32 = 0x215000;
 
@@ -53,6 +93,14 @@ impl <'a> Write for UARTController<'a> {
 }
 
 impl<'a> UARTController<'a> {
+    pub fn new(gpio: &'a GPIOController, mmio: &'a MMIOController) -> Self {
+        Self {
+            gpio,
+            mmio,
+            config: UARTConfig::new()
+        }
+    }
+
     pub fn init(gpio: &'a GPIOController, mmio: &'a MMIOController) -> Self {
         //Enable UART
         mmio.write_at_offset(

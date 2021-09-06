@@ -29,7 +29,7 @@ pub struct GPIOController<'a> {
 
 #[allow(dead_code)]
 impl<'a> GPIOController<'a> {
-    pub fn new(mmio: &'a MMIOController) -> Self {
+    pub const fn new(mmio: &'a MMIOController) -> Self {
         GPIOController { mmio }
     }
 
