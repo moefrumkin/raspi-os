@@ -1,5 +1,5 @@
-# graph_os
-Graph_os is a raspberry pi graphing calculator that runs as a bare metal program without an os.
+# raspi-os
+Raspi OS is a bare metal operating system being developed for the raspberry pi
 
 # Installation
 In order to compile and run graph_os, a few different tools are needed:
