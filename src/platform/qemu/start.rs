@@ -1,16 +1,29 @@
-use core::ptr;
+use super::uart::UARTController;
+use crate::ALLOCATOR;
+use alloc::vec;
+use alloc::vec::Vec;
 
+#[cfg(not(test))]
 global_asm!(include_str!("start.s"));
+
+extern "C" {
+    static HEAP_START: usize;
+}
 
 /// QEMU start function
 /// Writes "Booting on qemu" to UART
+#[naked]
 #[no_mangle]
-pub extern "C" fn start() {
-    const UART0: *mut u8 = 0x0900_0000 as *mut u8;
-    let out_str = b"Booting on qemu\n";
-    for byte in out_str {
-        unsafe {
-            ptr::write_volatile(UART0, *byte);
-        }
+pub extern "C" fn main() {
+    let uart = UARTController::new(0x0900_0000);
+
+    uart.writeln("UART Connection Initialized");
+
+    unsafe {
+        ALLOCATOR.lock().init(HEAP_START, 100);
     }
+
+    uart.writeln("Allocator Initialized");
+
+    
 }

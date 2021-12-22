@@ -8,8 +8,13 @@ authors = ["Moe Frumkin <moegf1@gmail.com>"]
 
 default = []
 
-qemu= []
+qemu = []
 raspi3 = []
 
 
 [dependencies]
+
+[profile.dev]
+
+[profile.release]
+panic="abort"
