@@ -1,16 +1,16 @@
-use crate::ALLOCATOR;
-use crate::canvas::{canvas2d::Canvas2D, vector::Vector, matrix::Matrix, line::Line};
 use crate::aarch64::cpu;
-use crate::{write, read, print, println};
+use crate::canvas::{canvas2d::Canvas2D, line::Line, matrix::Matrix, vector::Vector};
+use crate::ALLOCATOR;
+use crate::{print, println, read, write};
 
 use super::{
-    gpio::{GPIOController, OutputLevel, StatusLight, Pin},
+    gpio::{GPIOController, OutputLevel, Pin, StatusLight},
     gpu::{FBConfig, GPUController},
-    mailbox::MailboxController,
+    lcd::LCDController,
+    mailbox::{Channel, Instruction, MailboxController, MessageBuffer, MessageBuilder},
     mmio::MMIOController,
     timer::Timer,
-    uart::{UARTController, LogLevel, CONSOLE},
-    lcd::LCDController
+    uart::{LogLevel, UARTController, CONSOLE},
 };
 
 static MMIO: MMIOController = MMIOController::new();
@@ -19,27 +19,31 @@ static GPIO: GPIOController = GPIOController::new(&MMIO);
 global_asm!(include_str!("start.s"));
 
 #[no_mangle]
-pub extern "C" fn main(heap_start: usize) {
+pub extern "C" fn main(heap_start: usize, heap_size: usize, mailbox_start: usize) {
     let mmio = MMIOController::default();
     let gpio = GPIOController::new(&mmio);
     let timer = Timer::new(&mmio);
-    let mailbox = MailboxController::new(&mmio);
+    let mut message_buffer = MessageBuffer::new();
+    let mut mailbox = MailboxController::new(&mmio, &mut message_buffer);
 
     let mut console = UARTController::init(&GPIO, &MMIO);
     console.set_log_level(LogLevel::Debug);
-    unsafe { *CONSOLE.lock() = Some(console); }
+    unsafe {
+        *CONSOLE.lock() = Some(console);
+    }
 
     println!();
     println!();
     println!("UART Connection Initialized");
     println!();
 
-    let heap_size = 1048576;
-
     println!("Initializing Heap Allocator");
 
     ALLOCATOR.lock().init(heap_start, heap_size);
-    println!("Heap Allocator initialized at {:#x} with size {}", heap_start, heap_size);
+    println!(
+        "Heap Allocator initialized at {:#x} with size {}",
+        heap_start, heap_size
+    );
     println!();
 
     println!("Initializing Status Light");
@@ -51,6 +55,25 @@ pub extern "C" fn main(heap_start: usize) {
 
     blink_sequence(&status_light, &timer, 100);
 
+    println!("Testing Message Buffer");
+    let mut mb = MessageBuffer::new();
+    println!(
+        "Message Buffer Acquired At: {:#x}",
+        &mb as *const MessageBuffer as usize
+    );
+    mb.data[0] = 44;
+    mb.data[1] = 0; //Req
+    mb.data[2] = 0x30002;
+    mb.data[3] = 8;
+    mb.data[4] = 8;
+    mb.data[5] = 0x3;
+    mb.data[6] = 0;
+
+    let val = mailbox.call(&mb as *const MessageBuffer as u32, Channel::Prop) & !0b1111;
+    println!("Message Received at {:#x}: {:?}", val, unsafe {
+        core::slice::from_raw_parts(val as *const u32, 64)
+    });
+
     println!("Initializing GPU");
 
     let mut gpu = GPUController::init(&mmio, &mailbox, FBConfig::default());
@@ -59,38 +82,25 @@ pub extern "C" fn main(heap_start: usize) {
     println!("{:?}", gpu.config());
     println!();
 
-    /*for y in 0..1080 {
-        for x in 0..1920 {
-            let red = x & 0xff;
-            let blue = y & 0xff;
-            let green = 0;
-            let color = (red << 16) + (green << 8) + blue;
-            gpu.set_pxl(x, y, 0xffffff as u32);
-        }
-    }*/
-
     println!("Initializing Canvas");
 
     let mut canvas = Canvas2D::new(&mut gpu, 1920, 1080);
 
     println!("Canvas Initialized");
 
-    canvas.add_line(Line (Vector (0.0, 0.0), Vector (500.0, 250.0)), 0xaa00ff);
-    canvas.add_line(Line (Vector (500.0, 250.0), Vector (700.0, 270.0)), 0x00aaff);
-    
-    canvas.add_point(Vector (1.0, 0.0), 0x00ff00);
-    /*for x in 0..250 {
-        let red = (8 * x) & 0xff;
-        let blue = !((8 * x) & 0xff);
-        let green = 0;
-        let color = (red << 16) + (green << 8) + blue;
-        canvas.add_point(Vector (x as f64, x as f64), 0);
-    }*/
+    canvas.add_line(Line(Vector(0.0, 0.0), Vector(500.0, 250.0)), 0xaa00ff);
+    canvas.add_line(Line(Vector(500.0, 250.0), Vector(700.0, 270.0)), 0x00aaff);
 
-    let rot = Matrix ( Vector (0.99984769515, -0.01745240643), Vector (0.01745240643, 0.99984769515) );
+    canvas.add_point(Vector(1.0, 0.0), 0x00ff00);
+
+    let rot = Matrix(
+        Vector(0.99984769515, -0.01745240643),
+        Vector(0.01745240643, 0.99984769515),
+    );
 
     println!("Drawing Canvas");
     canvas.draw(Vector(-960.0, -540.0), 1920.0, 1080.0);
+    loop {}
     /*if cpu::el() == 2 {
         // Counter and Timer Hyp Control
         // allow el 1 and 0 access to the timer and counter reigsters
@@ -139,7 +149,7 @@ pub fn fun() {
     let mmio = MMIOController::default();
     let gpio = GPIOController::new(&mmio);
     let timer = Timer::new(&mmio);
-    
+
     let mut uart = UARTController::init(&gpio, &mmio);
 
     uart.putc('f');

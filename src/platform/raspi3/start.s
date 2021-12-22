@@ -29,4 +29,6 @@ _start:
 4:  ldr     x0, =_exception_vector
     msr     VBAR_EL1, x0
     ldr     x0, =HEAP_START
+    ldr     x1, =HEAP_SIZE
+    ldr     x2, =MAILBOX_BUFFER_START
     b       main

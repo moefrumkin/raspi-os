@@ -1,9 +1,11 @@
 use crate::canvas::Draw;
+use crate::platform::uart::CONSOLE;
+use crate::println;
 
 use super::mailbox::{Channel, MailboxController};
 use super::mmio::MMIOController;
 
-static mut MESSAGE_BUFFER: GPUMessageBuffer =  GPUMessageBuffer::new();
+static mut MESSAGE_BUFFER: GPUMessageBuffer = GPUMessageBuffer::new();
 
 #[allow(dead_code)]
 pub struct GPUController<'a> {
@@ -17,17 +19,18 @@ pub const MBOX_REQUEST: u32 = 0;
 
 impl<'a> Draw for GPUController<'a> {
     fn draw(&mut self, x: usize, y: usize, color: u32) {
-        self.set_pxl(x, y , color);
+        self.set_pxl(x, y, color);
     }
 }
 
 impl<'a> GPUController<'a> {
     pub fn init(mmio: &'a MMIOController, mailbox: &'a MailboxController, _: FBConfig) -> Self {
-        
         unsafe {
             mailbox.call(MESSAGE_BUFFER.start() as u32, Channel::Prop);
         }
-        
+        println!("start: {:#x}", MESSAGE_BUFFER.start());
+        println!("buffer: {:?}", MESSAGE_BUFFER.data);
+
         let fb_config = unsafe {
             FBConfig {
                 phy_width: MESSAGE_BUFFER.get(5),
@@ -53,7 +56,7 @@ impl<'a> GPUController<'a> {
                 (1920 * 1080) as usize,
             )
         };
-        
+
         return GPUController {
             mmio,
             mailbox,
@@ -122,7 +125,7 @@ impl Default for FBConfig {
 #[repr(align(16))]
 #[allow(dead_code)]
 pub struct GPUMessageBuffer {
-    data: [u32; GPUMessageBuffer::BUFFER_LENGTH]
+    data: [u32; GPUMessageBuffer::BUFFER_LENGTH],
 }
 
 impl GPUMessageBuffer {
@@ -168,7 +171,7 @@ impl GPUMessageBuffer {
                 0,
                 Tag::EndOfMessage as u32,
                 0,
-            ]
+            ],
         }
     }
 
@@ -187,7 +190,7 @@ impl GPUMessageBuffer {
 
 pub struct GPUMessageBuilder<'a> {
     buffer: &'a mut GPUMessageBuffer,
-    add_index: usize
+    add_index: usize,
 }
 
 impl<'a> GPUMessageBuilder<'a> {
@@ -195,7 +198,7 @@ impl<'a> GPUMessageBuilder<'a> {
     pub fn new(buffer: &'a mut GPUMessageBuffer) -> Self {
         Self {
             buffer,
-            add_index: 0
+            add_index: 0,
         }
     }
 

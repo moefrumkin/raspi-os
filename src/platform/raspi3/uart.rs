@@ -1,8 +1,11 @@
-use core::{ fmt, fmt::{ Arguments, Write, Error } };
-use crate::{aarch64::cpu, sync::SpinMutex};
 use super::{
     gpio::{GPIOController, Mode, Pin},
     mmio::MMIOController,
+};
+use crate::{aarch64::cpu, sync::SpinMutex};
+use core::{
+    fmt,
+    fmt::{Arguments, Error, Write},
 };
 
 pub static mut CONSOLE: SpinMutex<Option<UARTController>> = SpinMutex::new(None);
@@ -62,30 +65,30 @@ const AUX_MU_BAUD: u32 = UART_BASE_OFFSET + 0x68;
 pub struct UARTController<'a> {
     gpio: &'a GPIOController<'a>,
     mmio: &'a MMIOController,
-    config: UARTConfig
+    config: UARTConfig,
 }
 
 pub struct UARTConfig {
     level: LogLevel,
-    lines: u64
+    lines: u64,
 }
 
 impl UARTConfig {
     pub const fn new() -> Self {
         Self {
             level: LogLevel::Plain,
-            lines: 0
+            lines: 0,
         }
     }
 }
 
 #[derive(PartialEq)]
-pub enum LogLevel{
+pub enum LogLevel {
     Plain,
-    Debug
+    Debug,
 }
 
-impl <'a> Write for UARTController<'a> {
+impl<'a> Write for UARTController<'a> {
     fn write_str(&mut self, s: &str) -> Result<(), Error> {
         self.write(s);
         Ok(())
@@ -97,7 +100,7 @@ impl<'a> UARTController<'a> {
         Self {
             gpio,
             mmio,
-            config: UARTConfig::new()
+            config: UARTConfig::new(),
         }
     }
 
@@ -135,7 +138,11 @@ impl<'a> UARTController<'a> {
         //enable Tx and Rx
         mmio.write_at_offset(3, AUX_MU_CNTL as usize);
 
-        UARTController { gpio, mmio, config: UARTConfig::new() }
+        Self {
+            gpio,
+            mmio,
+            config: UARTConfig::new(),
+        }
     }
 
     pub fn putc(&self, c: char) {
@@ -158,7 +165,7 @@ impl<'a> UARTController<'a> {
             self.putc(c);
         }
     }
-    
+
     pub fn writeln(&mut self, s: &str) {
         self.update_debug();
         self.write(s);
@@ -176,7 +183,6 @@ impl<'a> UARTController<'a> {
         #[allow(unused_must_use)]
         fmt::write(self, args);
         self.newline();
-        
     }
 
     #[allow(dead_code)]
@@ -198,7 +204,12 @@ impl<'a> UARTController<'a> {
         self.config.lines += 1;
         if self.config.level == LogLevel::Debug {
             let lines = self.config.lines;
-            self.writef(format_args!("{}](EL{}@{}): ", lines, cpu::el(), cpu::core_id()));
+            self.writef(format_args!(
+                "{}](EL{}@{}): ",
+                lines,
+                cpu::el(),
+                cpu::core_id()
+            ));
         }
     }
 }
