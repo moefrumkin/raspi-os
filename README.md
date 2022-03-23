@@ -59,9 +59,14 @@ The main focus for our abstraction efforts is our API for interacting with hardw
 ## Kernel
 
 ### Privilege and Exception Levels
-ARM, as a modern architecture, provides a hardware mechanism for managing the privileges of programs by providing 4 exception levels, `EL3`-`EL0`, with the higher number indicating increased privilege. Typically, kernels run in `EL1` while user-facing software runs in `EL0`. When our program is loaded it starts in `EL2`. The only way that exception levels change is through hardware exceptions and exception returns. When a hardware exception occurs, the execution transfers to the vector table functions in the next higher exception level. From a higher level it is possible to return to a lower level using the exception return instruction (`eret`). Further documentation can be found on the [ARM Website](https://developer.arm.com/documentation/102412/0102/Privilege-and-Exception-levels).
+ARM, as a modern architecture, provides a hardware mechanism for managing the privileges of programs by providing 4 exception levels, `EL3`-`EL0`, with the higher number indicating increased privilege. Typically, kernels run in `EL1` while user-facing software runs in `EL0`. When our program is loaded it starts in `EL2`. For our purposes, we should enter `EL1`, especially for the purposes of configuring the memory management unit.
 
-Before further initialization for `EL1` and `EL0` we must switch from `EL2` to `EL1`. In order to do this, an exception must be simulated from the `EL1` entry function. As a note, before switching to `EL1`, certain permissions should be given from `EL2`, such as the ability to use MMIO and the FPU. Once in `EL1`, we can initialize the memory translation tables.
+As the ARM documentation explains:
+> The current level of privilege can only change when the processor takes or returns from an exception. Therefore,  these privilege levels are referred to as Exception levels in the Arm architecture.
+
+This unfortunate naming scheme results in a mechanism for chaning exception levels that seems rather hacky. An exception is "simulated" by populating the Saved Program Status Register (`spsr_el2`), and the Hypervisor Control Register (`hcr_el2`) with the values they would have on an actual exception and then pointing the Exception Link Register (`elr_el2`) to the target start of execution in `EL1`. Once this is done, we can "return" to `EL1` using the exception return (`eret`) instruction. Optionally, other registers can be populated with values to allow `EL1` programs to access certain processor features such as the FPU. This feels a little less hacky, however, if we think of the exception link register and exception return as analogs of the link register (`lr`) and return ('ret') instruction and a change in exception level as another type of branch.
+
+Further documentation can be found on the [ARM Website](https://developer.arm.com/documentation/102412/0102/Privilege-and-Exception-levels).
 
 ## MMU
 ARMS offers documentation for its MMU on [its website](https://documentation-service.arm.com/static/5efa1d23dbdee951c1ccdec5?token=).
