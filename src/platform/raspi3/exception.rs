@@ -9,8 +9,8 @@ pub extern "C" fn handle_exception(exception_source: usize, exception_type: usiz
     let timer = Timer::new(&mmio);
     let status_light = StatusLight::init(&gpio);
 
-    const LONG_WAIT: u64 = 2500;
-    const SHORT_WAIT: u64 = 1000;
+    const LONG_WAIT: u64 = 1500;
+    const SHORT_WAIT: u64 = 750;
 
     loop {
         for i in 0..exception_source + 5{
@@ -28,6 +28,10 @@ pub extern "C" fn handle_exception(exception_source: usize, exception_type: usiz
             status_light.set_red(OutputLevel::Low);
             timer.delay(SHORT_WAIT);
         }
+
+        timer.delay(LONG_WAIT);
+
+        blink_out(esr, &timer, &status_light, SHORT_WAIT);
 
         timer.delay(LONG_WAIT);
 

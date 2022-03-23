@@ -24,7 +24,8 @@ QEMU_CMD = $(QEMU) \
 	-smp $(CORES) \
 	-serial stdio \
 	-kernel $(KERNEL_ELF) \
-	-d int
+	-d int \
+	-nographic
 
 OBJDUMP = aarch64-none-elf-objdump
 OBJDUMP_CMD = $(OBJDUMP) --disassemble-all $(KERNEL_ELF)
