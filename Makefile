@@ -24,7 +24,7 @@ QEMU_CMD = $(QEMU) \
 	-smp $(CORES) \
 	-serial stdio \
 	-kernel $(KERNEL_ELF) \
-	-d int \
+	-d int,mmu,guest_errors,page \
 	-nographic
 
 OBJDUMP = aarch64-none-elf-objdump

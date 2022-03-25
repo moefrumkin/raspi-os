@@ -75,6 +75,14 @@ _start: //spin if not main core
     msr     cnthctl_el2, x0
     msr     cntvoff_el2, xzr // set the virtual counter offest to 0
 
+    /*
+        Architectural Feature Trap Register
+        [20:21]: 11 untraps SIMD and FP instructions and registers
+    */
+    mov     x0, (0b11 << 20)
+    msr     cptr_el2, x0
+    msr     cpacr_el1, x0
+
     
     // Hypervisor Control Register
     mov     x0, #(1 << 31)  // RW: 1 sets EL1 to AArch64
@@ -120,5 +128,6 @@ _start: //spin if not main core
     ldr     x0, =HEAP_START
     ldr     x1, =HEAP_SIZE
     ldr     x2, =MAILBOX_BUFFER_START
+    ldr     x3, =TABLE_START
 
     b       main

@@ -13,7 +13,12 @@ SECTIONS
         *(COMMON)
         bss_end = .;
     }
-    . = ALIGN(16);
+
+    . = ALIGN(0x1000);
+    
+    TABLE_START = .;
+    . += 0x1010;
+
     HEAP_START = .;
     . = . + HEAP_SIZE;
 

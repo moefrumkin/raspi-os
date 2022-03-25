@@ -1,4 +1,4 @@
-use crate::aarch64::cpu;
+use crate::aarch64::{cpu, mmu};
 use crate::canvas::{canvas2d::Canvas2D, line::Line, matrix::Matrix, vector::Vector};
 use crate::ALLOCATOR;
 use crate::{print, println, read, write};
@@ -19,7 +19,7 @@ static GPIO: GPIOController = GPIOController::new(&MMIO);
 global_asm!(include_str!("start.s"));
 
 #[no_mangle]
-pub extern "C" fn main(heap_start: usize, heap_size: usize, mailbox_start: usize) {
+pub extern "C" fn main(heap_start: usize, heap_size: usize, mailbox_start: usize, table_start: usize) {
     let mmio = MMIOController::default();
     let gpio = GPIOController::new(&mmio);
     let timer = Timer::new(&mmio);
@@ -31,18 +31,22 @@ pub extern "C" fn main(heap_start: usize, heap_size: usize, mailbox_start: usize
     let mut console = UARTController::init(&GPIO, &MMIO);
     console.set_log_level(LogLevel::Debug);
 
-    /*unsafe {
+    unsafe {
         *CONSOLE.lock() = Some(console);
-    }*/
-
-    blink_sequence(&status_light, &timer, 100);
-
-    console.write("Hello");
-    
-    loop{
-        //println!("hello");
-        blink_sequence(&status_light, &timer, 150);
     }
+
+    println!("Entering Boot Sequence");
+    println!("Initializing Memory Virtualization");
+
+    unsafe { 
+        mmu::init(table_start as *mut usize);
+    };
+
+    println!("Memory Virtualization Initialized");
+
+    status_light.set_green(OutputLevel::High);
+
+    loop{}
 }
 
 pub fn blink_sequence(status_light: &StatusLight, timer: &Timer, interval: u64) {
