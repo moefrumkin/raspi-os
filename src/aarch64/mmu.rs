@@ -1,3 +1,5 @@
+use core::arch::asm;
+
 pub unsafe fn init(table_start: *mut usize) {
         let table = core::slice::from_raw_parts_mut(table_start, 512);
 

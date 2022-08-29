@@ -1,3 +1,4 @@
+use core::arch::global_asm;
 use super::{mmio::MMIOController, gpio::{GPIOController, StatusLight, OutputLevel}, timer::Timer};
 
 global_asm!(include_str!("exception.s"));

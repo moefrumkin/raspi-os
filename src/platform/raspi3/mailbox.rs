@@ -1,3 +1,4 @@
+use core::arch::asm;
 use super::mmio::MMIOController;
 use alloc::{vec, vec::Vec};
 
