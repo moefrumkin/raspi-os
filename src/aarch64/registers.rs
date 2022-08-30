@@ -1,3 +1,4 @@
+
 #[macro_export]
 macro_rules! read {
     ($sysreg: literal) => {
@@ -26,31 +27,15 @@ macro_rules! registers {
     ) => {
         $(pub mod $name {
             use core::arch::asm;
+            use crate::bitfield;
 
-            pub struct RegisterBuffer {
-                value: usize
-            }
-
-            impl RegisterBuffer {
-                $(paste::item! {
-                    fn [< $field _mask >]() -> usize {
-                        ((1 << ($end - $start + 1)) - 1) << $start
+            bitfield! {
+                RegisterBuffer(usize) {
+                    $($field: $start - $end),*
+                } with {
+                    pub fn write_to_register(self) {
+                        write!($register, self.value)
                     }
-
-                    pub fn [< get_ $field >](self) -> usize {
-                        (self.value & Self::[< $field _mask>]()) >> $start
-                    }
-
-                    pub fn [< set_ $field>](mut self, value: usize) -> Self {
-                        let mask = Self::[< $field _mask >]();
-                        self.value &= !mask;
-                        self.value |= mask & (value << $start);
-                        return self
-                    }
-                })*
-
-                pub fn write_to_register(self) {
-                    write!($register, self.value)
                 }
             }
 
