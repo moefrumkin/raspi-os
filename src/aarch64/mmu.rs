@@ -1,21 +1,21 @@
 use core::arch::asm;
+use super::registers::{TranslationControlRegister, SystemControlRegister, TranslationTableBaseRegister};
 
 pub unsafe fn init(table_start: *mut usize) {
         let table = core::slice::from_raw_parts_mut(table_start, 512);
-
-        let tcr_el1 = 
-            (0b10 << 30) | //4kb Granule
-            34; //Amount to shrink virtual address space
-
-        let sctlr_el1 = 1; //Enable MMU
-
+        
         let mair = 0;
 
-        write!("ttbr0_el1", table_start);
+        TranslationTableBaseRegister::read_to_buffer()
+            .set_table_pointer(table_start as usize)
+            .write_to_register();
 
         write!("mair_el1", mair);
 
-        write!("tcr_el1", tcr_el1);
+        TranslationControlRegister::read_to_buffer()
+            .set_granule_size(TranslationControlRegister::GranuleSize::Kb4 as usize)
+            .set_table_offset(33)
+            .write_to_register();
 
         asm!("isb");
 
@@ -28,7 +28,9 @@ pub unsafe fn init(table_start: *mut usize) {
         
         asm!("dsb sy");
 
-        write!("sctlr_el1", sctlr_el1);
+        SystemControlRegister::read_to_buffer()
+            .set_translation_state(SystemControlRegister::TranslationState::Enabled as usize)
+            .write_to_register();
 
         asm!("isb");
 }
