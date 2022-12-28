@@ -56,6 +56,18 @@ Using the [Mailbox Property](https://github.com/raspberrypi/firmware/wiki/Mailbo
 ## Hardware Abstraction
 The main focus for our abstraction efforts is our API for interacting with hardware. As the hardware components become more complex, they begin to rely more on other components. For example, the UART controller relies on the MMIO controller, and GPIO controller, which itself relies on the MMIO controller again. By encapsulating each of these separate responsibilities, that is UART, GPIO, and MMIO in separate objects, we can create a logging interface that feels rather platform agnostic. The downside, of course, is that there are occasional repeated references. Such repetition is not enough to abandon our efforts at clean code, since the additional references do not take significantly more data and the occasional repetition is well worth the cleaner project structure.
 
+```mermaid
+graph TB
+    B[GPIO] --> A[MMIO];
+    C[StatusLight] --> B;
+    D[UART] --> A;
+    D --> B;
+    E[Mailbox] --> A;
+    G[GPU] --> A;
+    G --> E;
+    F[Timer] --> A;
+```
+
 ### Bitfields
 [Bitfields](https://en.wikipedia.org/wiki/Bit_field) are a common design feature on the ARM platform. System registers often control multiple related aspects of the processor. The `EL1/0` Translation Control Register (`tcr_el1`) has bits that control translation granule size as well as bits the set cache properties. Efficiently modeling bitfield registers presents a challence since Rust, unlike C lacks a built in bitfield structure. While there are multiple libraries that add bitfield support, it is easy to implement our own macro that allows to construct bitfield interfaces that meet our needs. The `utils/bitfield.rs` module provides such functionality. For example, we could model a 32 bit color as follows:
 
