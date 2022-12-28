@@ -177,6 +177,8 @@ Examples that I used in my development can be found [here](https://github.com/bz
 
 I am grateful for the mentorship that Tahmid Rahman has provided throughout this project.
 
+This project was originally conceived as a group effort, hence the early commits by other contributers. However, due to their outside commitments, the project became a personal edeavor. At this point, I am responsible for all of the code in the current revision of the codebase.
+
 I used a myriad of online examples and tutorials for inspiration and explanation of various components.
 
 Sources I used include:
