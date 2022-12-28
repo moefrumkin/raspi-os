@@ -94,7 +94,7 @@ bitfield! {
 ### Registers
 Arm uses registers to control essential processor features such as error handling, memory virtualization, and exception levels. We will take a two-level approach to abstracting register accesses and stores. First, registers can be defined using the `registers!` macro which builds on the bitfield API to create a fluent inferface for reading and writing to registers while hiding the use of assembler. Secondly, register use should be encapsulated by the component that requires the register. The mmu api should handle mmu registers and the user space api should handle the user space registers without the client needing to interact with the register objects themselves.
 
-The `registers!` macro allows registerse to be defined as follows:
+The `registers!` macro allows registers to be defined as follows:
 
 ```Rust
 TranslationControlRegister("tcr_el1") {
