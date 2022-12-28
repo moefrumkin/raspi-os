@@ -1,3 +1,4 @@
+use core::arch::global_asm;
 use super::uart::UARTController;
 use crate::ALLOCATOR;
 use alloc::vec;

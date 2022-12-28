@@ -6,6 +6,7 @@ use crate::{aarch64::cpu, sync::SpinMutex};
 use core::{
     fmt,
     fmt::{Arguments, Error, Write},
+    arch::asm,
 };
 
 pub static mut CONSOLE: SpinMutex<Option<UARTController>> = SpinMutex::new(None);

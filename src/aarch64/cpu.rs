@@ -1,3 +1,5 @@
+use core::arch::asm;
+
 use crate::{read, write};
 
 /// Returns the id of the cpu core as reported by the arm MPIDR_EL1 system register

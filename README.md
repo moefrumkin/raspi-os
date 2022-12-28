@@ -56,12 +56,107 @@ Using the [Mailbox Property](https://github.com/raspberrypi/firmware/wiki/Mailbo
 ## Hardware Abstraction
 The main focus for our abstraction efforts is our API for interacting with hardware. As the hardware components become more complex, they begin to rely more on other components. For example, the UART controller relies on the MMIO controller, and GPIO controller, which itself relies on the MMIO controller again. By encapsulating each of these separate responsibilities, that is UART, GPIO, and MMIO in separate objects, we can create a logging interface that feels rather platform agnostic. The downside, of course, is that there are occasional repeated references. Such repetition is not enough to abandon our efforts at clean code, since the additional references do not take significantly more data and the occasional repetition is well worth the cleaner project structure.
 
+### Bitfields
+[Bitfields](https://en.wikipedia.org/wiki/Bit_field) are a common design feature on the ARM platform. System registers often control multiple related aspects of the processor. The `EL1/0` Translation Control Register (`tcr_el1`) has bits that control translation granule size as well as bits the set cache properties. Efficiently modeling bitfield registers presents a challence since Rust, unlike C lacks a built in bitfield structure. While there are multiple libraries that add bitfield support, it is easy to implement our own macro that allows to construct bitfield interfaces that meet our needs. The `utils/bitfield.rs` module provides such functionality. For example, we could model a 32 bit color as follows:
+
+```Rust
+bitfield! {
+    Color(u32) {
+        a: 0-7,
+        b: 8-15,
+        g: 16-23,
+        r: 24-32
+    }
+}
+```
+
+We would then be able to construct a `Color` object with the size of a `u32` with getter and setter functions for each field. Additionally, we can specify custom methods on the color object using a `with` directive:
+
+```Rust
+bitfield! {
+    Color(u32) {
+        a: 0-7,
+        b: 8-15,
+        g: 16-23,
+        r: 24-32
+    } with {
+        const WHITE: Color = Color { value: 0xffffff00; }
+
+        pub fn from_rgb(r: u32, g: u32, b: u32) -> Self {
+            Self {
+                value: (r << 24) | (g << 16) | (b << 8)
+            }
+        }
+    }
+}
+```
+
+### Registers
+Arm uses registers to control essential processor features such as error handling, memory virtualization, and exception levels. We will take a two-level approach to abstracting register accesses and stores. First, registers can be defined using the `registers!` macro which builds on the bitfield API to create a fluent inferface for reading and writing to registers while hiding the use of assembler. Secondly, register use should be encapsulated by the component that requires the register. The mmu api should handle mmu registers and the user space api should handle the user space registers without the client needing to interact with the register objects themselves.
+
+The `registers!` macro allows registerse to be defined as follows:
+
+```Rust
+TranslationControlRegister("tcr_el1") {
+    granule_size: 30-31,
+    table_offset: 0-5
+} with {
+    pub enum GranuleSize {
+        Kb4 = 0b10,
+        Kb16 = 0b01,
+        Kb64 = 0b11,
+    }
+}
+```
+
+Registers can then be modified in a fluent manner:
+
+```Rust
+TranslationControlRegister::read_to_buffer()
+    .set_granule_size(TranslationControlRegister::GranuleSize::Kb4 as usize)
+    .set_table_offset(33)
+    .write_to_register();
+```
+
 ## Kernel
 
 ### Privilege and Exception Levels
-ARM, as a modern architecture, provides a hardware mechanism for managing the privileges of programs by providing 4 exception levels, `EL3`-`EL0`, with the higher number indicating increased privilege. Typically, kernels run in `EL1` while user-facing software runs in `EL0`. When our program is loaded it starts in `EL2`. The only way that exception levels change is through hardware exceptions and exception returns. When a hardware exception occurs, the execution transfers to the vector table functions in the next higher exception level. From a higher level it is possible to return to a lower level using the exception return instruction (`eret`). Further documentation can be found on the [ARM Website](https://developer.arm.com/documentation/102412/0102/Privilege-and-Exception-levels).
+ARM, as a modern architecture, provides a hardware mechanism for managing the privileges of programs by providing 4 exception levels, `EL3`-`EL0`, with the higher number indicating increased privilege. Typically, kernels run in `EL1` while user-facing software runs in `EL0`. When our program is loaded it starts in `EL2`. For our purposes, we should enter `EL1`, especially for the purposes of configuring the memory management unit.
 
-Before further initialization for `EL1` and `EL0` we must switch from `EL2` to `EL1`. In order to do this, an exception must be simulated from the `EL1` entry function. As a note, before switching to `EL1`, certain permissions should be given from `EL2`, such as the ability to use MMIO and the FPU. Once in `EL1`, we can initialize the memory translation tables.
+As the ARM documentation explains:
+> The current level of privilege can only change when the processor takes or returns from an exception. Therefore,  these privilege levels are referred to as Exception levels in the Arm architecture.
+
+This unfortunate naming scheme results in a mechanism for chaning exception levels that seems rather hacky. An exception is "simulated" by populating the Saved Program Status Register (`spsr_el2`), and the Hypervisor Control Register (`hcr_el2`) with the values they would have on an actual exception and then pointing the Exception Link Register (`elr_el2`) to the target start of execution in `EL1`. Once this is done, we can "return" to `EL1` using the exception return (`eret`) instruction. Optionally, other registers can be populated with values to allow `EL1` programs to access certain processor features such as the FPU. This feels a little less hacky, however, if we think of the exception link register and exception return as analogs of the link register (`lr`) and return ('ret') instruction and a change in exception level as another type of branch.
+
+Further documentation can be found on the [ARM Website](https://developer.arm.com/documentation/102412/0102/Privilege-and-Exception-levels).
 
 ## MMU
-ARMS offers documentation for its MMU on [its website](https://documentation-service.arm.com/static/5efa1d23dbdee951c1ccdec5?token=).
+When enabled, the ARM MMU manages the processor's cache and [memory virtualization](https://en.wikipedia.org/wiki/Memory_virtualization) with a nearly dangerous level of configurability, as described on the [website](https://developer.arm.com/documentation/101811/0102/The-Memory-Management-Unit-MMU), and in the [addtional documentation](https://documentation-service.arm.com/static/5efa1d23dbdee951c1ccdec5?token=). The first choice we are faced with is the granule size, which is the smallest unit of memory in the translation process. ARM generously provides three options:  4KB, 16KB, and 64KB. Choosing the smallest option gives us the most granularity, and once the initialization process is understood, it is not too difficult to change. To indicate this selection, we write `0b10` to bits [31:30] of the translation control register (`tcr_el1`). A 4KB (or rather KiB) region contains 4096 = 2<sup>12</sup> bytes, meaning that the last 12 bytes of the virtual address use for determining the offset within a granule. By the specification, each translation table contains up to 512 = 2<sup>9</sup> entries. As a result, with `n` tables and 4KiB granules, virtual addresses are `9n + 12` bits long. Since the Raspberry Pi 3 has 1GB, or 2<sup>30</sup> bytes of memory, 2 levels will suffice. We communicate this to the MMU by setting the `T0SZ` field of `tcr_el1` to 34, which is the amount from 64 we want to shrink the address space. Becase we only have two levels of tables out of a maximum of four, the first one is considered a level 2 table. ARM allows level 1 and 2 table entries to point directly to blocks of memory by setting the second bit to `0`. Since we are create a 1-to-1 mapping, this technique lets us skip the level 3 tables all together. Rather, each level 2 entry points to a 2MiB block, and bits `9 + 12 = 21` are used to determine the offset within the block. Armed with this plan, all we need to do is populate a 512 entry level 2 table. Each entry supplies bits 21-30 of the address. We mark the tenth bit to set the access flag and the first to mark the entry as valid. Once finished, all we need to do is point the Translation Table Base Register 0 (`ttbr0_el1`) to the start of the table, and activiate the MMU by writing a value of 1 to the first bit of the system control register (`sctlr_el1`).
+
+```mermaid
+sequenceDiagram
+    participant ARM Core
+    participant MMU
+    participant System Memory
+    ARM Core ->> MMU: Virtual Address
+    MMU ->> System Memory: Table Base Address + Offset
+    System Memory ->> MMU: Physical Address Bits 21-30
+    MMU ->> System Memory: Full Physical Address
+    System Memory ->> MMU: Value
+    MMU ->> ARM Core: Value
+```
+
+```mermaid
+graph LR;
+    A[Arm Core] --Virtual Address-->B[MMU];
+    B -- Value --> A;
+    A -- Table Base Address --> C[TTBR0_EL1];
+    C -- Table Base Address --> B;
+    B -- Full Physical Address --> D[System Memory];
+    B -- Table Base Address + Offset --> E;
+    D -- Value --> B;
+    D -- Contains --> E[Level 2 Translation Table];
+    E -- Physical Address Bits 21-30 --> B;
+```
+
+Examples that I used in my development can be found [here](https://github.com/bztsrc/raspi3-tutorial/blob/master/10_virtualmemory/mmu.c) and [here](https://github.com/LdB-ECM/Raspberry-Pi/blob/master/10_virtualmemory/mmu.c). A Raspberry Pi forum discussion about these example and the ARM MMU in general can be found [here](https://forums.raspberrypi.com/viewtopic.php?t=227139).
