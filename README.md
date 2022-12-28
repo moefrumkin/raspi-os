@@ -172,3 +172,21 @@ graph LR;
 ```
 
 Examples that I used in my development can be found [here](https://github.com/bztsrc/raspi3-tutorial/blob/master/10_virtualmemory/mmu.c) and [here](https://github.com/LdB-ECM/Raspberry-Pi/blob/master/10_virtualmemory/mmu.c). A Raspberry Pi forum discussion about these example and the ARM MMU in general can be found [here](https://forums.raspberrypi.com/viewtopic.php?t=227139).
+
+## Acknowledgements
+
+I am grateful for the mentorship that Tahmid Rahman has provided throughout this project.
+
+I used a myriad of online examples and tutorials for inspiration and explanation of various components.
+
+Sources I used include:
+- The University of Cambridge's [Baking Pi](https://www.cl.cam.ac.uk/projects/raspberrypi/tutorials/os/) tutorial
+- The Rust on Embedded Devices Working Group's [Operating System development tutorial in Rust on the Raspberry Pi](https://github.com/rust-embedded/rust-raspberrypi-OS-tutorials). I used this tutorial as a starting point to structure my project.
+- Zoltan Baldaszti's [Bare Metal Programming on the Raspberry pi 3](https://github.com/bztsrc/raspi3-tutorial/) tutorial. I modified a version of his boot code in `start.S` to change exception levels.
+- Lowenware's [LeOS](https://github.com/lowenware/leos-kernel) and [blog post](https://lowenware.com/blog/aarch64-mmu-programming/), which I used to gain a better understanding of MMU programming.
+- Philipp Opperman's blog posts about [CPU Expections](https://os.phil-opp.com/cpu-exceptions/) and [Allocator Designs](https://os.phil-opp.com/allocator-designs). My current allocator implementation follows his, however I plan on rewriting it soon to add my own defragmentation system.
+- Adam Greenwood-Byrne's and Paul Wratt's [Raspberry Pi 4 bare metal tutorials](https://www.rpi4os.com/)
+- [The OSDev Wiki](https://wiki.osdev.org/Main_Page)
+- The [elinux.org RPi Framebuffer guide](https://elinux.org/RPi_Framebuffer)
+- The Raspberry Pi firmware [Mailbox property interface guide](https://github.com/raspberrypi/firmware/wiki/Mailbox-property-interface)
+- [The Official Raspberry Pi Forum](https://forums.raspberrypi.com/)
