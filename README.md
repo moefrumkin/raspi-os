@@ -183,7 +183,7 @@ I asked questions on Stack Overflow as [Someone](https://stackoverflow.com/users
 
 I used a myriad of online examples and tutorials for inspiration and explanation of various components.
 
-Sources I used include:
+Sources I used:
 - The University of Cambridge's [Baking Pi](https://www.cl.cam.ac.uk/projects/raspberrypi/tutorials/os/) tutorial
 - The Rust on Embedded Devices Working Group's [Operating System development tutorial in Rust on the Raspberry Pi](https://github.com/rust-embedded/rust-raspberrypi-OS-tutorials). I used this tutorial as a starting point to structure my project.
 - Zoltan Baldaszti's [Bare Metal Programming on the Raspberry pi 3](https://github.com/bztsrc/raspi3-tutorial/) tutorial. I modified a version of his boot code in `start.S` to change exception levels.
@@ -195,4 +195,4 @@ Sources I used include:
 - The Raspberry Pi firmware [Mailbox property interface guide](https://github.com/raspberrypi/firmware/wiki/Mailbox-property-interface)
 - [The Official Raspberry Pi Forum](https://forums.raspberrypi.com/)
 - [The Rust Spinlock Crate](https://docs.rs/spinlock/latest/spinlock/). I based my temporary spinlock off of this implementation, which seems quite common across examples.
-- 
+- [The Rust Bitfield Crate](https://docs.rs/bitfield/latest/bitfield/index.html). I used this crate as an inspiration for my own somewhat different bitfield implementation.
