@@ -179,6 +179,8 @@ I am grateful for the mentorship that Tahmid Rahman has provided throughout this
 
 This project was originally conceived as a group effort, hence the early commits by other contributers. However, due to their outside commitments, the project became a personal endeavor. At this point, I have written or modified all of the code in the current codebase.
 
+I asked questions on Stack Overflow as [Someone](https://stackoverflow.com/users/7492736/someone) and on the Raspberry Pi forums as [SomeoneElse](https://forums.raspberrypi.com/memberlist.php?mode=viewprofile&u=378617).
+
 I used a myriad of online examples and tutorials for inspiration and explanation of various components.
 
 Sources I used include:
@@ -192,3 +194,5 @@ Sources I used include:
 - The [elinux.org RPi Framebuffer guide](https://elinux.org/RPi_Framebuffer)
 - The Raspberry Pi firmware [Mailbox property interface guide](https://github.com/raspberrypi/firmware/wiki/Mailbox-property-interface)
 - [The Official Raspberry Pi Forum](https://forums.raspberrypi.com/)
+- [The Rust Spinlock Crate](https://docs.rs/spinlock/latest/spinlock/). I based my temporary spinlock off of this implementation, which seems quite common across examples.
+- 
