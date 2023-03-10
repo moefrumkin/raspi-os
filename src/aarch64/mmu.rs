@@ -1,4 +1,5 @@
 use core::arch::asm;
+use crate::bitfield;
 use super::registers::{TranslationControlRegister, SystemControlRegister, TranslationTableBaseRegister};
 
 pub unsafe fn init(table_start: *mut usize) {
@@ -59,4 +60,26 @@ pub unsafe fn init_tested(table_start: *mut usize) -> Result<(), ()> {
     }
 
     Ok(())
+}
+
+struct TranslationTable {
+    table: [usize; Self::TABLE_LENGTH]
+}
+
+impl TranslationTable {
+    const TABLE_LENGTH: usize = 512;
+}
+
+bitfield! {
+    BlockEntry(usize) {
+        attribute_index: 2-4,
+        security_bit: 5-5,
+        access_permission: 6-7,
+        shareability: 8-9,
+        access_flag: 10-10,
+
+        privileged_execution: 53-53,
+        unprivileged_execution: 54-54,
+        software_values: 55-58
+    }
 }
