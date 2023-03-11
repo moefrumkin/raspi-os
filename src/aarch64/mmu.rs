@@ -18,7 +18,7 @@ pub unsafe fn init(table_start: *mut usize) {
             .set_table_offset(33)
             .write_to_register();
 
-        asm!("isb");
+        cpu::instruction_buffer();
 
         for i in 0..512 {
             table[i] = 
@@ -27,13 +27,13 @@ pub unsafe fn init(table_start: *mut usize) {
                 1; // Valid Entry
         }
         
-        asm!("dsb sy");
+        cpu::data_buffer();
 
         SystemControlRegister::read_to_buffer()
             .set_translation_state(SystemControlRegister::TranslationState::Enabled as usize)
             .write_to_register();
 
-        asm!("isb");
+        cpu::instruction_buffer();
 }
 
 pub unsafe fn init_tested(table_start: *mut usize) -> Result<(), ()> {

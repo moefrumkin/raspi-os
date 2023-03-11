@@ -28,3 +28,15 @@ pub fn eret() {
         asm!("eret");
     }
 }
+
+pub fn instruction_buffer() {
+    unsafe {
+        asm!("isb");
+    }
+}
+
+pub fn data_buffer() {
+    unsafe {
+        asm!("dsb sy");
+    }
+}
