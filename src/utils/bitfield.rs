@@ -3,7 +3,7 @@ macro_rules! bitfield {
     (
         $name: ident ($type: ty)
         {$($field: ident: $start: literal - $end: literal),*}
-        $(with {$($attributes: item);+})?
+        $(with {$($attributes: item)+})?
     ) => {
         pub struct $name {
             value: $type

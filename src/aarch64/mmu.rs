@@ -1,5 +1,6 @@
 use core::arch::asm;
 use crate::bitfield;
+use crate::aarch64::cpu;
 use super::registers::{TranslationControlRegister, SystemControlRegister, TranslationTableBaseRegister};
 
 pub unsafe fn init(table_start: *mut usize) {
@@ -20,11 +21,12 @@ pub unsafe fn init(table_start: *mut usize) {
 
         cpu::instruction_buffer();
 
+        let attributes = MemoryAttributes::new()
+            .set_access_flag(1)
+            .set_entry_type(MemoryAttributes::BLOCK_ENTRY);
+
         for i in 0..512 {
-            table[i] = 
-                (i << 21) | // Block Pointer
-                (1 << 10) | // Access Bit
-                1; // Valid Entry
+            table[i] = attributes.clone().set_address(i << 21).value;
         }
         
         cpu::data_buffer();
@@ -71,7 +73,8 @@ impl TranslationTable {
 }
 
 bitfield! {
-    BlockEntry(usize) {
+    MemoryAttributes(usize) {        
+        entry_type: 0-1,
         attribute_index: 2-4,
         security_bit: 5-5,
         access_permission: 6-7,
@@ -81,5 +84,25 @@ bitfield! {
         privileged_execution: 53-53,
         unprivileged_execution: 54-54,
         software_values: 55-58
+    } with {
+        const ADDRESS_MASK: usize = ((1 << (52 - 11 + 1)) - 1) << 11; 
+        
+        const BLOCK_ENTRY: usize = 0b001;
+        const TABLE_ENTRY: usize = 0b011;
+
+        pub const fn new() -> Self {
+            Self { value: 0 }
+        }
+
+        pub fn set_address(mut self, address: usize) -> Self {
+            self.value &= !Self::ADDRESS_MASK; 
+            self
+        }
+
+        pub fn clone(&self) -> Self {
+            Self {
+                value: self.value
+            }
+        }
     }
 }
