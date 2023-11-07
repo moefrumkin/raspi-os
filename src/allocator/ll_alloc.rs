@@ -5,7 +5,8 @@ use crate::sync::SpinMutex;
 
 #[derive(Debug)]
 pub struct LinkedListAllocator {
-    free_list: FreeBlock
+    free_list: Option<*mut FreeBlock>,
+    size: usize
 }
 
 unsafe impl GlobalAlloc for SpinMutex<LinkedListAllocator> {
@@ -44,16 +45,26 @@ impl LinkedListAllocator {
     #[allow(dead_code)]
     pub const fn new() -> Self {
         Self {
-            free_list: FreeBlock::new(0)
+            free_list: None,
+            size: 0
         }
     }
 
     #[allow(dead_code)]
     pub fn init(&mut self, start: usize, size: usize) {
         if size == 0 {
-            panic!("Head must have non-zero size");
+            panic!("Heap must have non-zero size");
         }
-        self.free(start, size);
+        //self.free(start, size);
+
+        let block_ptr = start as *mut FreeBlock;
+
+        unsafe {
+            let mut val = FreeBlock::from_components(size, None);
+            block_ptr.write_volatile(val);
+            //self.free_list = None; 
+            //self.size = size;
+        }
     }
 
     //TODO coalesce neighboring blocks
@@ -72,16 +83,18 @@ impl LinkedListAllocator {
         //This is where the fun begins
         unsafe {
             //create a free block at the start location
-            block_ptr.write(FreeBlock::from_components(size, self.free_list.next.take()));
+            let val = FreeBlock::from_components(size, self.free_list.take());
+            block_ptr.write_volatile(val);
 
-            //update free list
-            self.free_list.next = Some(&mut *block_ptr);
+            self.free_list = Some(&mut *block_ptr);
+;
         }
     }
 
     /// finds a free block that satisfies the size and alignment requirements
     fn find(&mut self, size: usize, align: usize) -> Option<(&'static mut FreeBlock, usize)> {
-        let mut current = &mut self.free_list;
+        return None;/*
+        let mut current = self.free_list.as_mut().expect("Use of Uninitialized Allocator");
 
         while let Some(ref mut block) = current.next {
             if let Ok(start) = Self::find_start(block, size, align) {
@@ -97,7 +110,7 @@ impl LinkedListAllocator {
             }
         }
 
-        None
+        None*/
     }
 
     /// Finds an appropriate start within a block for a given alignment and size
@@ -140,7 +153,7 @@ impl LinkedListAllocator {
 #[derive(Debug)]
 struct FreeBlock {
     size: usize,
-    next: Option<&'static mut FreeBlock>
+    next: Option<*mut FreeBlock>
 }
 
 impl FreeBlock {
@@ -152,7 +165,7 @@ impl FreeBlock {
         }
     }
 
-    fn from_components(size: usize, next: Option<&'static mut FreeBlock>) -> Self {
+    fn from_components(size: usize, next: Option<*mut FreeBlock>) -> Self {
         Self {
             size,
             next

@@ -64,6 +64,7 @@ registers!{
         }
     },
     SystemControlRegister("sctlr_el1") {
+        cache_enable: 2-2,
         translation_state: 0-0
     } with {
         pub enum TranslationState {

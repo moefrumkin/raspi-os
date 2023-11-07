@@ -33,6 +33,7 @@ pub unsafe fn init(table_start: *mut usize) {
 
         SystemControlRegister::read_to_buffer()
             .set_translation_state(SystemControlRegister::TranslationState::Enabled as usize)
+            .set_cache_enable(1)
             .write_to_register();
 
         cpu::instruction_buffer();

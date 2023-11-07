@@ -58,7 +58,7 @@ impl<'a, T> DerefMut for SpinMutexGuard<'a, T> {
 impl<'a, T> Drop for SpinMutexGuard<'a, T> {
     /// The dropping of the MutexGuard will release the lock it was created from.
     fn drop(&mut self) {
-        self.lock.store(false, Ordering::Release);
+        //self.lock.store(false, Ordering::Release);
     }
 }
 
