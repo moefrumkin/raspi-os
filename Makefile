@@ -1,7 +1,8 @@
 PLATFORM ?= raspi3
 
 ARCH = aarch64-unknown-none
-BUILD_CMD = cargo build -Zbuild-std=core,alloc --features=$(PLATFORM) --target=$(ARCH).json --release
+#BUILD_CMD = cargo build -Zbuild-std=core,alloc --features=$(PLATFORM) --target=$(ARCH)
+BUILD_CMD = cargo rustc --features=raspi3 --target=aarch64-unknown-none -- -C link-arg=-Taarch64-raspi3.ld
 
 KERNEL_ELF = target/$(ARCH)/release/graph_os
 
@@ -45,7 +46,8 @@ build:
 	$(BUILD_CMD)
 
 image:
-	aarch64-none-elf-objcopy --strip-all -O binary $(KERNEL_ELF) kernel8.img
+	#aarch64-none-elf-objcopy --strip-all -O binary $(KERNEL_ELF) kernel8.img
+	llvm-objcopy --output-target=aarch64-unknown-none --strip-all -O binary target/aarch64-unknown-none/debug/graph_os kernel8.img
 
 run:
 	$(QEMU_CMD)
@@ -67,7 +69,7 @@ gdb:
 
 clean:
 	cargo clean
-	del *.img
+	rm -f *.img
 
 doc:
 	cargo doc --features=$(PLATFORM) --open

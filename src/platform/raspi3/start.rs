@@ -36,7 +36,7 @@ pub extern "C" fn main(heap_start: usize, heap_size: usize, mailbox_start: usize
         *CONSOLE.lock() = Some(console);
     }
 
-    println!("Entering Boot Sequence");
+    println!("Entering Boot Sequence (with new build system?)");
     println!("Initializing Memory Virtualization");
 
     unsafe { 
