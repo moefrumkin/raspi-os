@@ -45,10 +45,9 @@ pub extern "C" fn main(heap_start: usize, heap_size: usize, mailbox_start: usize
 
     println!("Memory Virtualization Initialized");
 
-    /*println!("Initializing Heap Allocator");
+    println!("Initializing Heap Allocator");
     ALLOCATOR.lock().init(0x88000, 0x1000);
     println!("Heap Allocator initialized at {:#x} with size {}", heap_start, heap_size);
-    */
 
     /*let mut nums: alloc::vec::Vec<usize> = alloc::vec::Vec::new();
     nums.push(1);
