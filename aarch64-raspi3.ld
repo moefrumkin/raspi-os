@@ -19,6 +19,7 @@ SECTIONS
     TABLE_START = .;
     . += 0x1010;
 
+    . = ALIGN(0x1000); /*TODO: is this a reasonable aligment*/
     HEAP_START = .;
     . = . + HEAP_SIZE;
 
