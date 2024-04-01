@@ -1,0 +1,7 @@
+1](EL1@0): Entering Boot Sequence (with new build system?)
+2](EL1@0): Initializing Memory Virtualization
+3](EL1@0): Memory Virtualization Initialized
+4](EL1@0): Initializing Heap Allocator
+5](EL1@0): Heap Allocator initialized at 0x90000 with size 1048576
+A Fatal Allocation Error Occured
+Unable to allocate: Layout { size: 

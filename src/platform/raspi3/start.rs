@@ -36,7 +36,7 @@ pub extern "C" fn main(heap_start: usize, heap_size: usize, mailbox_start: usize
         *CONSOLE.lock() = Some(console);
     }
 
-    println!("Entering Boot Sequence");
+    println!("Entering Boot Sequence (with new build system?)");
     println!("Initializing Memory Virtualization");
 
     unsafe { 
@@ -45,16 +45,15 @@ pub extern "C" fn main(heap_start: usize, heap_size: usize, mailbox_start: usize
 
     println!("Memory Virtualization Initialized");
 
-    /*println!("Initializing Heap Allocator");
-    ALLOCATOR.lock().init(0x88000, 0x1000);
+    println!("Initializing Heap Allocator");
+    ALLOCATOR.lock().init(heap_start, heap_size);
     println!("Heap Allocator initialized at {:#x} with size {}", heap_start, heap_size);
-    */
 
-    /*let mut nums: alloc::vec::Vec<usize> = alloc::vec::Vec::new();
-    nums.push(1);
-    nums.push(2);
+    let mut nums: alloc::vec::Vec<usize> = alloc::vec::Vec::with_capacity(2);
+    //nums.push(1);
+    //nums.push(2);
 
-    println!("Nums: {:?}", &nums);*/
+    println!("Nums: {:?}", &nums);
 
     status_light.set_green(OutputLevel::High);
 

@@ -115,9 +115,9 @@ _start: //spin if not main core
     mov     sp, x0
 
     // clear bss
-3:  ldr     x1, =bss_start
+    ldr     x1, =bss_start
     ldr     w2, =bss_size
-    cbz     w2, 4f
+3:  cbz     w2, 4f
     str     xzr, [x1], #8
     sub     w2, w2, #1
     cbnz    w2, 3b

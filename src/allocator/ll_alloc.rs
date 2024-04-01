@@ -55,7 +55,9 @@ impl LinkedListAllocator {
         if size == 0 {
             panic!("Heap must have non-zero size");
         }
-        //self.free(start, size);
+
+        self.size = size;
+        self.free(start, size);
 
         let block_ptr = start as *mut FreeBlock;
 
@@ -93,10 +95,9 @@ impl LinkedListAllocator {
 
     /// finds a free block that satisfies the size and alignment requirements
     fn find(&mut self, size: usize, align: usize) -> Option<(&'static mut FreeBlock, usize)> {
-        return None;/*
-        let mut current = self.free_list.as_mut().expect("Use of Uninitialized Allocator");
+        /*let mut current = self.free_list.as_mut().expect("Use of Uninitialized Allocator");
 
-        while let Some(ref mut block) = current.next {
+        while let Some(ref mut block) = *current.next {
             if let Ok(start) = Self::find_start(block, size, align) {
                 let next = block.next.take();
                 let result = Some((
@@ -108,9 +109,9 @@ impl LinkedListAllocator {
             } else {
                 current = current.next.as_mut().expect("Unable to mutably access next block");
             }
-        }
+        }*/
 
-        None*/
+        None
     }
 
     /// Finds an appropriate start within a block for a given alignment and size
