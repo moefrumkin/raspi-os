@@ -29,6 +29,14 @@ Since embedded development has a jargon of its own, especially with the use of a
 | **MMU** | [**M**emory **M**anagement **U**nit](https://en.wikipedia.org/wiki/Memory_management_unit) | A processor unit that controls caching and address translation for the system memory |
 | **UART** | [**U**niversal **A**synchronous **R**eceiver-**T**ransmitter](https://en.wikipedia.org/wiki/Universal_asynchronous_receiver-transmitter) | A protocol which allows for bidirectional asynchronous communication between two parties.
 
+## Getting Started
+
+### Dependencies
+
+- Rust
+- QEMU
+- GDB
+
 ## Outline
 
 ### User Input
