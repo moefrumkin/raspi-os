@@ -4,6 +4,7 @@ A Raspberry Pi operating system.
 
 ## Table of Contents
 - [Background](#background)
+- [Getting Started](#getting-started)
 - [Outline](#outline)
 - [Output to User](#output-to-user-1)
 - [Hardware Abstraction](#hardware-abstraction-1)
@@ -33,7 +34,7 @@ Since embedded development has a jargon of its own, especially with the use of a
 
 ### Dependencies
 
-- Rust
+- Rust: You need to have the nightly build as well as the `aarch64-unknown-none` target added. If you have rustup up you can run `rustup default nightly` and `rustup target add aarch64-unknown-none`
 - QEMU
 - GDB
 
