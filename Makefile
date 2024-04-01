@@ -1,25 +1,21 @@
 PLATFORM ?= raspi3
-
 ARCH = aarch64-unknown-none
-#BUILD_CMD = cargo build -Zbuild-std=core,alloc --features=$(PLATFORM) --target=$(ARCH)
-BUILD_CMD = cargo rustc --features=raspi3 --target=aarch64-unknown-none -- -C link-arg=-Taarch64-raspi3.ld
+
+BUILD_CMD = cargo rustc --features=$(PLATFORM) --target=$(ARCH) -- -C link-arg=-Taarch64-raspi3.ld
 
 KERNEL_ELF = target/$(ARCH)/debug/graph_os
 
-QEMU = qemu-system-aarch64
+QEMU_ARCH = qemu-system-aarch64
 
 ifeq ($(PLATFORM), raspi3)
 	MACHINE = raspi3b # Is this correct?
+	CPU = cortex-a53
 	CORES = 4
-else ifeq ($(PLATFORM), qemu)
-	MACHINE = virt
-	CORES = 1
 else
 	$(error unsupported platform $(PLATFORM))
 endif
 
-CPU = cortex-a53
-QEMU_CMD = $(QEMU) \
+QEMU_CMD = $(QEMU_ARCH) \
 	-machine $(MACHINE) \
 	-m 1024M -cpu $(CPU) \
 	-smp $(CORES) \
@@ -41,13 +37,12 @@ GDB_CMD = $(GDB) -x $(GDB_SCRIPT)
 all: build doc-noopen
 
 qemu:
-	make PLATFORM=qemu
+	$(QEMU_CMD) -S -s
 
 build:
 	$(BUILD_CMD)
 
 image:
-	#aarch64-none-elf-objcopy --strip-all -O binary $(KERNEL_ELF) kernel8.img
 	llvm-objcopy --output-target=aarch64-unknown-none --strip-all -O binary target/aarch64-unknown-none/debug/graph_os kernel8.img
 
 run:
@@ -61,9 +56,6 @@ nm:
 
 readelf:
 	aarch64-none-elf-readelf --header $(KERNEL_ELF)
-
-debug:
-	$(QEMU_CMD)	-S -s
 
 gdb:
 	$(GDB_CMD)
