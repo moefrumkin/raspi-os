@@ -15,14 +15,8 @@ unsafe impl GlobalAlloc for SpinMutex<LinkedListAllocator> {
 
         let mut allocator = self.lock();
 
-        if let Some((region, start)) = allocator.find(size, align) {
-            let end = start + size;
-            let trim = region.end() - end;
-
-            if trim > 0 {
-                allocator.free(region.end(), trim);
-            }
-            start as *mut u8
+        if let Some(block) = allocator.find(size, align) {
+            block as *const FreeBlock as *mut u8
         } else {
             core::ptr::null_mut()
         }
@@ -89,47 +83,67 @@ impl LinkedListAllocator {
             block_ptr.write_volatile(val);
 
             self.free_list = Some(&mut *block_ptr);
-;
         }
     }
 
     /// finds a free block that satisfies the size and alignment requirements
-    fn find(&mut self, size: usize, align: usize) -> Option<(&'static mut FreeBlock, usize)> {
-        /*let mut current = self.free_list.as_mut().expect("Use of Uninitialized Allocator");
+    /// will divide a block to find a free block
+    unsafe fn find(&mut self, size: usize, align: usize) -> Option<&FreeBlock> {
+        let mut current = self.free_list.expect("Use of uninitialized allocator");
 
-        while let Some(ref mut block) = *current.next {
-            if let Ok(start) = Self::find_start(block, size, align) {
-                let next = block.next.take();
-                let result = Some((
-                    current.next.take().expect("The current block does not point to another block"),
-                    start
-                ));
-                current.next = next;
-                return result;
+        while let Some(block) = (*current).next {
+            if let Ok((result, next_block)) = Self::try_fit(&mut *block, size, align) {
+                //TODO: there should be a more elegant way of expressing this
+                (*current).next = next_block;
+                return Some(result);
             } else {
-                current = current.next.as_mut().expect("Unable to mutably access next block");
+                current = block;
             }
-        }*/
+        }
 
         None
     }
 
     /// Finds an appropriate start within a block for a given alignment and size
-    fn find_start(block: &FreeBlock, size: usize, align: usize) -> Result<usize, ()> {
+    /// If a block is found, it is returned
+    /// A block may be allocated from within an existing block. In this case, it creates a sub
+    /// block and relinks the remaining blocks appropriately
+    /// Returns the freed block and the block to link the previous block to
+    unsafe fn try_fit(block: &mut FreeBlock, size: usize, align: usize) -> Result<(&FreeBlock, Option<*mut FreeBlock>), ()> {
         let start = super::align(block.start(), align);
         let end = start + size;
+
+        // TODO: is there a more efficient sequence of calculations here?
+        let start_offset = start - block.start();
+        let end_offset = block.end() - end;
 
         if end > block.end() {
             return Err(());
         }
 
-        let trim = block.end() - end;
+        let next_block: Option<*mut FreeBlock>;
 
-        if trim > 0 && trim < mem::size_of::<FreeBlock>() {
-            return Err(());
+        if start_offset > 0 {
+            if start_offset < mem::size_of::<FreeBlock>() {
+                return Err(());
+            } else {
+                block.size = start_offset;
+                next_block = Some(block as *mut FreeBlock);
+            }
+        } else {
+            next_block = block.next;
         }
 
-        Ok(start)
+        if end_offset > 0 {
+            if end_offset < mem::size_of::<FreeBlock>() {
+                return Err(());
+            } else {
+                *((end) as *mut FreeBlock) = FreeBlock{size: end_offset, next: block.next};
+                block.next = Some((end) as *mut FreeBlock);
+            }
+        }
+
+        Ok((&*(start as *const FreeBlock), next_block))
     }
 
     /// Expands a layout to the minimum size required to fit a FreeBlock instance 

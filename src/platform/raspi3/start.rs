@@ -50,8 +50,8 @@ pub extern "C" fn main(heap_start: usize, heap_size: usize, mailbox_start: usize
     println!("Heap Allocator initialized at {:#x} with size {}", heap_start, heap_size);
 
     let mut nums: alloc::vec::Vec<usize> = alloc::vec::Vec::with_capacity(2);
-    //nums.push(1);
-    //nums.push(2);
+    nums.push(1);
+    nums.push(2);
 
     println!("Nums: {:?}", &nums);
 
