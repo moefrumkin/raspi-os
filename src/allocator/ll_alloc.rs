@@ -115,11 +115,12 @@ impl LinkedListAllocator {
 
         // TODO: is there a more efficient sequence of calculations here?
         let start_offset = start - block.start();
-        let end_offset = block.end() - end;
 
         if end > block.end() {
             return Err(());
         }
+
+        let end_offset = block.end() - end;
 
         let mut next_block: Option<*mut FreeBlock>;
 
