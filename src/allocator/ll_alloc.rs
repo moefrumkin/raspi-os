@@ -5,7 +5,7 @@ use crate::sync::SpinMutex;
 
 #[derive(Debug)]
 pub struct LinkedListAllocator {
-    free_list: Option<*mut FreeBlock>,
+    free_list: FreeBlock,
     size: usize
 }
 
@@ -39,7 +39,7 @@ impl LinkedListAllocator {
     #[allow(dead_code)]
     pub const fn new() -> Self {
         Self {
-            free_list: None,
+            free_list: FreeBlock {size: 0, next: None},
             size: 0
         }
     }
@@ -56,7 +56,7 @@ impl LinkedListAllocator {
         let block_ptr = start as *mut FreeBlock;
 
         unsafe {
-            let mut val = FreeBlock::from_components(size, None);
+            let val = FreeBlock::from_components(size, None);
             block_ptr.write_volatile(val);
             //self.free_list = None; 
             //self.size = size;
@@ -79,17 +79,17 @@ impl LinkedListAllocator {
         //This is where the fun begins
         unsafe {
             //create a free block at the start location
-            let val = FreeBlock::from_components(size, self.free_list.take());
+            let val = FreeBlock::from_components(size, self.free_list.next.take());
             block_ptr.write_volatile(val);
 
-            self.free_list = Some(&mut *block_ptr);
+            self.free_list.next = Some(&mut *block_ptr);
         }
     }
 
     /// finds a free block that satisfies the size and alignment requirements
     /// will divide a block to find a free block
     unsafe fn find(&mut self, size: usize, align: usize) -> Option<&FreeBlock> {
-        let mut current = self.free_list.expect("Use of uninitialized allocator");
+        let mut current = &mut (self.free_list) as *mut FreeBlock;
 
         while let Some(block) = (*current).next {
             if let Ok((result, next_block)) = Self::try_fit(&mut *block, size, align) {

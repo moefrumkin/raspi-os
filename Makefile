@@ -1,7 +1,8 @@
 PLATFORM ?= raspi3
 ARCH = aarch64-unknown-none
 
-BUILD_CMD = cargo rustc --features=$(PLATFORM) --target=$(ARCH) -- -C link-arg=-Taarch64-raspi3.ld
+#TODO: do we need -g flag?
+BUILD_CMD = cargo rustc --features=$(PLATFORM) --target=$(ARCH) -- -g -C link-arg=-Taarch64-raspi3.ld
 
 KERNEL_ELF = target/$(ARCH)/debug/graph_os
 
@@ -52,7 +53,7 @@ dump:
 	$(OBJDUMP_CMD)
 
 nm:
-	aarch64-none-elf-nm $(KERNEL_ELF)
+	nm $(KERNEL_ELF)
 
 readelf:
 	aarch64-none-elf-readelf --header $(KERNEL_ELF)
