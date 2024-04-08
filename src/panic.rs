@@ -28,11 +28,9 @@ fn on_panic(info: &PanicInfo) -> ! {
     uart.writeln("");
     uart.writeln("A Fatal Kernel Panic Occured");
     if let Some(args) = info.message() {
-        if let Some(location) = args.as_str() {
-            uart.writeln(location);
-        } else {
-            uart.writeln("No message supplied");
-        }
+        uart.writef(*args);
+    } else {
+        uart.writeln("No message supplied");
     }
 
     if let Some(location) = info.location() {
@@ -58,7 +56,7 @@ fn on_alloc_error(layout: Layout) -> ! {
 
     uart.writeln("A Fatal Allocation Error Occured");
     uart.writefln(format_args!("Unable to allocate: {:?} using allocator: {:?}", layout, ALLOCATOR));
-    
+
     loop {}
 }
 

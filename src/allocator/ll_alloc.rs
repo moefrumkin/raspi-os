@@ -121,7 +121,7 @@ impl LinkedListAllocator {
             return Err(());
         }
 
-        let next_block: Option<*mut FreeBlock>;
+        let mut next_block: Option<*mut FreeBlock>;
 
         if start_offset > 0 {
             if start_offset < mem::size_of::<FreeBlock>() {
@@ -139,7 +139,7 @@ impl LinkedListAllocator {
                 return Err(());
             } else {
                 *((end) as *mut FreeBlock) = FreeBlock{size: end_offset, next: block.next};
-                block.next = Some((end) as *mut FreeBlock);
+                next_block = Some((end) as *mut FreeBlock);
             }
         }
 

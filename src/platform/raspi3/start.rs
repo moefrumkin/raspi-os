@@ -3,6 +3,7 @@ use crate::aarch64::{cpu, mmu};
 use crate::canvas::{canvas2d::Canvas2D, line::Line, matrix::Matrix, vector::Vector};
 use crate::ALLOCATOR;
 use crate::{print, println, read, write};
+use alloc::vec::Vec;
 
 use super::{
     gpio::{GPIOController, OutputLevel, Pin, StatusLight},
@@ -55,6 +56,10 @@ pub extern "C" fn main(heap_start: usize, heap_size: usize, mailbox_start: usize
 
     println!("Nums: {:?}", &nums);
 
+    println!("Testing allocator");
+
+    test_allocator(100);
+
     status_light.set_green(OutputLevel::High);
 
     loop{}
@@ -76,4 +81,24 @@ pub fn blink_sequence(status_light: &StatusLight, timer: &Timer, interval: u64) 
     timer.delay(interval);
 
     status_light.set_red(OutputLevel::Low);
+}
+
+pub fn test_allocator(limit: usize){
+    let mut vec_vec: Vec<Vec<usize>> = alloc::vec!();
+
+    for n in 1..limit {
+        let mut num_vec: Vec<usize> = alloc::vec!();
+        for m in 1..limit {
+           num_vec.push(m * n);
+        }
+        vec_vec.push(num_vec);
+    }
+
+    for n in 1 .. limit {
+        for m in 1..limit {
+            if vec_vec[n][m] != m * n  {
+                panic!("Expected {:?}, received {:?}", m * n, vec_vec[n][m]);
+            }
+        }
+    }
 }
