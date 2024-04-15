@@ -9,6 +9,12 @@ pub struct LinkedListAllocator {
     size: usize
 }
 
+#[derive(Debug)]
+pub struct AllocatorStats {
+    free_space: usize,
+    blocks: usize
+}
+
 unsafe impl GlobalAlloc for SpinMutex<LinkedListAllocator> {
     unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
         let (size, align) = LinkedListAllocator::expand_to_min(layout);
@@ -26,6 +32,19 @@ unsafe impl GlobalAlloc for SpinMutex<LinkedListAllocator> {
         let (size, _) = LinkedListAllocator::expand_to_min(layout);
 
         self.lock().free(ptr as usize, size);
+    }
+}
+
+impl SpinMutex<LinkedListAllocator> {
+    pub fn stats(&self) -> AllocatorStats {
+        let mut stats = AllocatorStats {
+            free_space: 0,
+            blocks: 0
+        };
+
+        
+
+        return stats;
     }
 }
 
@@ -89,12 +108,14 @@ impl LinkedListAllocator {
     /// finds a free block that satisfies the size and alignment requirements
     /// will divide a block to find a free block
     unsafe fn find(&mut self, size: usize, align: usize) -> Option<&FreeBlock> {
-        let mut current = &mut (self.free_list) as *mut FreeBlock;
+        let mut current = &mut self.free_list as *mut FreeBlock;
 
         while let Some(block) = (*current).next {
-            if let Ok((result, next_block)) = Self::try_fit(&mut *block, size, align) {
+            if let Ok((result, relink)) = Self::try_fit(&mut *block, size, align) {
                 //TODO: there should be a more elegant way of expressing this
-                (*current).next = next_block;
+                if relink {
+                    (*current).next = result.next.take();
+                }
                 return Some(result);
             } else {
                 current = block;
@@ -109,7 +130,7 @@ impl LinkedListAllocator {
     /// A block may be allocated from within an existing block. In this case, it creates a sub
     /// block and relinks the remaining blocks appropriately
     /// Returns the freed block and the block to link the previous block to
-    unsafe fn try_fit(block: &mut FreeBlock, size: usize, align: usize) -> Result<(&FreeBlock, Option<*mut FreeBlock>), ()> {
+    unsafe fn try_fit(block: &'static mut FreeBlock, size: usize, align: usize) -> Result<(&'static mut FreeBlock, bool), ()> {
         let start = super::align(block.start(), align);
         let end = start + size;
 
@@ -122,30 +143,46 @@ impl LinkedListAllocator {
 
         let end_offset = block.end() - end;
 
-        let mut next_block: Option<*mut FreeBlock>;
+        if end_offset > 0 {
+            if end_offset < mem::size_of::<FreeBlock>() {
+                return Err(());
+            } else {
+                Self::partition(block, size + start_offset).expect("Failed to partition block");
+           }
+        }
+
+        let relink;
 
         if start_offset > 0 {
             if start_offset < mem::size_of::<FreeBlock>() {
                 return Err(());
             } else {
-                block.size = start_offset;
-                next_block = Some(block as *mut FreeBlock);
+                Self::partition(block, start_offset).expect("Failed to partition block");
+                relink = false;
             }
         } else {
-            next_block = block.next;
+            relink = true;
         }
 
-        if end_offset > 0 {
-            if end_offset < mem::size_of::<FreeBlock>() {
-                return Err(());
-            } else {
-                *((end) as *mut FreeBlock) = FreeBlock{size: end_offset, next: block.next};
-                next_block = Some((end) as *mut FreeBlock);
-            }
-        }
-
-        Ok((&*(start as *const FreeBlock), next_block))
+        Ok((&mut *(start as *mut FreeBlock), relink))
     }
+
+    /// Split the given block into two blocks
+    /// Assumes that there is enough space to partition the blocks
+    unsafe fn partition(block: *mut FreeBlock, size: usize) -> Result<(), ()> {
+        let new_block: &'static mut FreeBlock = &mut *block.offset(size as isize);
+
+        *new_block = FreeBlock {
+            size: (*block).size - size,
+            next: (*block).next.take()
+        };
+
+        (*block).size = size;
+        (*block).next = Some(new_block);
+
+        Ok(())
+    }
+
 
     /// Expands a layout to the minimum size required to fit a FreeBlock instance 
     fn expand_to_min(layout: Layout) -> (usize, usize) {
