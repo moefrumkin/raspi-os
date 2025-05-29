@@ -14,5 +14,6 @@ mod tests {
         assert_eq!(align(0x100, 16), 0x100);
         assert_eq!(align(0x1, 8), 0x8);
         assert_eq!(align(0x9, 8), 0x10);
+        assert_eq!(align(0x558edf9e3061, 8), 0x558edf9e3068); 
     }
 }

@@ -176,13 +176,13 @@ impl<'a> UARTController<'a> {
     #[allow(dead_code)]
     pub fn writef(&mut self, args: Arguments) {
         #[allow(unused_must_use)]
-        fmt::write(self, args);
+        let _ = fmt::write(self, args); // TODO: Handle errors?
     }
 
     pub fn writefln(&mut self, args: Arguments) {
         self.update_debug();
         #[allow(unused_must_use)]
-        fmt::write(self, args);
+        let _ = fmt::write(self, args); // TODO: Handle errors
         self.newline();
     }
 

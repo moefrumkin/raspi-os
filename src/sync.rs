@@ -3,7 +3,6 @@ use core::{
     cell::UnsafeCell,
     ops::{Deref, DerefMut}
 };
-use alloc::boxed::Box;
 
 pub struct SpinMutex<T> {
     lock: AtomicBool,
