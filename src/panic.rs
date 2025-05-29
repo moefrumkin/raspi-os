@@ -57,6 +57,10 @@ fn on_alloc_error(layout: Layout) -> ! {
     uart.writeln("A Fatal Allocation Error Occured");
     uart.writefln(format_args!("Unable to allocate: {:?} using allocator: {:?}", layout, ALLOCATOR));
 
+    let stats = ALLOCATOR.stats();
+
+    uart.writefln(format_args!("{} bytes in {} blocks", stats.free_space, stats.blocks));
+
     loop {}
 }
 

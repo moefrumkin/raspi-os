@@ -11,27 +11,30 @@ pub struct LinkedListAllocator {
 
 #[derive(Debug)]
 pub struct AllocatorStats {
-    free_space: usize,
-    blocks: usize
+    pub free_space: usize,
+    pub blocks: usize
+}
+
+impl Default for AllocatorStats {
+    fn default() -> Self {
+        Self {
+            free_space: 0,
+            blocks: 0
+        }
+    }
 }
 
 unsafe impl GlobalAlloc for SpinMutex<LinkedListAllocator> {
     unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
-        let (size, align) = LinkedListAllocator::expand_to_min(layout);
+        let allocator = &mut self.lock();
 
-        let mut allocator = self.lock();
+        allocator.allocate(layout)
+            .map_or(core::ptr::null_mut(), |b| b as *const FreeBlock as *mut u8)
 
-        if let Some(block) = allocator.find(size, align) {
-            block as *const FreeBlock as *mut u8
-        } else {
-            core::ptr::null_mut()
-        }
     }
 
     unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
-        let (size, _) = LinkedListAllocator::expand_to_min(layout);
-
-        self.lock().free(ptr as usize, size);
+        self.lock().free(ptr as usize, layout.size());
     }
 }
 
@@ -42,9 +45,9 @@ impl SpinMutex<LinkedListAllocator> {
             blocks: 0
         };
 
-        
+        let first_block = &self.lock().free_list;          
 
-        return stats;
+        return first_block.next.as_ref().map_or_else(AllocatorStats::default, |b| b.stats());
     }
 }
 
@@ -82,16 +85,27 @@ impl LinkedListAllocator {
         }
     }
 
+    // Return the smallest block larger than the size and of the correct alignment
+    fn allocate(&mut self, layout: Layout) -> Option<&mut FreeBlock> {
+        let (size, align) = Self::expand_to_min(layout);
+        if let Ok((free, next)) = self.free_list.fit_in_block(size, align) {
+            Some(free)
+        } else {
+            None
+        }
+    }
+
+
     //TODO coalesce neighboring blocks
     fn free(&mut self, start: usize, size: usize) {
-        if super::align(start, mem::align_of::<FreeBlock>()) != start {
-            panic!("Incompatible memory alignment of freed block");
+        if start % mem::align_of::<FreeBlock>() != 0 {
+            panic!("Incompatible memory alignment of freed block. Block address: {:x}, needs alignment {}", start, mem::align_of::<FreeBlock>());
         }
 
         if size < mem::size_of::<FreeBlock>() {
             panic!("Block too small to free");
         }
-        
+
         //No actual computation, just a cast
         let block_ptr = start as *mut FreeBlock;
 
@@ -104,85 +118,6 @@ impl LinkedListAllocator {
             self.free_list.next = Some(&mut *block_ptr);
         }
     }
-
-    /// finds a free block that satisfies the size and alignment requirements
-    /// will divide a block to find a free block
-    unsafe fn find(&mut self, size: usize, align: usize) -> Option<&FreeBlock> {
-        let mut current = &mut self.free_list as *mut FreeBlock;
-
-        while let Some(block) = (*current).next {
-            if let Ok((result, relink)) = Self::try_fit(&mut *block, size, align) {
-                //TODO: there should be a more elegant way of expressing this
-                if relink {
-                    (*current).next = result.next.take();
-                }
-                return Some(result);
-            } else {
-                current = block;
-            }
-        }
-
-        None
-    }
-
-    /// Finds an appropriate start within a block for a given alignment and size
-    /// If a block is found, it is returned
-    /// A block may be allocated from within an existing block. In this case, it creates a sub
-    /// block and relinks the remaining blocks appropriately
-    /// Returns the freed block and the block to link the previous block to
-    unsafe fn try_fit(block: &'static mut FreeBlock, size: usize, align: usize) -> Result<(&'static mut FreeBlock, bool), ()> {
-        let start = super::align(block.start(), align);
-        let end = start + size;
-
-        // TODO: is there a more efficient sequence of calculations here?
-        let start_offset = start - block.start();
-
-        if end > block.end() {
-            return Err(());
-        }
-
-        let end_offset = block.end() - end;
-
-        if end_offset > 0 {
-            if end_offset < mem::size_of::<FreeBlock>() {
-                return Err(());
-            } else {
-                Self::partition(block, size + start_offset).expect("Failed to partition block");
-           }
-        }
-
-        let relink;
-
-        if start_offset > 0 {
-            if start_offset < mem::size_of::<FreeBlock>() {
-                return Err(());
-            } else {
-                Self::partition(block, start_offset).expect("Failed to partition block");
-                relink = false;
-            }
-        } else {
-            relink = true;
-        }
-
-        Ok((&mut *(start as *mut FreeBlock), relink))
-    }
-
-    /// Split the given block into two blocks
-    /// Assumes that there is enough space to partition the blocks
-    unsafe fn partition(block: *mut FreeBlock, size: usize) -> Result<(), ()> {
-        let new_block: &'static mut FreeBlock = &mut *block.offset(size as isize);
-
-        *new_block = FreeBlock {
-            size: (*block).size - size,
-            next: (*block).next.take()
-        };
-
-        (*block).size = size;
-        (*block).next = Some(new_block);
-
-        Ok(())
-    }
-
 
     /// Expands a layout to the minimum size required to fit a FreeBlock instance 
     fn expand_to_min(layout: Layout) -> (usize, usize) {
@@ -198,15 +133,15 @@ impl LinkedListAllocator {
             //.expect("Unable to fit layout to minimum size")
             .unwrap()
             .pad_to_align();
-        
-            ( layout.size().max(mem::size_of::<FreeBlock>()), layout.align() )
+
+        ( layout.size().max(mem::size_of::<FreeBlock>()), layout.align() )
     }
 }
 
 #[derive(Debug)]
 struct FreeBlock {
     size: usize,
-    next: Option<*mut FreeBlock>
+    next: Option<&'static mut FreeBlock>
 }
 
 impl FreeBlock {
@@ -218,7 +153,7 @@ impl FreeBlock {
         }
     }
 
-    fn from_components(size: usize, next: Option<*mut FreeBlock>) -> Self {
+    fn from_components(size: usize, next: Option<&'static mut FreeBlock>) -> Self {
         Self {
             size,
             next
@@ -232,7 +167,90 @@ impl FreeBlock {
     fn end(&self) -> usize {
         self.start() + self.size
     }
-}
+
+   /// Finds an appropriate start within a block for a given alignment and size
+    /// If a block is found, it is returned
+    /// A block may be allocated from within an existing block. In this case, it creates a sub
+    /// block and relinks the remaining blocks appropriately
+    /// Returns the freed block and boolean whether the caller needs to relink the blocks
+    fn fit_in_block(&mut self, size: usize, align: usize) -> Result<(&mut FreeBlock, Option<&mut FreeBlock>), ()> {
+        let start = super::align(self.start(), align);
+        let end = start + size;
+
+        // TODO: is there a more efficient sequence of calculations here?
+        let start_offset = start - self.start();
+
+        if start_offset > 0 {
+            if start_offset < mem::size_of::<FreeBlock>() {
+                return Err(());
+            } else {
+                self.partition(start_offset).expect("Failed to partition block");
+                let next = self.next.take().expect("Block improperly partitioned");
+
+                if let Ok((freed_block, next_block)) = next.fit_in_block(size, align) {
+                    self.next = next_block;
+                    return Ok((freed_block, Some(self)));
+                } else {
+                    return Err(());
+                }
+            }
+        }
+
+        if end > self.end() {
+            if let Some(next) = self.next.take() {
+                if let Ok((free_block, next)) = next.fit_in_block(size, align) {
+                    self.next = next;
+                    return Ok((free_block, Some(self)));
+                }
+            }
+
+            return Err(());
+        }
+
+        let end_offset = self.end() - end;
+
+        if end_offset > 0 {
+            if end_offset < mem::size_of::<FreeBlock>() {
+                return Err(());
+            } else {
+                self.partition(size + start_offset).expect("Failed to partition block");
+                let next = self.next.take();
+                return Ok((self, next));
+            }
+        }
+
+        Err(())
+    }
+
+    /// Split the given block into two blocks
+    /// Assumes that there is enough space to partition the blocks
+    fn partition(&mut self, size: usize) -> Result<(), ()> {
+        let new_block: &mut FreeBlock = unsafe {
+            &mut *(self as *mut FreeBlock).offset(size as isize)
+        };
+
+        *new_block = FreeBlock {
+            size: (*self).size - size,
+            next: (*self).next.take()
+        };
+
+        (*self).size = size;
+        (*self).next = Some(new_block);
+
+        Ok(())
+    }
+
+    fn stats(&self) -> AllocatorStats {
+        let mut stats = self.next.as_ref().map_or_else(AllocatorStats::default, |next| next.stats());
+
+        stats.blocks += 1;
+        stats.free_space += self.size;
+
+        stats
+    }
+} 
+
+
 
 #[cfg(test)]
 mod tests {
@@ -240,7 +258,32 @@ mod tests {
     use super::*;
     use crate::sync::SpinMutex;
 
-    static mut HEAP: [u8; 4096] = [0; 4096];
+    //TODO Check alignment
+    #[repr(align(16))]
+    struct Heap {
+        memory: [u8; 4096]
+    }
+
+    static ALIGNED_HEAP: Heap = Heap{
+        memory: [0; 4096]
+    };
+
+    static mut HEAP: [u8; 4096] = ALIGNED_HEAP.memory;
+
+    fn initialize_allocator() -> SpinMutex<LinkedListAllocator> {
+        let alloc = SpinMutex::new(LinkedListAllocator::new());
+        unsafe {
+            let ptr = HEAP.as_ptr() as usize;
+            assert_eq!(super::super::align(ptr, mem::align_of::<FreeBlock>()), ptr, "The heap pointer is misaligned");
+            alloc.lock().init(HEAP.as_ptr() as usize, HEAP.len());
+        }
+        return alloc
+    }
+
+    #[test]
+    fn test_initialize_allocator() {
+        initialize_allocator();
+    }
 
     #[test]
     fn allocate() {
@@ -248,22 +291,18 @@ mod tests {
             let alloc = SpinMutex::new(LinkedListAllocator::new());
             alloc.lock().init(HEAP.as_ptr() as usize, HEAP.len());
 
-            assert_eq!(alloc.alloc(Layout::from_size_align(4096, 1).unwrap()), HEAP.as_mut_ptr());
+            let layout = Layout::from_size_align(4096, 1024).unwrap();
 
-            alloc.dealloc(HEAP.as_mut_ptr(), Layout::from_size_align(4096, 1).unwrap());
+            let ptr = alloc.alloc(layout);
 
-            assert_eq!(alloc.alloc(Layout::from_size_align(65536, 256).unwrap()), std::ptr::null_mut());
+            assert_ne!(ptr, std::ptr::null_mut(), "Failed to allocated whole heap");
 
-            assert_eq!(alloc.alloc(Layout::from_size_align(256, 16).unwrap()), HEAP.as_mut_ptr());
+            assert_eq!(ptr as usize % layout.align(), 0,  "Allocated block has incorrect allignment. Pointer: {:p}, required alignment is {}", ptr, layout.align());
+
+            let stats = alloc.stats();
+
+            assert_eq!(stats.free_space, 0, "After allocation, expected 0 bytes left, actual is {}", stats.free_space);
         }
-    }
-
-    #[test]
-    fn find_start() {
-        let block = FreeBlock::from_components(1024, None);
-
-        assert_eq!(LinkedListAllocator::find_start(&block, 56, 8), Ok(&block as *const FreeBlock as usize));
-        assert_eq!(LinkedListAllocator::find_start(&block, 2048, 8), Err(()));
     }
 
     #[test]
@@ -274,6 +313,6 @@ mod tests {
         assert_eq!(LinkedListAllocator::expand_to_min(Layout::from_size_align(160, 4).unwrap()), (160, align));
         assert_eq!(LinkedListAllocator::expand_to_min(Layout::from_size_align(4, 16).unwrap()), (size, 16));
         assert_eq!(LinkedListAllocator::expand_to_min(Layout::from_size_align(160, 32).unwrap()), (160, 32));
-        
+        assert_eq!(LinkedListAllocator::expand_to_min(Layout::from_size_align(4096, 1024).unwrap()), (4096, 1024));
     }
 }
