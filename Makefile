@@ -47,7 +47,7 @@ build:
 image:
 	llvm-objcopy --output-target=aarch64-unknown-none --strip-all -O binary target/aarch64-unknown-none/debug/graph_os kernel8.img
 
-run:
+run: $(KERNEL_ELF)
 	$(QEMU_CMD)
 
 dump:

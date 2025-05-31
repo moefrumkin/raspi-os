@@ -50,17 +50,35 @@ pub extern "C" fn main(heap_start: usize, heap_size: usize, mailbox_start: usize
     ALLOCATOR.lock().init(heap_start, heap_size);
     println!("Heap Allocator initialized at {:#x} with size {}", heap_start, heap_size);
 
-    let mut nums: alloc::vec::Vec<usize> = alloc::vec!();
-    nums.push(1);
-    nums.push(2);
+    let buffer = unsafe {
+        &mut *(mailbox_start as *mut MessageBuffer)
+    };
 
-    println!("Nums: {:?}", &nums);
+    println!("Initializing mailbox buffer at {:#x}", mailbox_start);
 
-    println!("Testing allocator");
+    buffer.data[0] = 32;
+    buffer.data[1] = 0;
 
-    test_allocator(100);
+    buffer.data[2] = 0x10002;
+    buffer.data[3] = 4;
+    buffer.data[4] = 0;
+    buffer.data[5] = 0;
 
-    println!("Tests Passed!");
+    buffer.data[6] = 0;
+    buffer.data[7] = 0;
+    
+    let mut mailbox = MailboxController::new(&mmio, buffer);
+
+    println!("Sending mailbox message");
+
+    mailbox.call(mailbox_start as u32, Channel::Prop);
+
+    println!("Message sent!");
+
+    for i in 0..8 {
+        println!("buffer[{}] = {:#x}", i, buffer.data[i]);
+    }
+
 
     status_light.set_green(OutputLevel::High);
 
