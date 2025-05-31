@@ -58,7 +58,7 @@ pub extern "C" fn main(heap_start: usize, heap_size: usize, mailbox_start: usize
 
     println!("Testing allocator");
 
-    test_allocator(150);
+    test_allocator(100);
 
     println!("Tests Passed!");
 

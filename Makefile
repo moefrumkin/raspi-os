@@ -29,7 +29,8 @@ QEMU_CMD = $(QEMU_ARCH) \
 OBJDUMP = aarch64-none-elf-objdump
 OBJDUMP_CMD = $(OBJDUMP) --disassemble-all $(KERNEL_ELF)
 
-GDB = gdb
+GDB = rust-gdb
+#gdb-multiarch
 GDB_SCRIPT = debug.gdb
 GDB_CMD = $(GDB) -x $(GDB_SCRIPT)
 
