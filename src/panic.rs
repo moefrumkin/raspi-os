@@ -27,8 +27,10 @@ fn on_panic(info: &PanicInfo) -> ! {
 
     uart.writeln("");
     uart.writeln("A Fatal Kernel Panic Occured");
-    if let Some(args) = info.message() {
-        uart.writef(*args);
+    
+    // TODO: tidy up
+    if let Some(args) = info.message().as_str() {
+        uart.writeln(args);
     } else {
         uart.writeln("No message supplied");
     }
