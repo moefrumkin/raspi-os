@@ -4,15 +4,17 @@ use crate::canvas::{canvas2d::Canvas2D, line::Line, matrix::Matrix, vector::Vect
 use crate::ALLOCATOR;
 use crate::{print, println, read, write};
 use alloc::vec::Vec;
+use alloc::slice;
 
 use super::{
     gpio::{GPIOController, OutputLevel, Pin, StatusLight},
     gpu::{FBConfig, GPUController},
     lcd::LCDController,
-    mailbox::{Channel, Instruction, MailboxController, MessageBuffer, MessageBuilder},
+    mailbox::{Channel, MailboxController},
     mmio::MMIOController,
     timer::Timer,
     uart::{LogLevel, UARTController, CONSOLE},
+    mailbox_property::{MessageBuilder, MessageWord, Instruction, AlignedWord}
 };
 
 static MMIO: MMIOController = MMIOController::new();
@@ -50,33 +52,59 @@ pub extern "C" fn main(heap_start: usize, heap_size: usize, mailbox_start: usize
     ALLOCATOR.lock().init(heap_start, heap_size);
     println!("Heap Allocator initialized at {:#x} with size {}", heap_start, heap_size);
 
+    let mailbox_start = 0x95000;
     let buffer = unsafe {
-        &mut *(mailbox_start as *mut MessageBuffer)
+        slice::from_raw_parts_mut(mailbox_start as *mut u32, 8)
     };
 
     println!("Initializing mailbox buffer at {:#x}", mailbox_start);
 
-    buffer.data[0] = 32;
-    buffer.data[1] = 0;
+    buffer[0] = 32;
+    buffer[1] = 0;
 
-    buffer.data[2] = 0x10002;
-    buffer.data[3] = 4;
-    buffer.data[4] = 0;
-    buffer.data[5] = 0;
+    buffer[2] = 0x10002;
+    buffer[3] = 4;
+    buffer[4] = 0;
+    buffer[5] = 0;
 
-    buffer.data[6] = 0;
-    buffer.data[7] = 0;
+    buffer[6] = 0;
+    buffer[7] = 0;
     
-    let mut mailbox = MailboxController::new(&mmio, buffer);
+    let mut mailbox = MailboxController::new(&mmio);
+
+    let mut message = MessageBuilder::new()
+        .push(MessageWord::data(0x10002))
+        .push(MessageWord::data(4))
+        .push(MessageWord::data(0))
+        .push(MessageWord::data(0))
+        .push(MessageWord::data(0))
+        .push(MessageWord::data(0));
 
     println!("Sending mailbox message");
 
+    println!("Size of Aligned is {}", core::mem::size_of::<AlignedWord>());
+
+    let mut mbuf = message.to_buffer();
+
+    let mbuf_start = mbuf.start();
+
+    let mbuf_raw = unsafe {
+        slice::from_raw_parts_mut(mbuf_start as *mut u32, 8)
+    };
+
+    println!("mbox: {:#x}, mbuf: {:#x}", mailbox_start, mbuf_start);
+
+    for i in 0..8 {
+        println!("buffer[{}] = {:#x}, mbuf[{}] = {:#x}", i, buffer[i], i, mbuf_raw[i]);
+    }
+
+    mbuf.send(&mut mailbox);
     mailbox.call(mailbox_start as u32, Channel::Prop);
 
     println!("Message sent!");
 
     for i in 0..8 {
-        println!("buffer[{}] = {:#x}", i, buffer.data[i]);
+        println!("buffer[{}] = {:#x}, mbuf[{}] = {:#x}", i, buffer[i], i, mbuf_raw[i]);
     }
 
 
