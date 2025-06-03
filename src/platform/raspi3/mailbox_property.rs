@@ -1,4 +1,4 @@
-use crate::platform::raspi3::mailbox::{MailboxController, Channel, MBOX_REQUEST};
+use crate::platform::raspi3::mailbox::{MailboxController, Channel, MBOX_REQUEST, MailboxBuffer, AlignedWord};
 use alloc::vec::Vec;
 use alloc::vec;
 use alloc::boxed::Box;
@@ -35,17 +35,21 @@ impl MessageBuilder {
         self
     }
 
-    /*pub fn instruction(mut self, instruction: Instruction, length: u32) -> Self {
-        self.message.push(instruction as u32);
-        self.message.push(length);
-        self.message.push(length);
+    pub fn instruction(mut self, instruction: Instruction) -> Self {
+        let details = instruction.get_details();
+        self.message.push(MessageWord::data(details.encoding));
+        self.message.push(MessageWord::data(details.response_len));
+        self.message.push(MessageWord::data(0)); // Request code
+        for i in 0 .. details.response_len/4 {
+            self.message.push(MessageWord::data(0));
+        }
         self
     }
 
     pub fn data(mut self, data: u32) -> Self {
-        self.message.push(data);
+        self.message.push(MessageWord::data(data));
         self
-    }*/
+    }
 
     fn format(&mut self) {
         let size = 4 * self.message.len();
@@ -75,49 +79,20 @@ impl MessageBuilder {
     }
 }
 
-#[repr(C)]
-#[repr(align(16))]
-#[derive(Debug, Copy, Clone)]
-pub struct AlignedWord {
-    word: u32
+pub struct InstructionDetails {
+    pub encoding: u32,
+    // Lengths of the request and response data in bytes
+    pub request_len: u32,
+    pub response_len: u32
 }
 
-pub struct MailboxBuffer {
-    buffer: *mut u32
-}
-
-impl MailboxBuffer {
-    pub fn with_capacity(capacity: usize) -> Self {
-        // TODO: this is terrible
-        let vec: Vec<AlignedWord> = vec![AlignedWord { word: 0}; capacity];
-        let ptr = vec.into_boxed_slice().as_ptr() as usize;
-
+impl InstructionDetails {
+    pub fn new(encoding: u32, request_len: u32, response_len: u32) -> Self {
         Self {
-            buffer: unsafe { ptr as *mut u32 }
+            encoding,
+            request_len,
+            response_len
         }
-    }
-
-    pub fn send(&self, mailbox: &mut MailboxController) {
-        let addr = self.buffer;
-
-        mailbox.call(addr as u32, Channel::Prop);
-    }
-
-    pub fn write(&mut self, offset: isize, word: u32) {
-        unsafe {
-            core::ptr::write_volatile(self.buffer.offset(offset), word);
-        }
-    }
-
-    pub fn read(&mut self, offset: isize) -> u32 {
-        unsafe {
-            core::ptr::read_volatile(self.buffer.offset(offset) as *const u32)
-        }
-    }
-
-    pub fn start(&self) -> u32 {
-        let addr = self.buffer;
-        addr as u32
     }
 }
 
@@ -214,4 +189,107 @@ pub enum Instruction {
 
     SetCursorInfo = 0x8010,
     SetCursorState = 0x8011,
+}
+
+impl Instruction {
+    pub fn get_details(self) -> InstructionDetails {
+        match self {
+            Instruction::GetFirmwareRevision => InstructionDetails::new(0x1, 0, 4),
+
+            Instruction::GetBoardModel => InstructionDetails::new(0x10001, 0, 4),
+            Instruction::GetBoardRevision => InstructionDetails::new(0x10002, 0, 4),
+            Instruction::GetBoardMAC => InstructionDetails::new(0x10003, 0, 6),
+            Instruction::GetBoardSerial => InstructionDetails::new(0x10004, 0, 8),
+            Instruction::GetARMMemory => InstructionDetails::new(0x10005, 0, 8),
+            Instruction::GetVCMemory => InstructionDetails::new(0x10006, 0, 8),
+            Instruction::GetClocks => InstructionDetails::new(0x10007, 0, 8), // This response
+                                                                              // length is
+                                                                              // variable. What to
+                                                                             // do?
+            _ => unimplemented!()
+
+            /*GetCommandLine = 0x50001,
+
+            GetDMAChannels = 0x60001,
+
+            GetPowerState = 0x20001,
+            GetTiming = 0x20002,
+            SetPowerState = 0x28001,
+
+            GetClockState = 0x30001,
+            SetClockState = 0x38001,
+            GetClockRate = 0x30002,
+            GetLEDStatus = 0x30041,
+            TestLEDStatus = 0x34041,
+            SetLEDStatus = 0x38041,
+            GetMeasuredClock = 0x30047,
+            SetClockRate = 0x38002,
+            GetMaxClockRate = 0x30004,
+            GetMinClockRate = 0x30007,
+            GetTurbo = 0x30009,
+            SetTurbo = 0x38009,
+
+            GetVoltage = 0x30003,
+            SetVoltage = 0x38003,
+            GetMaxVoltage = 0x30005,
+            GetMinVoltage = 0x30008,
+
+            GetTemperature = 0x30006,
+            GetMaxTemperature = 0x3000a,
+
+            AllocateMemory = 0x3000c,
+            LockMemory = 0x3000d,
+            UnlockMemory = 0x3000e,
+            ReleaseMemory = 0x3000f,
+
+            ExecuteCode = 0x30010,
+
+            GetDispmanxResourceHandle = 0x30014,
+
+            GetEDIDBlock = 0x30020,
+
+            AllocateBuffer = 0x40001,
+            ReleaseBuffer = 0x48001,
+
+            BlankScreen = 0x40002,
+
+            GetPhysicalDimensions = 0x40003,
+            TestPhysicalDimensions = 0x44003,
+            SetPhysicalDimensions = 0x48003,
+
+            GetVirtualDimensions = 0x40004,
+            TestVirtualDimensions = 0x44004,
+            SetVirtualDimensions = 0x48004,
+
+            GetDepth = 0x40005,
+            TestDepth = 0x44005,
+            SetDepth = 0x48005,
+
+            GetPixelOrder = 0x40006,
+            TestPixelOrder = 0x44006,
+            SetPixelOrder = 0x48006,
+
+            GetAlphaMode = 0x40007,
+            TestAlphaMode = 0x44007,
+            SetAlphaMode = 0x48007,
+
+            GetPitch = 0x40008,
+
+            GetVirtualOffset = 0x40009,
+            TestVirtualOffset = 0x44009,
+            SetVirtualOffset = 0x48009,
+
+            GetOverscan = 0x4000a,
+            TestOverscan = 0x4400a,
+            SetOverScan = 0x4800a,
+
+            GetPalette = 0x4000b,
+            TestPalette = 0x4400b,
+            SetPalette = 0x4800b,
+
+            SetCursorInfo = 0x8010,
+            SetCursorState = 0x8011, */
+
+        }
+    }
 }

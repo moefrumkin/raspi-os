@@ -14,7 +14,7 @@ use super::{
     mmio::MMIOController,
     timer::Timer,
     uart::{LogLevel, UARTController, CONSOLE},
-    mailbox_property::{MessageBuilder, MessageWord, Instruction, AlignedWord}
+    mailbox_property::{MessageBuilder, MessageWord, Instruction}
 };
 
 static MMIO: MMIOController = MMIOController::new();
@@ -55,16 +55,10 @@ pub extern "C" fn main(heap_start: usize, heap_size: usize, mailbox_start: usize
     let mut mailbox = MailboxController::new(&mmio);
 
     let mut message = MessageBuilder::new()
-        .push(MessageWord::data(0x10002))
-        .push(MessageWord::data(4))
-        .push(MessageWord::data(0))
-        .push(MessageWord::data(0))
-        .push(MessageWord::data(0))
+        .instruction(Instruction::GetBoardRevision)
         .push(MessageWord::data(0));
 
     println!("Sending mailbox message");
-
-    println!("Size of Aligned is {}", core::mem::size_of::<AlignedWord>());
 
     let mut buffer = message.send(&mut mailbox);
 

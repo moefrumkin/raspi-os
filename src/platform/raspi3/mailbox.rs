@@ -74,3 +74,49 @@ pub enum Channel {
 }
 
 
+#[repr(C)]
+#[repr(align(16))]
+#[derive(Debug, Copy, Clone)]
+pub struct AlignedWord {
+    pub word: u32
+}
+
+pub struct MailboxBuffer {
+    pub buffer: *mut u32
+}
+
+impl MailboxBuffer {
+    pub fn with_capacity(capacity: usize) -> Self {
+        // TODO: this is terrible
+        let vec: Vec<AlignedWord> = vec![AlignedWord { word: 0}; capacity];
+        let ptr = vec.into_boxed_slice().as_ptr() as usize;
+
+        Self {
+            buffer: unsafe { ptr as *mut u32 }
+        }
+    }
+
+    pub fn send(&self, mailbox: &mut MailboxController) {
+        let addr = self.buffer;
+
+        mailbox.call(addr as u32, Channel::Prop);
+    }
+
+    pub fn write(&mut self, offset: isize, word: u32) {
+        unsafe {
+            core::ptr::write_volatile(self.buffer.offset(offset), word);
+        }
+    }
+
+    pub fn read(&mut self, offset: isize) -> u32 {
+        unsafe {
+            core::ptr::read_volatile(self.buffer.offset(offset) as *const u32)
+        }
+    }
+
+    pub fn start(&self) -> u32 {
+        let addr = self.buffer;
+        addr as u32
+    }
+}
+
