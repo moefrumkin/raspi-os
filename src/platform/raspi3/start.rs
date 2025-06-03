@@ -52,24 +52,6 @@ pub extern "C" fn main(heap_start: usize, heap_size: usize, mailbox_start: usize
     ALLOCATOR.lock().init(heap_start, heap_size);
     println!("Heap Allocator initialized at {:#x} with size {}", heap_start, heap_size);
 
-    let mailbox_start = 0x95000;
-    let buffer = unsafe {
-        slice::from_raw_parts_mut(mailbox_start as *mut u32, 8)
-    };
-
-    println!("Initializing mailbox buffer at {:#x}", mailbox_start);
-
-    buffer[0] = 32;
-    buffer[1] = 0;
-
-    buffer[2] = 0x10002;
-    buffer[3] = 4;
-    buffer[4] = 0;
-    buffer[5] = 0;
-
-    buffer[6] = 0;
-    buffer[7] = 0;
-    
     let mut mailbox = MailboxController::new(&mmio);
 
     let mut message = MessageBuilder::new()
@@ -84,27 +66,12 @@ pub extern "C" fn main(heap_start: usize, heap_size: usize, mailbox_start: usize
 
     println!("Size of Aligned is {}", core::mem::size_of::<AlignedWord>());
 
-    let mut mbuf = message.to_buffer();
-
-    let mbuf_start = mbuf.start();
-
-    let mbuf_raw = unsafe {
-        slice::from_raw_parts_mut(mbuf_start as *mut u32, 8)
-    };
-
-    println!("mbox: {:#x}, mbuf: {:#x}", mailbox_start, mbuf_start);
-
-    for i in 0..8 {
-        println!("buffer[{}] = {:#x}, mbuf[{}] = {:#x}", i, buffer[i], i, mbuf_raw[i]);
-    }
-
-    mbuf.send(&mut mailbox);
-    mailbox.call(mailbox_start as u32, Channel::Prop);
+    let mut buffer = message.send(&mut mailbox);
 
     println!("Message sent!");
 
     for i in 0..8 {
-        println!("buffer[{}] = {:#x}, mbuf[{}] = {:#x}", i, buffer[i], i, mbuf_raw[i]);
+        println!("buffer[{}] = {:#x}", i, buffer.read(i));
     }
 
 

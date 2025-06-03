@@ -4,19 +4,20 @@ use alloc::vec;
 use alloc::boxed::Box;
 
 pub struct MessageBuilder {
-    pub message: Vec<AlignedWord>
+    pub message: Vec<MessageWord>
 }
 
+#[derive(Copy, Clone)]
 pub enum MessageWord {
     data(u32),
     tag(Instruction)
 }
 
 impl MessageWord {
-    pub fn to_aligned_word(self) -> AlignedWord {
+    pub fn to_u32(self) -> u32 {
         match self {
-            MessageWord::data(number) => AlignedWord::from_u32(number),
-            MessageWord::tag(instruction) => instruction.as_aligned_word()
+            MessageWord::data(number) => number,
+            MessageWord::tag(instruction) => instruction as u32
         }
     }
 }
@@ -24,13 +25,13 @@ impl MessageWord {
 impl MessageBuilder {
     pub fn new() -> Self {
         Self {
-            // First element is 0. We will fill it with the size later
-            message: vec![AlignedWord::from_u32(0), AlignedWord::from_u32(MBOX_REQUEST)],
+            // First element is 0. Second element signifies this is a request We will fill it with the size later
+            message: vec![MessageWord::data(0), MessageWord::data(MBOX_REQUEST)],
         }
     }
 
     pub fn push(mut self, word: MessageWord) -> Self {
-        self.message.push(word.to_aligned_word());
+        self.message.push(word);
         self
     }
 
@@ -48,26 +49,26 @@ impl MessageBuilder {
 
     fn format(&mut self) {
         let size = 4 * self.message.len();
-        self.message[0] = AlignedWord::from_u32(size as u32);
+        self.message[0] = MessageWord::data(size as u32);
     }
 
-    pub fn send(&mut self, mailbox: &mut MailboxController) {
-        self.format();
-        
-        let slice: &[AlignedWord] = self.message.as_slice();
+    pub fn send(&mut self, mailbox: &mut MailboxController) -> MailboxBuffer {
+        let buffer = self.to_buffer(); 
 
-        mailbox.call(slice.as_ptr() as u32, Channel::Prop);
+        buffer.send(mailbox);
+
+        buffer
     }
 
-    pub fn to_buffer(mut self) -> MemoryBuffer {
+    pub fn to_buffer(&mut self) -> MailboxBuffer {
        self.format();
-       let ptr = vec![AlignedWord::from_u32(0); 4 * self.message.len()].into_boxed_slice().as_mut_ptr();
-       let mut buffer = MemoryBuffer{
+       let ptr = vec![AlignedWord { word: 0 }; 4 * self.message.len()].into_boxed_slice().as_mut_ptr();
+       let mut buffer = MailboxBuffer{
            buffer: ptr as *mut u32
        };
 
        for i in 0..self.message.len() {
-           buffer.write(i as isize, self.message[i]);
+           buffer.write(i as isize, self.message[i].to_u32());
        }
 
        buffer
@@ -81,38 +82,36 @@ pub struct AlignedWord {
     word: u32
 }
 
-impl AlignedWord {
-    pub fn from_u32(int: u32) -> Self {
-        Self {
-            word: int
-        }
-    }
-
-    pub fn as_u32(self) -> u32 {
-        self.word
-    }
-}
-
-pub struct MemoryBuffer {
+pub struct MailboxBuffer {
     buffer: *mut u32
 }
 
-impl MemoryBuffer {
+impl MailboxBuffer {
+    pub fn with_capacity(capacity: usize) -> Self {
+        // TODO: this is terrible
+        let vec: Vec<AlignedWord> = vec![AlignedWord { word: 0}; capacity];
+        let ptr = vec.into_boxed_slice().as_ptr() as usize;
+
+        Self {
+            buffer: unsafe { ptr as *mut u32 }
+        }
+    }
+
     pub fn send(&self, mailbox: &mut MailboxController) {
         let addr = self.buffer;
 
         mailbox.call(addr as u32, Channel::Prop);
     }
 
-    pub fn write(&mut self, offset: isize, word: AlignedWord) {
+    pub fn write(&mut self, offset: isize, word: u32) {
         unsafe {
-            core::ptr::write_volatile(self.buffer.offset(offset), word.as_u32());
+            core::ptr::write_volatile(self.buffer.offset(offset), word);
         }
     }
 
-    pub fn read(&mut self, offset: isize) -> AlignedWord {
+    pub fn read(&mut self, offset: isize) -> u32 {
         unsafe {
-            AlignedWord::from_u32(core::ptr::read_volatile(self.buffer.offset(offset)))
+            core::ptr::read_volatile(self.buffer.offset(offset) as *const u32)
         }
     }
 
@@ -122,27 +121,7 @@ impl MemoryBuffer {
     }
 }
 
-#[repr(C)]
-#[repr(align(16))]
-#[allow(dead_code)]
-pub struct MessageBuffer {
-    buffer: Box<[AlignedWord]>,
-}
-
-impl MessageBuffer{
-    pub fn new(size: usize) -> Self {
-        Self {
-            buffer: Vec::with_capacity(size).into_boxed_slice()
-        }
-    }
-}
-
-impl Instruction {
-    pub fn as_aligned_word(self) -> AlignedWord {
-        AlignedWord::from_u32(self as u32)
-    }
-}
-
+#[derive(Copy, Clone)]
 pub enum Instruction {
     GetFirmwareRevision = 0x1,
 
