@@ -108,7 +108,7 @@ impl MailboxBuffer {
         }
     }
 
-    pub fn read(&mut self, offset: isize) -> u32 {
+    pub fn read(&self, offset: isize) -> u32 {
         unsafe {
             core::ptr::read_volatile(self.buffer.offset(offset) as *const u32)
         }

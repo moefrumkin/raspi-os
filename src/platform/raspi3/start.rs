@@ -14,7 +14,7 @@ use super::{
     mmio::MMIOController,
     timer::Timer,
     uart::{LogLevel, UARTController, CONSOLE},
-    mailbox_property::{MessageBuilder, MessageWord, Instruction}
+    mailbox_property::{MessageBuilder, MessageWord, Instruction, GetBoardRevision, MailboxInstruction}
 };
 
 static MMIO: MMIOController = MMIOController::new();
@@ -54,21 +54,18 @@ pub extern "C" fn main(heap_start: usize, heap_size: usize, mailbox_start: usize
 
     let mut mailbox = MailboxController::new(&mmio);
 
+    let mut board_revision = GetBoardRevision::new();
     let mut message = MessageBuilder::new()
-        .instruction(Instruction::GetBoardRevision)
-        .push(MessageWord::data(0));
+        .request(&mut board_revision);
 
     println!("Sending mailbox message");
 
-    let mut buffer = message.send(&mut mailbox);
+    message.send(&mut mailbox);
 
     println!("Message sent!");
 
-    for i in 0..8 {
-        println!("buffer[{}] = {:#x}", i, buffer.read(i));
-    }
-
-
+    println!("Received: {:#x}", board_revision.get_response());
+   
     status_light.set_green(OutputLevel::High);
 
     loop{}
@@ -96,7 +93,7 @@ pub fn test_allocator(limit: usize){
     let mut vec_vec: Vec<Vec<usize>> = alloc::vec!();
 
     for n in 0..limit {
-        let mut num_vec: Vec<usize> = alloc::vec!();
+        let num_vec: Vec<usize> = alloc::vec!();
         vec_vec.push(num_vec);
         for m in 0..n {
            vec_vec[n].push(m * n);
