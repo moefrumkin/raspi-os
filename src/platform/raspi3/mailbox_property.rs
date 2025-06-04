@@ -8,23 +8,6 @@ pub struct MessageBuilder<'a> {
     pub word_length: u32
 }
 
-#[derive(Copy, Clone)]
-pub enum MessageWord {
-    Value(u32),
-    Tag(u32),
-    Padding,
-}
-
-impl MessageWord {
-    pub fn to_u32(self) -> u32 {
-        match self {
-            MessageWord::Value(number) => number,
-            MessageWord::Tag(encoding) => encoding,
-            MessageWord::Padding => 0
-        }
-    }
-}
-
 impl<'a> MessageBuilder<'a> {
     pub fn new() -> Self {
         Self {
