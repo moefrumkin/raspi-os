@@ -59,7 +59,7 @@ impl<'a> MessageBuilder<'a> {
     pub fn to_buffer(&mut self) -> MailboxBuffer {
        let mut buffer = MailboxBuffer::with_capacity(self.word_length as usize);
 
-       // TODO: add padding at end
+       // TODO: add padding and end tag at end
        buffer.write(0, 4 * self.word_length);
        buffer.write(1, MBOX_REQUEST);
 
@@ -105,12 +105,6 @@ impl SimpleRequest {
     }
 }
 
-
-pub struct GetBoardRevision {
-    pub revision: u32
-}
-
-
 impl MailboxInstruction for SimpleRequest {
     fn get_encoding(&self) -> u32 {
         self.encoding
@@ -132,6 +126,90 @@ impl MailboxInstruction for SimpleRequest {
         self.response = buffer.read(offset as isize);
     }
 }
+
+pub struct GetFirmwareRevision {
+    pub revision: u32
+}
+
+
+impl GetFirmwareRevision {
+    pub fn new() -> Self {
+        Self {
+            revision: 0
+        }
+    }
+
+    pub fn get_response(&self) -> u32 {
+        self.revision
+    }
+}
+
+impl MailboxInstruction for GetFirmwareRevision {
+    fn get_encoding(&self) -> u32 {
+        0x1
+    }
+
+    fn get_buffer_bytes(&self) -> u32 {
+        4
+    }
+
+    fn get_buffer_words(&self) -> u32 {
+        1
+    }
+
+    fn write_data_at_offset(&self, buffer: &mut MailboxBuffer, offset: u32) {
+        buffer.write(offset as isize, 0);
+    }
+
+    fn read_data_at_offset(&mut self, buffer: &MailboxBuffer, offset: u32) {
+        self.revision = buffer.read(offset as isize);
+    }
+}
+
+pub struct GetBoardModel {
+    pub model: u32
+}
+
+
+impl GetBoardModel {
+    pub fn new() -> Self {
+        Self {
+            model: 0
+        }
+    }
+
+    pub fn get_response(&self) -> u32 {
+        self.model
+    }
+}
+
+impl MailboxInstruction for GetBoardModel {
+    fn get_encoding(&self) -> u32 {
+        0x10001
+    }
+
+    fn get_buffer_bytes(&self) -> u32 {
+        4
+    }
+
+    fn get_buffer_words(&self) -> u32 {
+        1
+    }
+
+    fn write_data_at_offset(&self, buffer: &mut MailboxBuffer, offset: u32) {
+        buffer.write(offset as isize, 0);
+    }
+
+    fn read_data_at_offset(&mut self, buffer: &MailboxBuffer, offset: u32) {
+        self.model = buffer.read(offset as isize);
+    }
+}
+
+
+pub struct GetBoardRevision {
+    pub revision: u32
+}
+
 
 impl GetBoardRevision {
     pub fn new() -> Self {
@@ -167,6 +245,49 @@ impl MailboxInstruction for GetBoardRevision {
     }
 }
 
+pub struct GetBoardSerial {
+    pub serial: u64
+}
+
+
+impl GetBoardSerial {
+    pub fn new() -> Self {
+        Self {
+            serial: 0
+        }
+    }
+
+    pub fn get_response(&self) -> u64 {
+        self.serial
+    }
+}
+
+impl MailboxInstruction for GetBoardSerial {
+    fn get_encoding(&self) -> u32 {
+        0x10004
+    }
+
+    fn get_buffer_bytes(&self) -> u32 {
+        8
+    }
+
+    fn get_buffer_words(&self) -> u32 {
+        2
+    }
+
+    fn write_data_at_offset(&self, buffer: &mut MailboxBuffer, offset: u32) {
+        buffer.write(offset as isize, 0);
+        buffer.write((offset + 1) as isize, 0);
+    }
+
+    fn read_data_at_offset(&mut self, buffer: &MailboxBuffer, offset: u32) {
+        // TODO: check endianness
+        let first_half = buffer.read(offset as isize) as u64;
+        let second_half = buffer.read((offset + 1) as isize) as u64;
+        self.serial = (first_half << 32) | second_half;
+    }
+}
+
 pub struct GetARMMemory {
     pub base: u32,
     pub size: u32
@@ -199,7 +320,7 @@ impl MailboxInstruction for GetARMMemory {
     }
 
     fn get_buffer_words(&self) -> u32 {
-        4
+        2
     }
 
     fn write_data_at_offset(&self, buffer: &mut MailboxBuffer, offset: u32) {
@@ -213,6 +334,51 @@ impl MailboxInstruction for GetARMMemory {
     }
 }
 
+pub struct GetPhysicalDimensions {
+    pub width: u32,
+    pub height: u32
+}
+
+impl GetPhysicalDimensions {
+    pub fn new() -> Self {
+        Self {
+            width: 0,
+            height: 0
+        }
+    }
+
+    pub fn get_width(&self) -> u32 {
+        self.width
+    }
+
+    pub fn get_height(&self) -> u32 {
+        self.height
+    }
+}
+
+impl MailboxInstruction for GetPhysicalDimensions {
+    fn get_encoding(&self) -> u32 {
+        0x40003
+    }
+
+    fn get_buffer_bytes(&self) -> u32 {
+        8
+    }
+
+    fn get_buffer_words(&self) -> u32 {
+        2
+    }
+
+    fn write_data_at_offset(&self, buffer: &mut MailboxBuffer, offset: u32) {
+        buffer.write(offset as isize, 0);
+        buffer.write((offset + 1) as isize, 0);
+    }
+
+    fn read_data_at_offset(&mut self, buffer: &MailboxBuffer, offset: u32) {
+        self.width= buffer.read(offset as isize);
+        self.height = buffer.read((offset + 1) as isize);
+    }
+}
 #[derive(Copy, Clone)]
 pub enum Instruction {
     GetFirmwareRevision = 0x1,

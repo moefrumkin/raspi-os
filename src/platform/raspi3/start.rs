@@ -14,7 +14,7 @@ use super::{
     mmio::MMIOController,
     timer::Timer,
     uart::{LogLevel, UARTController, CONSOLE},
-    mailbox_property::{MessageBuilder, MessageWord, Instruction, GetBoardRevision, MailboxInstruction, SimpleRequest, GetARMMemory}
+    mailbox_property::{MessageBuilder, MessageWord, Instruction, GetBoardRevision, MailboxInstruction, GetARMMemory, GetFirmwareRevision, GetBoardSerial, GetPhysicalDimensions}
 };
 
 static MMIO: MMIOController = MMIOController::new();
@@ -54,14 +54,18 @@ pub extern "C" fn main(heap_start: usize, heap_size: usize, mailbox_start: usize
 
     let mut mailbox = MailboxController::new(&mmio);
 
-    let mut firmware_revision = SimpleRequest::with_encoding(0x0001);
+    let mut firmware_revision = GetFirmwareRevision::new();
     let mut board_revision = GetBoardRevision::new();
     let mut arm_memory = GetARMMemory::new();
+    let mut board_serial = GetBoardSerial::new();
+    let mut physical_dimensions = GetPhysicalDimensions::new();
 
     let mut message = MessageBuilder::new()
+        .request(&mut physical_dimensions)
         .request(&mut firmware_revision)
         .request(&mut board_revision)
-        .request(&mut arm_memory);
+        .request(&mut arm_memory)
+        .request(&mut board_serial);
 
     println!("Sending mailbox message");
 
@@ -72,6 +76,9 @@ pub extern "C" fn main(heap_start: usize, heap_size: usize, mailbox_start: usize
     println!("Board Revision: {:#x}", board_revision.get_response());
     println!("Firmware Revision: {:#x}", firmware_revision.get_response());
     println!("ARM Memory starting at {:#x}, with length {:#x}", arm_memory.get_base(), arm_memory.get_size());
+    println!("Serial Number is: {}", board_serial.get_response());
+    println!("The display is {} x {}", physical_dimensions.get_width(), physical_dimensions.get_height());
+    
    
     status_light.set_green(OutputLevel::High);
 
