@@ -4,15 +4,17 @@ use crate::canvas::{canvas2d::Canvas2D, line::Line, matrix::Matrix, vector::Vect
 use crate::ALLOCATOR;
 use crate::{print, println, read, write};
 use alloc::vec::Vec;
+use alloc::slice;
 
 use super::{
     gpio::{GPIOController, OutputLevel, Pin, StatusLight},
     gpu::{FBConfig, GPUController},
     lcd::LCDController,
-    mailbox::{Channel, Instruction, MailboxController, MessageBuffer, MessageBuilder},
+    mailbox::{Channel, MailboxController},
     mmio::MMIOController,
     timer::Timer,
     uart::{LogLevel, UARTController, CONSOLE},
+    mailbox_property::{MessageBuilder, Instruction, GetBoardRevision, MailboxInstruction, GetARMMemory, GetFirmwareRevision, GetBoardSerial, GetPhysicalDimensions}
 };
 
 static MMIO: MMIOController = MMIOController::new();
@@ -50,18 +52,34 @@ pub extern "C" fn main(heap_start: usize, heap_size: usize, mailbox_start: usize
     ALLOCATOR.lock().init(heap_start, heap_size);
     println!("Heap Allocator initialized at {:#x} with size {}", heap_start, heap_size);
 
-    let mut nums: alloc::vec::Vec<usize> = alloc::vec!();
-    nums.push(1);
-    nums.push(2);
+    let mut mailbox = MailboxController::new(&mmio);
 
-    println!("Nums: {:?}", &nums);
+    let mut firmware_revision = GetFirmwareRevision::new();
+    let mut board_revision = GetBoardRevision::new();
+    let mut arm_memory = GetARMMemory::new();
+    let mut board_serial = GetBoardSerial::new();
+    let mut physical_dimensions = GetPhysicalDimensions::new();
 
-    println!("Testing allocator");
+    let mut message = MessageBuilder::new()
+        .request(&mut physical_dimensions)
+        .request(&mut firmware_revision)
+        .request(&mut board_revision)
+        .request(&mut arm_memory)
+        .request(&mut board_serial);
 
-    test_allocator(100);
+    println!("Sending mailbox message");
 
-    println!("Tests Passed!");
+    message.send(&mut mailbox);
 
+    println!("Message sent!");
+
+    println!("Board Revision: {:#x}", board_revision.get_response());
+    println!("Firmware Revision: {:#x}", firmware_revision.get_response());
+    println!("ARM Memory starting at {:#x}, with length {:#x}", arm_memory.get_base(), arm_memory.get_size());
+    println!("Serial Number is: {}", board_serial.get_response());
+    println!("The display is {} x {}", physical_dimensions.get_width(), physical_dimensions.get_height());
+    
+   
     status_light.set_green(OutputLevel::High);
 
     loop{}
@@ -89,7 +107,7 @@ pub fn test_allocator(limit: usize){
     let mut vec_vec: Vec<Vec<usize>> = alloc::vec!();
 
     for n in 0..limit {
-        let mut num_vec: Vec<usize> = alloc::vec!();
+        let num_vec: Vec<usize> = alloc::vec!();
         vec_vec.push(num_vec);
         for m in 0..n {
            vec_vec[n].push(m * n);

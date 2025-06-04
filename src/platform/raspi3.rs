@@ -9,5 +9,6 @@ pub mod start;
 pub mod timer;
 pub mod uart;
 pub mod lcd;
+pub mod mailbox_property;
 
 mod exception;
