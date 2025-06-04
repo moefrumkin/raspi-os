@@ -14,7 +14,7 @@ use super::{
     mmio::MMIOController,
     timer::Timer,
     uart::{LogLevel, UARTController, CONSOLE},
-    mailbox_property::{MessageBuilder, MessageWord, Instruction, GetBoardRevision, MailboxInstruction}
+    mailbox_property::{MessageBuilder, MessageWord, Instruction, GetBoardRevision, MailboxInstruction, SimpleRequest, GetARMMemory}
 };
 
 static MMIO: MMIOController = MMIOController::new();
@@ -54,9 +54,14 @@ pub extern "C" fn main(heap_start: usize, heap_size: usize, mailbox_start: usize
 
     let mut mailbox = MailboxController::new(&mmio);
 
+    let mut firmware_revision = SimpleRequest::with_encoding(0x0001);
     let mut board_revision = GetBoardRevision::new();
+    let mut arm_memory = GetARMMemory::new();
+
     let mut message = MessageBuilder::new()
-        .request(&mut board_revision);
+        .request(&mut firmware_revision)
+        .request(&mut board_revision)
+        .request(&mut arm_memory);
 
     println!("Sending mailbox message");
 
@@ -64,7 +69,9 @@ pub extern "C" fn main(heap_start: usize, heap_size: usize, mailbox_start: usize
 
     println!("Message sent!");
 
-    println!("Received: {:#x}", board_revision.get_response());
+    println!("Board Revision: {:#x}", board_revision.get_response());
+    println!("Firmware Revision: {:#x}", firmware_revision.get_response());
+    println!("ARM Memory starting at {:#x}, with length {:#x}", arm_memory.get_base(), arm_memory.get_size());
    
     status_light.set_green(OutputLevel::High);
 

@@ -87,9 +87,50 @@ pub trait MailboxInstruction {
     fn read_data_at_offset(&mut self, buffer: &MailboxBuffer, offset: u32);
 }
 
+pub struct SimpleRequest {
+    pub encoding: u32,
+    pub response: u32
+}
+
+impl SimpleRequest {
+    pub fn with_encoding(encoding: u32) -> Self {
+        Self {
+            encoding,
+            response: 0
+        }
+    }
+
+    pub fn get_response(&self) -> u32 {
+        self.response
+    }
+}
+
 
 pub struct GetBoardRevision {
     pub revision: u32
+}
+
+
+impl MailboxInstruction for SimpleRequest {
+    fn get_encoding(&self) -> u32 {
+        self.encoding
+    }
+
+    fn get_buffer_bytes(&self) -> u32 {
+        4
+    }
+
+    fn get_buffer_words(&self) -> u32 {
+        1
+    }
+
+    fn write_data_at_offset(&self, buffer: &mut MailboxBuffer, offset: u32) {
+        buffer.write(offset as isize, 0);
+    }
+
+    fn read_data_at_offset(&mut self, buffer: &MailboxBuffer, offset: u32) {
+        self.response = buffer.read(offset as isize);
+    }
 }
 
 impl GetBoardRevision {
@@ -123,6 +164,52 @@ impl MailboxInstruction for GetBoardRevision {
 
     fn read_data_at_offset(&mut self, buffer: &MailboxBuffer, offset: u32) {
         self.revision = buffer.read(offset as isize);
+    }
+}
+
+pub struct GetARMMemory {
+    pub base: u32,
+    pub size: u32
+}
+
+impl GetARMMemory {
+    pub fn new() -> Self {
+        Self {
+            base: 0,
+            size: 0
+        }
+    }
+
+    pub fn get_base(&self) -> u32 {
+        self.base
+    }
+
+    pub fn get_size(&self) -> u32 {
+        self.size
+    }
+}
+
+impl MailboxInstruction for GetARMMemory {
+    fn get_encoding(&self) -> u32 {
+        0x10005
+    }
+
+    fn get_buffer_bytes(&self) -> u32 {
+        8
+    }
+
+    fn get_buffer_words(&self) -> u32 {
+        4
+    }
+
+    fn write_data_at_offset(&self, buffer: &mut MailboxBuffer, offset: u32) {
+        buffer.write(offset as isize, 0);
+        buffer.write((offset + 1) as isize, 0);
+    }
+
+    fn read_data_at_offset(&mut self, buffer: &MailboxBuffer, offset: u32) {
+        self.base = buffer.read(offset as isize);
+        self.size = buffer.read((offset + 1) as isize);
     }
 }
 
