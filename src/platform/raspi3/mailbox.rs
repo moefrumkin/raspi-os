@@ -92,7 +92,7 @@ impl MailboxBuffer {
         let ptr = vec.into_boxed_slice().as_ptr() as usize;
 
         Self {
-            buffer: unsafe { ptr as *mut u32 }
+            buffer: ptr as *mut u32
         }
     }
 

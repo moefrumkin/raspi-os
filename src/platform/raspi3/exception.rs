@@ -4,7 +4,7 @@ use super::{mmio::MMIOController, gpio::{GPIOController, StatusLight, OutputLeve
 global_asm!(include_str!("exception.s"));
 
 #[no_mangle]
-pub extern "C" fn handle_exception(exception_source: usize, exception_type: usize, esr: usize, elr: usize, spsr: usize, far: usize, sp: usize) {
+pub extern "C" fn handle_exception(exception_source: usize, exception_type: usize, esr: usize, elr: usize, _spsr: usize, _far: usize, _sp: usize) {
     let mmio = MMIOController::default();
     let gpio = GPIOController::new(&mmio);
     let timer = Timer::new(&mmio);
@@ -14,7 +14,7 @@ pub extern "C" fn handle_exception(exception_source: usize, exception_type: usiz
     const SHORT_WAIT: u64 = 750;
 
     loop {
-        for i in 0..exception_source + 5{
+        for _i in 0..exception_source + 5{
             status_light.set_blue(OutputLevel::High);
             timer.delay(SHORT_WAIT);
             status_light.set_blue(OutputLevel::Low);
@@ -23,7 +23,7 @@ pub extern "C" fn handle_exception(exception_source: usize, exception_type: usiz
 
         timer.delay(LONG_WAIT);
 
-        for i in 0..exception_type + 5 {
+        for _i in 0..exception_type + 5 {
             status_light.set_red(OutputLevel::High);
             timer.delay(SHORT_WAIT);
             status_light.set_red(OutputLevel::Low);

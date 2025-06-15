@@ -28,10 +28,10 @@ pub fn round(f: f64) -> isize {
     }
 }
 
-pub fn sin(f: f64) -> f64 {
+pub fn sin(_f: f64) -> f64 {
     unimplemented!()
 }
 
-pub fn cos(f: f64) -> f64 {
+pub fn cos(_f: f64) -> f64 {
     unimplemented!()
 }

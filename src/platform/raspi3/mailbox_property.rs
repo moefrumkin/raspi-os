@@ -98,12 +98,17 @@ pub trait MailboxInstruction {
 
     fn get_buffer_words(&self) -> u32;
 
-    fn write_data_at_offset(&self, buffer: &mut MailboxBuffer, offset: u32) {
+    fn write_data_at_offset(&self,
+        #[allow(unused_variables)] buffer: &mut MailboxBuffer,
+        #[allow(unused_variables)] offset: u32) {
     } // TODO: is it ok to not initialize the buffer on requests with no data?
 
-    fn read_data_at_offset(&mut self, buffer: &MailboxBuffer, offset: u32);
+    fn read_data_at_offset(&mut self,
+        #[allow(unused_variables)] buffer: &MailboxBuffer,
+        #[allow(unused_variables)] offset: u32) {
+    }
 
-    fn set_response(&mut self, response: MailboxResponse) {
+    fn set_response(&mut self, #[allow(unused_variables)] response: MailboxResponse) {
     }
 }
 
@@ -475,12 +480,6 @@ impl MailboxInstruction for ReleaseBuffer {
 
     fn get_buffer_words(&self) -> u32 {
         0
-    }
-
-    fn write_data_at_offset(&self, buffer: &mut MailboxBuffer, offset: u32) {
-    }
-
-    fn read_data_at_offset(&mut self, buffer: &MailboxBuffer, offset: u32) {
     }
 }
 

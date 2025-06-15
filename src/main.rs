@@ -1,11 +1,12 @@
 #![cfg_attr(not(test), no_std)]
 #![cfg_attr(not(test), no_main)]
-#![feature(naked_functions)]
 #![allow(internal_features)]
 #![feature(lang_items)]
-#![feature(panic_info_message)]
-#![feature(const_mut_refs)]
 #![feature(alloc_error_handler)]
+
+//TODO: temporary, just to make development easier
+#![allow(dead_code)]
+#![allow(unused_imports)]
 
 extern crate alloc;
 

@@ -95,7 +95,8 @@ bitfield! {
             Self { value: 0 }
         }
 
-        pub fn set_address(mut self, address: usize) -> Self {
+        // TODO: shouldn't address be used?
+        pub fn set_address(mut self, _address: usize) -> Self {
             self.value &= !Self::ADDRESS_MASK; 
             self
         }

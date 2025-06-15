@@ -127,7 +127,6 @@ _start: //spin if not main core
     msr     VBAR_EL1, x0
     ldr     x0, =HEAP_START
     ldr     x1, =HEAP_SIZE
-    ldr     x2, =MAILBOX_BUFFER_START
-    ldr     x3, =TABLE_START
+    ldr     x2, =TABLE_START
 
     b       main
