@@ -20,9 +20,9 @@ use super::{
     SetPhysicalDimensions,
     GetVirtualDimensions,
     SetVirtualDimensions,
-    GetDepth,
+    SetDepth,
     GetPitch,
-    GetPixelOrder,
+    SetPixelOrder,
     PixelOrder,
     GetVirtualOffset,
     GetOverscan,
@@ -94,13 +94,13 @@ pub extern "C" fn main(heap_start: usize, heap_size: usize, mailbox_start: usize
     println!("Serial Number is: {}", board_serial.get_response());
 
     let mut frame_buffer_request = GetFrameBuffer::with_aligment(32); 
-    let mut depth = GetDepth::new();
+    let mut depth = SetDepth::new(32);
     let mut physical_dimensions = SetPhysicalDimensions::new(1920, 1080);
     let mut virtual_dimensions = SetVirtualDimensions::new(1920, 1080);
     let mut pitch = GetPitch::new();
     let mut virtual_offset = GetVirtualOffset::new();
     let mut overscan = SetOverscan::new(Overscan::none());
-    let mut pixel_order = GetPixelOrder::new();
+    let mut pixel_order = SetPixelOrder::new(PixelOrder::RGB);
 
     let mut frame_buffer_message = MessageBuilder::new()
         .request(&mut frame_buffer_request)
@@ -122,7 +122,7 @@ pub extern "C" fn main(heap_start: usize, heap_size: usize, mailbox_start: usize
 
     println!("Display color depth: {}", depth.get_depth());
 
-    println!("Display pixel order: {}", pixel_order.get_order().to_u32());
+    println!("Display pixel order: {}", pixel_order.get_order());
     println!("Display pitch: {}", pitch.get_pitch());
     println!("Display virtual_offset: (x: {}, y: {})", virtual_offset.get_x(), virtual_offset.get_y());
     println!("Display overscan: {:?}", overscan.get_overscan());
@@ -140,11 +140,13 @@ pub extern "C" fn main(heap_start: usize, heap_size: usize, mailbox_start: usize
         fb.write_idx(i, 0xff00ffff);
     }
 
-    for i in 0..1080 {
-        for j in 0..1920 {
-            fb.write_pixel(j, i, 0xff000000 + ((i % 0xff) << 16) + ((j % 0xff) << 8) + 0xff);
+    for j in 0..1080 {
+        for i in 0..1920 {
+            fb.write_pixel(j, i, 0xff000000 + ((255 * i / 1920) << 16) + ((255 * j / 1080) << 8) + 0xff);
         }
     }
+
+    println!("Done!");
    
     status_light.set_green(OutputLevel::High);
 

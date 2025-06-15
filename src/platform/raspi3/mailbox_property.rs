@@ -2,6 +2,8 @@ use crate::platform::raspi3::mailbox::{MailboxController, Channel, MBOX_REQUEST,
 use alloc::vec::Vec;
 use alloc::vec;
 use alloc::boxed::Box;
+use core::fmt;
+use core::fmt::{Display, Formatter};
 
 pub struct MessageBuilder<'a> {
     pub instructions: Vec<(&'a mut dyn MailboxInstruction, u32)>,
@@ -97,7 +99,7 @@ pub trait MailboxInstruction {
     fn get_buffer_words(&self) -> u32;
 
     fn write_data_at_offset(&self, buffer: &mut MailboxBuffer, offset: u32) {
-    } // TODO: is it ok to not initialize the buffer on requests with not data?
+    } // TODO: is it ok to not initialize the buffer on requests with no data?
 
     fn read_data_at_offset(&mut self, buffer: &MailboxBuffer, offset: u32);
 
@@ -801,6 +803,15 @@ impl PixelOrder {
             1 => PixelOrder::RGB,
             _ => panic!("Unknown pixel order") // Better error handling
         }
+    }
+}
+
+impl Display for PixelOrder {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", match self {
+            PixelOrder::BGR => "BGR",
+            PixelOrder::RGB => "RGB"
+        })
     }
 }
 

@@ -22,7 +22,6 @@ QEMU_CMD = $(QEMU_ARCH) \
 	-smp $(CORES) \
 	-kernel $(KERNEL_ELF) \
 	-d int,mmu,guest_errors,page \
-	-nographic \
 	-serial null \
 	-serial mon:stdio
 
