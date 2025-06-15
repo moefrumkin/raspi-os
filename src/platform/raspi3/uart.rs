@@ -9,13 +9,15 @@ use core::{
     arch::asm,
 };
 
+// TODO: make this non mutable using an interior mutability pattern
 pub static mut CONSOLE: SpinMutex<Option<UARTController>> = SpinMutex::new(None);
 
 #[macro_export]
 macro_rules! print {
     ($($arg:tt)*) => {
         unsafe {
-            CONSOLE.execute(|console|
+            #[allow(static_mut_refs)]
+            CONSOLE.execute_mut(|console|
                 match console {
                     Some(console) => console.writef(format_args!($($arg)*)),
                     None => panic!("Print to Uninitialized Console")
@@ -29,7 +31,8 @@ macro_rules! print {
 macro_rules! println {
     () => {
         unsafe {
-            CONSOLE.execute(|console|
+            #[allow(static_mut_refs)]
+            CONSOLE.execute_mut(|console|
                 match console {
                     Some(console) => console.newline(),
                     None => panic!("Print to Uninitialized Console")
@@ -39,7 +42,8 @@ macro_rules! println {
     };
     ($($arg:tt)*) => {
         unsafe {
-            CONSOLE.execute(|console|
+            #[allow(static_mut_refs)]
+            CONSOLE.execute_mut(|console|
                 match console {
                     Some(console) => console.writefln(format_args!($($arg)*)),
                     None => panic!("Print to Uninitialized Console")
