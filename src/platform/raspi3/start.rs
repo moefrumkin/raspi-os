@@ -14,7 +14,22 @@ use super::{
     mmio::MMIOController,
     timer::Timer,
     uart::{LogLevel, UARTController, CONSOLE},
-    mailbox_property::{MessageBuilder, Instruction, GetBoardRevision, MailboxInstruction, GetARMMemory, GetFirmwareRevision, GetBoardSerial, GetPhysicalDimensions}
+    mailbox_property::{MessageBuilder, Instruction, GetBoardRevision, MailboxInstruction, GetARMMemory, GetFirmwareRevision, GetBoardSerial, GetPhysicalDimensions,
+    GetVCMemory,
+    GetFrameBuffer,
+    SetPhysicalDimensions,
+    GetVirtualDimensions,
+    SetVirtualDimensions,
+    SetDepth,
+    GetPitch,
+    SetPixelOrder,
+    PixelOrder,
+    GetVirtualOffset,
+    GetOverscan,
+    SetOverscan,
+    Overscan,
+    MailboxResponse},
+    framebuffer::{FrameBuffer}
 };
 
 static MMIO: MMIOController = MMIOController::new();
@@ -57,11 +72,10 @@ pub extern "C" fn main(heap_start: usize, heap_size: usize, mailbox_start: usize
     let mut firmware_revision = GetFirmwareRevision::new();
     let mut board_revision = GetBoardRevision::new();
     let mut arm_memory = GetARMMemory::new();
+    let mut vc_memory = GetVCMemory::new();
     let mut board_serial = GetBoardSerial::new();
-    let mut physical_dimensions = GetPhysicalDimensions::new();
 
-    let mut message = MessageBuilder::new()
-        .request(&mut physical_dimensions)
+    let mut initial_message = MessageBuilder::new()
         .request(&mut firmware_revision)
         .request(&mut board_revision)
         .request(&mut arm_memory)
@@ -69,16 +83,70 @@ pub extern "C" fn main(heap_start: usize, heap_size: usize, mailbox_start: usize
 
     println!("Sending mailbox message");
 
-    message.send(&mut mailbox);
+    initial_message.send(&mut mailbox);
 
     println!("Message sent!");
 
     println!("Board Revision: {:#x}", board_revision.get_response());
     println!("Firmware Revision: {:#x}", firmware_revision.get_response());
     println!("ARM Memory starting at {:#x}, with length {:#x}", arm_memory.get_base(), arm_memory.get_size());
+    println!("VC Memory starting at {:#x}, with length {:#x}", vc_memory.get_base(), vc_memory.get_size());
     println!("Serial Number is: {}", board_serial.get_response());
-    println!("The display is {} x {}", physical_dimensions.get_width(), physical_dimensions.get_height());
-    
+
+    let mut frame_buffer_request = GetFrameBuffer::with_aligment(32); 
+    let mut depth = SetDepth::new(32);
+    let mut physical_dimensions = SetPhysicalDimensions::new(1920, 1080);
+    let mut virtual_dimensions = SetVirtualDimensions::new(1920, 1080);
+    let mut pitch = GetPitch::new();
+    let mut virtual_offset = GetVirtualOffset::new();
+    let mut overscan = SetOverscan::new(Overscan::none());
+    let mut pixel_order = SetPixelOrder::new(PixelOrder::RGB);
+
+    let mut frame_buffer_message = MessageBuilder::new()
+        .request(&mut frame_buffer_request)
+        .request(&mut depth)
+        .request(&mut physical_dimensions)
+        .request(&mut virtual_dimensions)
+        .request(&mut pitch)
+        .request(&mut pixel_order)
+        .request(&mut virtual_offset)
+        .request(&mut overscan);
+
+    frame_buffer_message.send(&mut mailbox);
+
+    println!("The display has physical dimensions: {} x {} and virtual dimensions: {} x {}",
+        physical_dimensions.get_width(),
+        physical_dimensions.get_height(),
+        virtual_dimensions.get_width(),
+        virtual_dimensions.get_height());
+
+    println!("Display color depth: {}", depth.get_depth());
+
+    println!("Display pixel order: {}", pixel_order.get_order());
+    println!("Display pitch: {}", pitch.get_pitch());
+    println!("Display virtual_offset: (x: {}, y: {})", virtual_offset.get_x(), virtual_offset.get_y());
+    println!("Display overscan: {:?}", overscan.get_overscan());
+
+    println!("Framebuffer Response: size: {:#x}, code: {:#x}", frame_buffer_request.response.get_code(), frame_buffer_request.response.get_size());
+    println!("Framebuffer allocated at {:#x} with length {}", frame_buffer_request.get_start(), frame_buffer_request.get_size());
+
+    let start_addr = (frame_buffer_request.get_start() & 0x3fffffff) as u64;
+
+    println!("Start address converted to: {:#x}", start_addr);
+
+    let mut fb = FrameBuffer::new(unsafe {start_addr as *mut u32}, physical_dimensions.get_width(), physical_dimensions.get_height());
+
+    for i in 0..(1920 * 1080) {
+        fb.write_idx(i, 0xff00ffff);
+    }
+
+    for j in 0..1080 {
+        for i in 0..1920 {
+            fb.write_pixel(j, i, 0xff000000 + ((255 * i / 1920) << 16) + ((255 * j / 1080) << 8) + 0xff);
+        }
+    }
+
+    println!("Done!");
    
     status_light.set_green(OutputLevel::High);
 
