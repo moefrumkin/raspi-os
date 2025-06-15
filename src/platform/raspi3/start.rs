@@ -29,7 +29,7 @@ use super::{
     SetOverscan,
     Overscan,
     MailboxResponse},
-    framebuffer::{FrameBuffer}
+    framebuffer::FrameBuffer
 };
 
 static MMIO: MMIOController = MMIOController::new();
@@ -38,7 +38,7 @@ static GPIO: GPIOController = GPIOController::new(&MMIO);
 global_asm!(include_str!("start.s"));
 
 #[no_mangle]
-pub extern "C" fn main(heap_start: usize, heap_size: usize, mailbox_start: usize, table_start: usize) {
+pub extern "C" fn main(heap_start: usize, heap_size: usize, table_start: usize) {
     let mmio = MMIOController::default();
     let gpio = GPIOController::new(&mmio);
     let timer = Timer::new(&mmio);
@@ -80,6 +80,7 @@ pub extern "C" fn main(heap_start: usize, heap_size: usize, mailbox_start: usize
         .request(&mut firmware_revision)
         .request(&mut board_revision)
         .request(&mut arm_memory)
+        .request(&mut vc_memory)
         .request(&mut board_serial);
 
     println!("Sending mailbox message");
@@ -135,7 +136,7 @@ pub extern "C" fn main(heap_start: usize, heap_size: usize, mailbox_start: usize
 
     println!("Start address converted to: {:#x}", start_addr);
 
-    let mut fb = FrameBuffer::new(unsafe {start_addr as *mut u32}, physical_dimensions.get_width(), physical_dimensions.get_height());
+    let mut fb = FrameBuffer::new(start_addr as *mut u32, physical_dimensions.get_width(), physical_dimensions.get_height());
 
     for i in 0..(1920 * 1080) {
         fb.write_idx(i, 0xff00ffff);

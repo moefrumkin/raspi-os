@@ -23,9 +23,6 @@ SECTIONS
     HEAP_START = .;
     . = . + HEAP_SIZE;
 
-    . = ALIGN(16);
-    MAILBOX_BUFFER_START = .;
-
    /DISCARD/ : { *(.comment) *(.gnu*) *(.note*) *(.eh_frame*) }
 }
 HEAP_SIZE = 1048576;

@@ -47,7 +47,7 @@ unsafe impl GlobalAlloc for SpinMutex<LinkedListAllocator> {
 
 impl SpinMutex<LinkedListAllocator> {
     pub fn stats(&self) -> AllocatorStats {
-        let mut stats = AllocatorStats {
+        let _stats = AllocatorStats {
             free_space: 0,
             blocks: 0,
             allocs: 0,
@@ -98,7 +98,8 @@ impl LinkedListAllocator {
     // Return the smallest block larger than the size and of the correct alignment
     fn allocate(&mut self, layout: Layout) -> Option<&mut FreeBlock> {
         let (size, align) = Self::expand_to_min(layout);
-        if let Ok((free, next)) = self.free_list.fit_in_block(size, align) {
+        // TODO: is it safe to discard next?
+        if let Ok((free, _)) = self.free_list.fit_in_block(size, align) {
             Some(free)
         } else {
             None
@@ -221,6 +222,7 @@ impl FreeBlock {
 
         let end_offset = self.end() - end;
 
+        // TODO: refactor this logic
         if end_offset > 0 {
             if end_offset < mem::size_of::<FreeBlock>() {
                 return Err(());
