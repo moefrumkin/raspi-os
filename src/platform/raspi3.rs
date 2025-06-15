@@ -1,7 +1,6 @@
 //! Rasperry Pi 3 platform specific implementations
 
 pub mod gpio;
-pub mod gpu;
 pub mod mailbox;
 pub mod mmio;
 #[cfg(not(test))]

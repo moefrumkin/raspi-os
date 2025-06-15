@@ -29,7 +29,11 @@ impl<T> SpinMutex<T> {
         }
     }
 
-    pub fn execute(&mut self, f: impl FnOnce(&mut T)) {
+    pub fn execute(&self, f: impl FnOnce(&T)) {
+        f(self.lock().data);
+    }
+
+    pub fn execute_mut(&mut self, f: impl FnOnce(&mut T)) {
         f(self.lock().data);
     }
 }

@@ -400,7 +400,6 @@ impl MailboxInstruction for GetVCMemory {
     }
 }
 
-
 pub struct GetFrameBuffer {
     pub alignment: u32,
     pub start: u32,

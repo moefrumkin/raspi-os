@@ -6,9 +6,9 @@ use crate::{print, println, read, write};
 use alloc::vec::Vec;
 use alloc::slice;
 
+
 use super::{
     gpio::{GPIOController, OutputLevel, Pin, StatusLight},
-    gpu::{FBConfig, GPUController},
     lcd::LCDController,
     mailbox::{Channel, MailboxController},
     mmio::MMIOController,
@@ -51,6 +51,7 @@ pub extern "C" fn main(heap_start: usize, heap_size: usize, mailbox_start: usize
     console.set_log_level(LogLevel::Debug);
 
     unsafe {
+        // TODO: refactor
         *CONSOLE.lock() = Some(console);
     }
 
