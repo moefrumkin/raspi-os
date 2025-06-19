@@ -1,7 +1,7 @@
 use alloc::alloc::{Global, Allocator};
 use core::alloc::Layout;
 use core::ptr::NonNull;
-use core::ops::{Index, IndexMut};
+use core::ops::{Index, IndexMut, Deref, DerefMut};
 
 struct AlignedBuffer<T> {
     start: *mut T,
@@ -62,6 +62,24 @@ impl <T> IndexMut<usize> for AlignedBuffer<T> {
 
         unsafe {
             self.start.offset(index as isize).as_mut().unwrap()
+        }
+    }
+}
+
+impl<T> Deref for AlignedBuffer<T> {
+    type Target = [T];
+
+    fn deref(&self) -> &[T] {
+        unsafe {
+            core::slice::from_raw_parts(self.start, self.len())
+        }
+    }
+}
+
+impl<T> DerefMut for AlignedBuffer<T> {
+    fn deref_mut(&mut self) -> &mut[T] {
+        unsafe {
+            core::slice::from_raw_parts_mut(self.start, self.len())
         }
     }
 }
