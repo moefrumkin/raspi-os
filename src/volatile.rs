@@ -3,7 +3,7 @@ use core::alloc::Layout;
 use core::ptr::NonNull;
 use core::ops::{Index, IndexMut, Deref, DerefMut};
 
-struct AlignedBuffer<T> {
+pub struct AlignedBuffer<T> {
     start: *mut T,
     layout: Layout
 }
@@ -81,5 +81,29 @@ impl<T> DerefMut for AlignedBuffer<T> {
         unsafe {
             core::slice::from_raw_parts_mut(self.start, self.len())
         }
+    }
+}
+
+#[repr(transparent)]
+struct Volatile<T> {
+    value: T
+}
+
+impl<T> Volatile<T> {
+    // TODO: should this use a conversion trait?
+    pub fn from_ptr(value: &T) -> &Self {
+        unsafe {
+            (value as *const T as *const Volatile<T>).as_ref().unwrap()
+        }
+    }
+}
+
+impl <T: Copy> Volatile<T> {
+    pub fn get(&self) -> T {
+        self.value
+    }
+
+    pub fn set(&mut self, value: T) {
+        self.value = value
     }
 }

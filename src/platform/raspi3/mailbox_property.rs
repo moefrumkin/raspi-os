@@ -4,6 +4,7 @@ use alloc::vec;
 use alloc::boxed::Box;
 use core::fmt;
 use core::fmt::{Display, Formatter};
+use crate::volatile::AlignedBuffer;
 
 pub struct MessageBuilder<'a> {
     pub instructions: Vec<(&'a mut dyn MailboxInstruction, u32)>,
