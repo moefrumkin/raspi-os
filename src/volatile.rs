@@ -100,10 +100,14 @@ impl<T> Volatile<T> {
 
 impl <T: Copy> Volatile<T> {
     pub fn get(&self) -> T {
-        self.value
+        unsafe {
+            core::ptr::read_volatile(&self.value)
+        }
     }
 
     pub fn set(&mut self, value: T) {
-        self.value = value
+        unsafe {
+            core::ptr::write_volatile(&mut self.value, value)
+        }
     }
 }
