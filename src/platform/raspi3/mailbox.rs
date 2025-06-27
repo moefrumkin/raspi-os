@@ -1,6 +1,7 @@
 use core::arch::asm;
 use super::mmio::MMIOController;
 use alloc::{vec, vec::Vec};
+use crate::volatile::{AlignedBuffer, Volatile};
 
 const MBOX_BASE_OFFSET: usize = 0xB880;
 const MBOX_READ: usize = MBOX_BASE_OFFSET + 0x0;
@@ -82,40 +83,32 @@ pub struct AlignedWord {
 }
 
 pub struct MailboxBuffer {
-    pub buffer: *mut u32
+    pub buffer: AlignedBuffer<Volatile<u32>>
 }
 
 impl MailboxBuffer {
     pub fn with_capacity(capacity: usize) -> Self {
-        // TODO: this is terrible
-        let vec: Vec<AlignedWord> = vec![AlignedWord { word: 0}; capacity];
-        let ptr = vec.into_boxed_slice().as_ptr() as usize;
-
-        Self {
-            buffer: ptr as *mut u32
+       Self {
+            buffer: AlignedBuffer::with_length_align(capacity, 16)
         }
     }
 
     pub fn send(&self, mailbox: &mut MailboxController) {
-        let addr = self.buffer;
+        let addr = self.buffer.as_ptr();
 
         mailbox.call(addr as u32, Channel::Prop);
     }
 
-    pub fn write(&mut self, offset: isize, word: u32) {
-        unsafe {
-            core::ptr::write_volatile(self.buffer.offset(offset), word);
-        }
+    pub fn write(&mut self, offset: u32, word: u32) {
+        self.buffer[offset.try_into().unwrap()].set(word);
     }
 
-    pub fn read(&self, offset: isize) -> u32 {
-        unsafe {
-            core::ptr::read_volatile(self.buffer.offset(offset) as *const u32)
-        }
+    pub fn read(&self, offset: u32) -> u32 {
+        self.buffer[offset.try_into().unwrap()].get()
     }
 
     pub fn start(&self) -> u32 {
-        let addr = self.buffer;
+        let addr = self.buffer.as_ptr();
         addr as u32
     }
 }

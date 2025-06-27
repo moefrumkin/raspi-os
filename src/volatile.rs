@@ -5,12 +5,14 @@ use core::ops::{Index, IndexMut, Deref, DerefMut};
 
 pub struct AlignedBuffer<T> {
     start: *mut T,
-    layout: Layout
+    layout: Layout, // TODO: we really shouldn't need to save the layout
+    elements: usize
 }
 
 impl<T> AlignedBuffer<T> {
     pub fn with_length_align(length: usize, align: usize) -> Self {
-        let layout = Layout::from_size_align(length, align).unwrap();
+        let size = length * Self::element_size();
+        let layout = Layout::from_size_align(size, align).unwrap();
 
         let start = 
             Global.allocate(layout);
@@ -23,12 +25,22 @@ impl<T> AlignedBuffer<T> {
 
         Self {
             start: start.as_mut_ptr() as *mut T,
-            layout
+            layout,
+            elements: length
         }
     }
 
+    fn element_size() -> usize {
+        size_of::<T>()
+    }
+
     pub fn len(&self) -> usize {
-        self.layout.size()
+        self.elements
+    }
+
+    // TODO: what should the ownership implications of this be?
+    pub fn as_ptr(&self) -> *const T {
+        self.start
     }
 }
 
@@ -84,8 +96,9 @@ impl<T> DerefMut for AlignedBuffer<T> {
     }
 }
 
+// TODO define ownership semantics
 #[repr(transparent)]
-struct Volatile<T> {
+pub struct Volatile<T> {
     value: T
 }
 
@@ -96,8 +109,15 @@ impl<T> Volatile<T> {
             (value as *const T as *const Volatile<T>).as_ref().unwrap()
         }
     }
+
+    pub fn from_mut_ptr(value: &mut T) -> &mut Self {
+        unsafe {
+            (value as *mut T as *mut Volatile<T>).as_mut().unwrap()
+        }
+    }
 }
 
+// TODO: implement dereferencing?
 impl <T: Copy> Volatile<T> {
     pub fn get(&self) -> T {
         unsafe {
@@ -109,5 +129,27 @@ impl <T: Copy> Volatile<T> {
         unsafe {
             core::ptr::write_volatile(&mut self.value, value)
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_volatile()  {
+        let mut num = 9;
+
+        let ptr = &mut num;
+
+        let volatile_ptr = Volatile::from_mut_ptr(ptr);
+
+        assert_eq!(volatile_ptr.get(), 9);
+
+        volatile_ptr.set(16);
+
+        assert_eq!(volatile_ptr.get(), 16);
+
+        assert_eq!(num, 16);
     }
 }

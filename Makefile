@@ -25,7 +25,7 @@ QEMU_CMD = $(QEMU_ARCH) \
 	-serial null \
 	-serial mon:stdio
 
-OBJDUMP = aarch64-none-elf-objdump
+OBJDUMP = llvm-objdump
 OBJDUMP_CMD = $(OBJDUMP) --disassemble-all $(KERNEL_ELF)
 
 GDB = gdb-multiarch #rust-gdb
@@ -33,7 +33,7 @@ GDB = gdb-multiarch #rust-gdb
 GDB_SCRIPT = debug.gdb
 GDB_CMD = $(GDB) -x $(GDB_SCRIPT)
 
-.PHONY: all
+.PHONY: all dump
 
 all: build doc-noopen
 
