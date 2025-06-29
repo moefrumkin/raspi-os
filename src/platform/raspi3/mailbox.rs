@@ -58,6 +58,12 @@ impl<'a> MailboxController<'a> {
             }
         }
     }
+
+    pub fn property_message(&self, buffer: &MailboxBuffer) {
+        let addr = buffer.as_ptr();
+
+        self.call(addr as u32, Channel::Prop);
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -82,11 +88,9 @@ pub struct AlignedWord {
     pub word: u32
 }
 
-pub struct MailboxBuffer {
-    pub buffer: AlignedBuffer<Volatile<u32>>
-}
+pub type MailboxBuffer = AlignedBuffer<Volatile<u32>>;
 
-impl MailboxBuffer {
+/*impl MailboxBuffer {
     pub fn with_capacity(capacity: usize) -> Self {
        Self {
             buffer: AlignedBuffer::with_length_align(capacity, 16)
@@ -111,5 +115,5 @@ impl MailboxBuffer {
         let addr = self.buffer.as_ptr();
         addr as u32
     }
-}
+}*/
 

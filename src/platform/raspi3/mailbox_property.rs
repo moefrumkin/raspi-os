@@ -7,8 +7,8 @@ use core::fmt::{Display, Formatter};
 use crate::volatile::AlignedBuffer;
 
 pub struct MessageBuilder<'a> {
-    pub instructions: Vec<(&'a mut dyn MailboxInstruction, u32)>,
-    pub word_length: u32
+    pub instructions: Vec<(&'a mut dyn MailboxInstruction, usize)>,
+    pub word_length: usize
 }
 
 impl<'a> MessageBuilder<'a> {
@@ -20,12 +20,12 @@ impl<'a> MessageBuilder<'a> {
         }
     }
 
-    const TAG_METADATA_WORDS: u32 = 3;
+    const TAG_METADATA_WORDS: usize = 3;
 
     pub fn request(mut self, request: &'a mut dyn MailboxInstruction) -> Self {
         let offset = self.word_length;
         self.word_length += Self::TAG_METADATA_WORDS; // Tag, Size, Req Code
-        self.word_length += request.get_buffer_words();
+        self.word_length += request.get_buffer_words() as usize;
         self.instructions.push((request, offset));
        self
     }
@@ -33,32 +33,32 @@ impl<'a> MessageBuilder<'a> {
     pub fn send(&mut self, mailbox: &mut MailboxController) {
         let buffer = self.to_buffer(); 
 
-        buffer.send(mailbox);
+        mailbox.property_message(&buffer);
 
         for i in 0..self.instructions.len() {
             let (req, offset) = &mut self.instructions[i];
 
-            let response = MailboxResponse::new(buffer.read((*offset + 1) ),
-                buffer.read((*offset + 2) ));
+            let response = MailboxResponse::new(buffer[(*offset + 1)].get(),
+                buffer[(*offset + 2)].get());
 
             req.set_response(response);
-            req.read_data_at_offset(&buffer, *offset + 3);
+            req.read_data_at_offset(&buffer, (*offset + 3) as u32);
         }
     }
 
-    pub fn to_buffer(&mut self) -> MailboxBuffer {
-       let mut buffer = MailboxBuffer::with_capacity(self.word_length as usize);
+    fn to_buffer(&mut self) -> MailboxBuffer {
+       let mut buffer: MailboxBuffer = AlignedBuffer::with_length_align(self.word_length, 16);
 
        // TODO: add padding and end tag at end
-       buffer.write(0, 4 * self.word_length);
-       buffer.write(1, MBOX_REQUEST);
+       buffer[0].set((4 * self.word_length) as u32);
+       buffer[1].set(MBOX_REQUEST);
 
        for i in 0..self.instructions.len() {
            let (req, offset) = &self.instructions[i];
-           buffer.write(*offset , req.get_encoding());
-           buffer.write((offset + 1) , req.get_buffer_bytes());
-           buffer.write((offset + 2) , 0);
-           req.write_data_at_offset(&mut buffer, offset + 3);
+           buffer[*offset].set(req.get_encoding());
+           buffer[offset + 1].set(req.get_buffer_bytes());
+           buffer[offset + 2].set(0);
+           req.write_data_at_offset(&mut buffer, (offset + 3) as u32);
        }
 
        buffer
@@ -145,11 +145,11 @@ impl MailboxInstruction for SimpleRequest {
     }
 
     fn write_data_at_offset(&self, buffer: &mut MailboxBuffer, offset: u32) {
-        buffer.write(offset , 0);
+        buffer[offset as usize].set(0);
     }
 
     fn read_data_at_offset(&mut self, buffer: &MailboxBuffer, offset: u32) {
-        self.response = buffer.read(offset );
+        self.response = buffer[offset as usize].get();
     }
 }
 
@@ -184,11 +184,11 @@ impl MailboxInstruction for GetFirmwareRevision {
     }
 
     fn write_data_at_offset(&self, buffer: &mut MailboxBuffer, offset: u32) {
-        buffer.write(offset , 0);
+        buffer[offset as usize].set(0);
     }
 
     fn read_data_at_offset(&mut self, buffer: &MailboxBuffer, offset: u32) {
-        self.revision = buffer.read(offset );
+        self.revision = buffer[offset as usize].get();
     }
 }
 
@@ -222,12 +222,8 @@ impl MailboxInstruction for GetBoardModel {
         1
     }
 
-    fn write_data_at_offset(&self, buffer: &mut MailboxBuffer, offset: u32) {
-        buffer.write(offset , 0);
-    }
-
     fn read_data_at_offset(&mut self, buffer: &MailboxBuffer, offset: u32) {
-        self.model = buffer.read(offset );
+        self.model = buffer[offset as usize].get();
     }
 }
 
@@ -262,12 +258,8 @@ impl MailboxInstruction for GetBoardRevision {
         1
     }
 
-    fn write_data_at_offset(&self, buffer: &mut MailboxBuffer, offset: u32) {
-        buffer.write(offset , 0);
-    }
-
     fn read_data_at_offset(&mut self, buffer: &MailboxBuffer, offset: u32) {
-        self.revision = buffer.read(offset );
+        self.revision = buffer[offset as usize].get();
     }
 }
 
@@ -301,15 +293,10 @@ impl MailboxInstruction for GetBoardSerial {
         2
     }
 
-    fn write_data_at_offset(&self, buffer: &mut MailboxBuffer, offset: u32) {
-        buffer.write(offset , 0);
-        buffer.write((offset + 1) , 0);
-    }
-
     fn read_data_at_offset(&mut self, buffer: &MailboxBuffer, offset: u32) {
         // TODO: check endianness
-        let first_half = buffer.read(offset ) as u64;
-        let second_half = buffer.read((offset + 1) ) as u64;
+        let first_half = buffer[offset as usize].get() as u64;
+        let second_half = buffer[offset as usize + 1].get() as u64;
         self.serial = (first_half << 32) | second_half;
     }
 }
@@ -349,14 +336,9 @@ impl MailboxInstruction for GetARMMemory {
         2
     }
 
-    fn write_data_at_offset(&self, buffer: &mut MailboxBuffer, offset: u32) {
-        buffer.write(offset , 0);
-        buffer.write((offset + 1) , 0);
-    }
-
     fn read_data_at_offset(&mut self, buffer: &MailboxBuffer, offset: u32) {
-        self.base = buffer.read(offset );
-        self.size = buffer.read((offset + 1) );
+        self.base = buffer[offset as usize].get();
+        self.size = buffer[offset as usize + 1].get();
     }
 }
 
@@ -395,14 +377,9 @@ impl MailboxInstruction for GetVCMemory {
         2
     }
 
-    fn write_data_at_offset(&self, buffer: &mut MailboxBuffer, offset: u32) {
-        buffer.write(offset , 0);
-        buffer.write((offset + 1) , 0);
-    }
-
     fn read_data_at_offset(&mut self, buffer: &MailboxBuffer, offset: u32) {
-        self.base = buffer.read(offset );
-        self.size = buffer.read((offset + 1) );
+        self.base = buffer[offset as usize].get();
+        self.size = buffer[offset as usize + 1].get();
     }
 }
 
@@ -446,13 +423,12 @@ impl MailboxInstruction for GetFrameBuffer {
     }
 
     fn write_data_at_offset(&self, buffer: &mut MailboxBuffer, offset: u32) {
-        buffer.write(offset , self.alignment);
-        buffer.write((offset + 1) , 0);
+        buffer[offset as usize].set(self.alignment);
     }
 
     fn read_data_at_offset(&mut self, buffer: &MailboxBuffer, offset: u32) {
-        self.start = buffer.read(offset );
-        self.size = buffer.read((offset + 1) );
+        self.start = buffer[offset as usize].get();
+        self.size = buffer[offset as usize + 1].get();
     }
 
     fn set_response(&mut self, response: MailboxResponse) {
@@ -511,11 +487,12 @@ impl MailboxInstruction for BlankScreen {
 
     fn write_data_at_offset(&self, buffer: &mut MailboxBuffer, offset: u32) {
         let word = if self.state {0x1} else {0x0};
-        buffer.write(offset , word);
+
+        buffer[offset as usize].set(word);
     }
 
     fn read_data_at_offset(&mut self, buffer: &MailboxBuffer, offset: u32) {
-        let word = buffer.read(offset );
+        let word = buffer[offset as usize].get();
         self.state = if word == 0 {false} else {true};
     }
 }
@@ -556,14 +533,9 @@ impl MailboxInstruction for GetPhysicalDimensions {
         2
     }
 
-    fn write_data_at_offset(&self, buffer: &mut MailboxBuffer, offset: u32) {
-        buffer.write(offset , 0);
-        buffer.write((offset + 1) , 0);
-    }
-
     fn read_data_at_offset(&mut self, buffer: &MailboxBuffer, offset: u32) {
-        self.width= buffer.read(offset );
-        self.height = buffer.read((offset + 1) );
+        self.width = buffer[offset as usize].get();
+        self.height = buffer[offset as usize].get();
     }
 }
 
@@ -603,13 +575,13 @@ impl MailboxInstruction for SetPhysicalDimensions {
     }
 
     fn write_data_at_offset(&self, buffer: &mut MailboxBuffer, offset: u32) {
-        buffer.write(offset , self.width);
-        buffer.write((offset + 1) , self.height);
+        buffer[offset as usize].set(self.width);
+        buffer[offset as usize + 1].set(self.height);
     }
 
     fn read_data_at_offset(&mut self, buffer: &MailboxBuffer, offset: u32) {
-        self.width= buffer.read(offset );
-        self.height = buffer.read((offset + 1) );
+        self.width = buffer[offset as usize].get();
+        self.height = buffer[offset as usize + 1].get();
     }
 }
 
@@ -648,14 +620,9 @@ impl MailboxInstruction for GetVirtualDimensions {
         2
     }
 
-    fn write_data_at_offset(&self, buffer: &mut MailboxBuffer, offset: u32) {
-        buffer.write(offset , 0);
-        buffer.write((offset + 1) , 0);
-    }
-
     fn read_data_at_offset(&mut self, buffer: &MailboxBuffer, offset: u32) {
-        self.width= buffer.read(offset );
-        self.height = buffer.read((offset + 1) );
+        self.width = buffer[offset as usize].get();
+        self.height = buffer[offset as usize + 1].get();
     }
 }
 
@@ -695,13 +662,13 @@ impl MailboxInstruction for SetVirtualDimensions {
     }
 
     fn write_data_at_offset(&self, buffer: &mut MailboxBuffer, offset: u32) {
-        buffer.write(offset , self.width);
-        buffer.write((offset + 1) , self.height);
+        buffer[offset as usize].set(self.width);
+        buffer[offset as usize + 1].set(self.height);
     }
 
     fn read_data_at_offset(&mut self, buffer: &MailboxBuffer, offset: u32) {
-        self.width= buffer.read(offset );
-        self.height = buffer.read((offset + 1) );
+        self.width = buffer[offset as usize].get();
+        self.height = buffer[offset as usize + 1].get();
     }
 }
 
@@ -735,12 +702,8 @@ impl MailboxInstruction for GetDepth {
         1
     }
 
-    fn write_data_at_offset(&self, buffer: &mut MailboxBuffer, offset: u32) {
-        buffer.write(offset , 0);
-    }
-
     fn read_data_at_offset(&mut self, buffer: &MailboxBuffer, offset: u32) {
-        self.depth = buffer.read(offset )
+        self.depth = buffer[offset as usize].get();
     }
 }
 
@@ -774,11 +737,11 @@ impl MailboxInstruction for SetDepth {
     }
 
     fn write_data_at_offset(&self, buffer: &mut MailboxBuffer, offset: u32) {
-        buffer.write(offset , self.depth);
+        buffer[offset as usize].set(self.depth);
     }
 
     fn read_data_at_offset(&mut self, buffer: &MailboxBuffer, offset: u32) {
-        self.depth = buffer.read(offset )
+        self.depth = buffer[offset as usize].get();
     }
 }
 
@@ -843,12 +806,8 @@ impl MailboxInstruction for GetPixelOrder {
         1
     }
 
-    fn write_data_at_offset(&self, buffer: &mut MailboxBuffer, offset: u32) {
-        buffer.write(offset , 0);
-    }
-
     fn read_data_at_offset(&mut self, buffer: &MailboxBuffer, offset: u32) {
-        self.order = PixelOrder::from_u32(buffer.read(offset ));
+        self.order = PixelOrder::from_u32(buffer[offset as usize].get());
     }
 }
 
@@ -882,11 +841,11 @@ impl MailboxInstruction for SetPixelOrder {
     }
 
     fn write_data_at_offset(&self, buffer: &mut MailboxBuffer, offset: u32) {
-        buffer.write(offset , self.order.to_u32());
+        buffer[offset as usize].set(self.order.to_u32());
     }
 
     fn read_data_at_offset(&mut self, buffer: &MailboxBuffer, offset: u32) {
-        self.order = PixelOrder::from_u32(buffer.read(offset ));
+        self.order = PixelOrder::from_u32(buffer[offset as usize].get());
     }
 }
 
@@ -915,12 +874,8 @@ impl MailboxInstruction for GetPitch {
         1
     }
 
-    fn write_data_at_offset(&self, buffer: &mut MailboxBuffer, offset: u32) {
-        buffer.write(offset , 0);
-    }
-
     fn read_data_at_offset(&mut self, buffer: &MailboxBuffer, offset: u32) {
-        self.pitch = buffer.read(offset )
+        self.pitch = buffer[offset as usize].get();
     }
 }
 
@@ -946,8 +901,8 @@ impl MailboxInstruction for GetVirtualOffset {
     fn get_buffer_words(&self) -> u32 { 2 }
 
     fn read_data_at_offset(&mut self, buffer: &MailboxBuffer, offset: u32) {
-        self.x = buffer.read(offset );
-        self.y = buffer.read((offset + 1) );
+        self.x = buffer[offset as usize].get();
+        self.y = buffer[offset as usize + 1].get();
     }
 }
 
@@ -993,10 +948,10 @@ impl MailboxInstruction for GetOverscan {
     fn get_buffer_words(&self) -> u32 { 4 }
 
     fn read_data_at_offset(&mut self, buffer: &MailboxBuffer, offset: u32) {
-        self.overscan.top = buffer.read(offset );
-        self.overscan.bottom = buffer.read((offset + 1) );
-        self.overscan.left = buffer.read((offset + 2) );
-        self.overscan.right = buffer.read((offset + 3) );
+        self.overscan.top = buffer[offset as usize].get();
+        self.overscan.bottom = buffer[offset as usize + 1].get();
+        self.overscan.left = buffer[offset as usize + 2].get();
+        self.overscan.right = buffer[offset as usize + 3].get();
     }
 }
 
@@ -1019,17 +974,17 @@ impl MailboxInstruction for SetOverscan {
     fn get_buffer_words(&self) -> u32 { 4 }
 
     fn write_data_at_offset(&self, buffer: &mut MailboxBuffer, offset: u32) {
-        buffer.write(offset , self.overscan.top);
-        buffer.write((offset + 1) , self.overscan.bottom);
-        buffer.write((offset + 2) , self.overscan.left);
-        buffer.write((offset + 3) , self.overscan.right);
+        buffer[offset as usize].set(self.overscan.top);
+        buffer[offset as usize + 1].set(self.overscan.bottom);
+        buffer[offset as usize + 2].set(self.overscan.left);
+        buffer[offset as usize + 3].set(self.overscan.right);
     }
 
     fn read_data_at_offset(&mut self, buffer: &MailboxBuffer, offset: u32) {
-        self.overscan.top = buffer.read(offset );
-        self.overscan.bottom = buffer.read((offset + 1) );
-        self.overscan.left = buffer.read((offset + 2) );
-        self.overscan.right = buffer.read((offset + 3) );
+        self.overscan.top = buffer[offset as usize].get();
+        self.overscan.bottom = buffer[offset as usize + 1].get();
+        self.overscan.left = buffer[offset as usize + 2].get();
+        self.overscan.right = buffer[offset as usize + 3].get();
     }
 }
 
