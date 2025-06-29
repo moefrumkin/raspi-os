@@ -89,31 +89,3 @@ pub struct AlignedWord {
 }
 
 pub type MailboxBuffer = AlignedBuffer<Volatile<u32>>;
-
-/*impl MailboxBuffer {
-    pub fn with_capacity(capacity: usize) -> Self {
-       Self {
-            buffer: AlignedBuffer::with_length_align(capacity, 16)
-        }
-    }
-
-    pub fn send(&self, mailbox: &mut MailboxController) {
-        let addr = self.buffer.as_ptr();
-
-        mailbox.call(addr as u32, Channel::Prop);
-    }
-
-    pub fn write(&mut self, offset: u32, word: u32) {
-        self.buffer[offset.try_into().unwrap()].set(word);
-    }
-
-    pub fn read(&self, offset: u32) -> u32 {
-        self.buffer[offset.try_into().unwrap()].get()
-    }
-
-    pub fn start(&self) -> u32 {
-        let addr = self.buffer.as_ptr();
-        addr as u32
-    }
-}*/
-

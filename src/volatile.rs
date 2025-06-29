@@ -42,6 +42,18 @@ impl<T> AlignedBuffer<T> {
     pub fn as_ptr(&self) -> *const T {
         self.start
     }
+
+    fn as_slice(&self) -> &[T] {
+        unsafe {
+            core::slice::from_raw_parts(self.start as *const T, self.len())
+        }
+    }
+
+    fn as_mut_slice(&mut self) -> &mut [T] {
+        unsafe {
+            core::slice::from_raw_parts_mut(self.start, self.len())
+        }
+    }
 }
 
 impl<T> Drop for AlignedBuffer<T> {
@@ -52,36 +64,28 @@ impl<T> Drop for AlignedBuffer<T> {
     }
 }
 
-impl<T> Index<usize> for AlignedBuffer<T> {
-    type Output = T;
+impl<T, Idx> Index<Idx> for AlignedBuffer<T>
+where Idx:
+core::slice::SliceIndex<[T]> {
+    type Output = Idx::Output;
 
-    fn index(&self, index: usize) -> &T {
-        if index >= self.len() {
-            panic!("Out of bounds error");
-        }
-
-        unsafe {
-            self.start.offset(index as isize).as_ref().unwrap()
-        }
+    fn index(&self, index: Idx) -> &Self::Output {
+        &self.as_slice()[index]
     }
 }
 
-impl <T> IndexMut<usize> for AlignedBuffer<T> {
-    fn index_mut(&mut self, index: usize) -> &mut T {
-        if index >= self.len() {
-            panic!("Out of bounds error");
-        }
-
-        unsafe {
-            self.start.offset(index as isize).as_mut().unwrap()
-        }
+impl <T, Idx> IndexMut<Idx> for AlignedBuffer<T>
+where
+    Idx: core::slice::SliceIndex<[T]> {
+    fn index_mut(&mut self, index: Idx) -> &mut Self::Output {
+        &mut self.as_mut_slice()[index]
     }
 }
 
 impl<T> Deref for AlignedBuffer<T> {
     type Target = [T];
 
-    fn deref(&self) -> &[T] {
+    fn deref(&self) -> &Self::Target {
         unsafe {
             core::slice::from_raw_parts(self.start, self.len())
         }
