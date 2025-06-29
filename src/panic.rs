@@ -61,6 +61,7 @@ fn on_alloc_error(layout: Layout) -> ! {
 
     let stats = ALLOCATOR.stats();
 
+    uart.writefln(format_args!("{} allocations, {} frees", stats.allocs, stats.frees));
     uart.writefln(format_args!("{} bytes in {} blocks", stats.free_space, stats.blocks));
 
     loop {}
