@@ -10,14 +10,27 @@ pub struct LinkedListAllocator {
 
     /// The amont of memory managed by this allocator
     size: usize,
+
+    stats: AllocatorStats,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct AllocatorStats {
     pub free_space: usize,
     pub blocks: usize,
     pub allocs: usize,
     pub frees: usize
+}
+
+impl AllocatorStats {
+    pub const fn new() -> Self {
+        Self {
+            free_space: 0,
+            blocks: 0,
+            allocs: 0,
+            frees: 0
+        }
+    }
 }
 
 impl Default for AllocatorStats {
@@ -47,16 +60,7 @@ unsafe impl GlobalAlloc for SpinMutex<LinkedListAllocator> {
 
 impl SpinMutex<LinkedListAllocator> {
     pub fn stats(&self) -> AllocatorStats {
-        let _stats = AllocatorStats {
-            free_space: 0,
-            blocks: 0,
-            allocs: 0,
-            frees: 0
-        };
-
-        let first_block = &self.lock().free_list;          
-
-        return first_block.next.as_ref().map_or_else(AllocatorStats::default, |b| b.stats());
+        self.lock().stats
     }
 }
 
@@ -72,7 +76,8 @@ impl LinkedListAllocator {
         Self {
             // The first block is a sentinel
             free_list: FreeBlock {size: 0, next: None},
-            size: 0
+            size: 0,
+            stats: AllocatorStats::new()
         }
     }
 
@@ -84,6 +89,9 @@ impl LinkedListAllocator {
 
         self.size = size;
         self.free(start, size);
+
+        //TODO: find some less awful way to do this
+        self.stats.frees -= 1;
 
         let block_ptr = start as *mut FreeBlock;
 
@@ -97,6 +105,7 @@ impl LinkedListAllocator {
 
     // Return the smallest block larger than the size and of the correct alignment
     fn allocate(&mut self, layout: Layout) -> Option<&mut FreeBlock> {
+        self.stats.allocs += 1;
         let (size, align) = Self::expand_to_min(layout);
         // TODO: is it safe to discard next?
         if let Ok((free, _)) = self.free_list.fit_in_block(size, align) {
@@ -109,6 +118,7 @@ impl LinkedListAllocator {
 
     //TODO coalesce neighboring blocks
     fn free(&mut self, start: usize, size: usize) {
+        self.stats.frees += 1;
         if start % mem::align_of::<FreeBlock>() != 0 {
             panic!("Incompatible memory alignment of freed block. Block address: {:x}, needs alignment {}", start, mem::align_of::<FreeBlock>());
         }
@@ -185,15 +195,28 @@ impl FreeBlock {
     /// block and relinks the remaining blocks appropriately
     /// Returns the freed block and boolean whether the caller needs to relink the blocks
     fn fit_in_block(&mut self, size: usize, align: usize) -> Result<(&mut FreeBlock, Option<&mut FreeBlock>), ()> {
-        let start = super::align(self.start(), align);
+        // The first address in this block with the required alignment
+        // Candidate for offset of start of allocated area
+        let start_candidate = super::align(self.start(), align);
 
-        // TODO: is there a more efficient sequence of calculations here?
-        let start_offset = start - self.start();
-        let end_offset = start_offset + size;
+        let start_offset_candidate = start_candidate - self.start();
 
-        let end = start + end_offset;
+        let end_offset_candidate = start_offset_candidate + size;
 
-        if end > self.end() {
+        let end_candidate = start_candidate + end_offset_candidate;
+
+        // Does the proposed region fit in this block
+        let fits = end_candidate <= self.end();
+
+        let trim_start = start_offset_candidate > 0;
+        let trim_end = end_candidate < self.end();
+
+        let trim_start_fits = start_offset_candidate >= mem::size_of::<FreeBlock>();
+        let trim_end_fits = end_offset_candidate >= mem::size_of::<FreeBlock>();
+
+        let can_allocate = fits && !(trim_start && !trim_start_fits) && !(trim_end && !trim_end_fits);
+
+        if !can_allocate {
             if let Some(next) = self.next.take() {
                 if let Ok((free_block, next)) = next.fit_in_block(size, align) {
                     self.next = next;
@@ -204,39 +227,24 @@ impl FreeBlock {
             return Err(());
         }
 
-        if start_offset > 0 {
-            if start_offset < mem::size_of::<FreeBlock>() {
-                return Err(());
-            } else {
-                self.partition(start_offset).expect("Failed to partition block");
-                let next = self.next.take().expect("Block improperly partitioned");
+        if trim_end {
+            self.partition(end_offset_candidate);
+        }
 
-                if let Ok((freed_block, next_block)) = next.fit_in_block(size, align) {
-                    self.next = next_block;
-                    return Ok((freed_block, Some(self)));
-                } else {
-                    return Err(());
-                }
+        if trim_start {
+            self.partition(start_offset_candidate);
+            let next = self.next.take().expect("Block improperly partitioned");
+
+            if let Ok((freed_block, next_block)) = next.fit_in_block(size, align) {
+                self.next = next_block;
+                return Ok((freed_block, Some(self)));
+            } else {
+                return Err(());
             }
         }
 
-        let end_offset = self.end() - end;
-
-        // TODO: refactor this logic
-        if end_offset > 0 {
-            if end_offset < mem::size_of::<FreeBlock>() {
-                return Err(());
-            } else {
-                self.partition(size + start_offset).expect("Failed to partition block");
-                let next = self.next.take();
-                return Ok((self, next));
-            }
-        } else {
-            let next = self.next.take();
-            return Ok((self, next));
-        }
-
-        Err(())
+        let next = self.next.take();
+        return Ok((self, next));
     }
 
     /// Split the given block into two blocks
@@ -373,6 +381,12 @@ mod tests {
                 
                 allocations[i] = ptr;
             }
+
+            let stats = alloc.stats();
+
+            assert_eq!(stats.allocs, ITERATIONS);
+
+            assert_eq!(stats.frees, 0);
         }
     }
 
@@ -415,6 +429,55 @@ mod tests {
             }
         }
     }
+
+    #[test]
+    fn test_interleaved() {
+        const ITERATIONS: usize = 16;
+        const ALLOCS_PER_ITER: usize = 3;
+
+        let HEAP = Heap {
+            memory: [0; 4096]
+        };
+
+        unsafe {
+            let alloc = initialize_allocator(HEAP);
+
+            let layout = Layout::from_size_align(64, 64).unwrap();
+
+            let mut allocations: [*mut u8; ITERATIONS * ALLOCS_PER_ITER] = [std::ptr::null_mut(); ITERATIONS * ALLOCS_PER_ITER];
+
+            for i in 0..ITERATIONS {
+                for j in 0..ALLOCS_PER_ITER {
+                    let ptr = alloc.alloc(layout);
+
+                    assert_ne!(ptr, std::ptr::null_mut(), "Failed to allocate, {:?}, at iteration {}, allocation {}\n", alloc, i, j);
+
+                    assert_eq!(ptr as usize % layout.align(), 0,  "Allocated block has incorrect allignment. Pointer: {:p}, required alignment is {}", ptr, layout.align());
+
+                    allocations[i * ALLOCS_PER_ITER + j] = ptr;
+                }
+
+                if i > 0 {
+                    let prev = i - 1;
+                    for j in 0..ALLOCS_PER_ITER {
+                        alloc.dealloc(allocations[prev * ALLOCS_PER_ITER + j], layout);
+                    }
+                }
+            }
+
+            let last = ITERATIONS - 1;
+            for j in 0..ALLOCS_PER_ITER {
+                alloc.dealloc(allocations[last * ALLOCS_PER_ITER + j], layout);
+            }
+
+            let stats = alloc.stats();
+
+            assert_eq!(stats.allocs, ITERATIONS * ALLOCS_PER_ITER);
+
+            assert_eq!(stats.frees, ITERATIONS * ALLOCS_PER_ITER);
+        }
+    }
+
     #[test]
     fn expand_to_min() {
         let size = mem::size_of::<FreeBlock>();

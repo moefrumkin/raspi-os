@@ -3,6 +3,8 @@
 #![allow(internal_features)]
 #![feature(lang_items)]
 #![feature(alloc_error_handler)]
+#![feature(allocator_api)]
+#![feature(slice_ptr_get)]
 
 //TODO: temporary, just to make development easier
 #![allow(dead_code)]
@@ -28,6 +30,8 @@ mod panic;
 mod platform;
 mod sync;
 mod utils;
+
+mod volatile;
 
 #[cfg(not(test))]
 #[lang = "eh_personality"]
