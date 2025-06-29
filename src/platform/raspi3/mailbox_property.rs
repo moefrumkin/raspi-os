@@ -140,10 +140,6 @@ impl MailboxInstruction for SimpleRequest {
         self.encoding
     }
 
-    fn get_buffer_bytes(&self) -> u32 {
-        4
-    }
-
     fn get_buffer_words(&self) -> u32 {
         1
     }
@@ -177,10 +173,6 @@ impl GetFirmwareRevision {
 impl MailboxInstruction for GetFirmwareRevision {
     fn get_encoding(&self) -> u32 {
         0x1
-    }
-
-    fn get_buffer_bytes(&self) -> u32 {
-        4
     }
 
     fn get_buffer_words(&self) -> u32 {
@@ -218,10 +210,6 @@ impl MailboxInstruction for GetBoardModel {
         0x10001
     }
 
-    fn get_buffer_bytes(&self) -> u32 {
-        4
-    }
-
     fn get_buffer_words(&self) -> u32 {
         1
     }
@@ -254,10 +242,6 @@ impl MailboxInstruction for GetBoardRevision {
         0x10002
     }
 
-    fn get_buffer_bytes(&self) -> u32 {
-        4
-    }
-
     fn get_buffer_words(&self) -> u32 {
         1
     }
@@ -287,10 +271,6 @@ impl GetBoardSerial {
 impl MailboxInstruction for GetBoardSerial {
     fn get_encoding(&self) -> u32 {
         0x10004
-    }
-
-    fn get_buffer_bytes(&self) -> u32 {
-        8
     }
 
     fn get_buffer_words(&self) -> u32 {
@@ -332,10 +312,6 @@ impl MailboxInstruction for GetARMMemory {
         0x10005
     }
 
-    fn get_buffer_bytes(&self) -> u32 {
-        8
-    }
-
     fn get_buffer_words(&self) -> u32 {
         2
     }
@@ -371,10 +347,6 @@ impl GetVCMemory {
 impl MailboxInstruction for GetVCMemory {
     fn get_encoding(&self) -> u32 {
         0x10006
-    }
-
-    fn get_buffer_bytes(&self) -> u32 {
-        8
     }
 
     fn get_buffer_words(&self) -> u32 {
@@ -418,10 +390,6 @@ impl MailboxInstruction for GetFrameBuffer {
         0x40001
     }
 
-    fn get_buffer_bytes(&self) -> u32 {
-        8
-    }
-
     fn get_buffer_words(&self) -> u32 {
         2
     }
@@ -455,10 +423,6 @@ impl MailboxInstruction for ReleaseBuffer {
         0x48001
     }
 
-    fn get_buffer_bytes(&self) -> u32 {
-        0
-    }
-
     fn get_buffer_words(&self) -> u32 {
         0
     }
@@ -479,10 +443,6 @@ impl BlankScreen {
 impl MailboxInstruction for BlankScreen {
     fn get_encoding(&self) -> u32 {
         0x40002
-    }
-
-    fn get_buffer_bytes(&self) -> u32 {
-        4
     }
 
     fn get_buffer_words(&self) -> u32 {
@@ -529,10 +489,6 @@ impl MailboxInstruction for GetPhysicalDimensions {
         0x40003
     }
 
-    fn get_buffer_bytes(&self) -> u32 {
-        8
-    }
-
     fn get_buffer_words(&self) -> u32 {
         2
     }
@@ -568,10 +524,6 @@ impl SetPhysicalDimensions {
 impl MailboxInstruction for SetPhysicalDimensions {
     fn get_encoding(&self) -> u32 {
         0x48003
-    }
-
-    fn get_buffer_bytes(&self) -> u32 {
-        8
     }
 
     fn get_buffer_words(&self) -> u32 {
@@ -616,10 +568,6 @@ impl MailboxInstruction for GetVirtualDimensions {
         0x40004
     }
 
-    fn get_buffer_bytes(&self) -> u32 {
-        8
-    }
-
     fn get_buffer_words(&self) -> u32 {
         2
     }
@@ -655,10 +603,6 @@ impl SetVirtualDimensions {
 impl MailboxInstruction for SetVirtualDimensions {
     fn get_encoding(&self) -> u32 {
         0x48004
-    }
-
-    fn get_buffer_bytes(&self) -> u32 {
-        8
     }
 
     fn get_buffer_words(&self) -> u32 {
@@ -698,10 +642,6 @@ impl MailboxInstruction for GetDepth {
         0x40005
     }
 
-    fn get_buffer_bytes(&self) -> u32 {
-        4
-    }
-
     fn get_buffer_words(&self) -> u32 {
         1
     }
@@ -730,10 +670,6 @@ impl SetDepth {
 impl MailboxInstruction for SetDepth {
     fn get_encoding(&self) -> u32 {
         0x48005
-    }
-
-    fn get_buffer_bytes(&self) -> u32 {
-        4
     }
 
     fn get_buffer_words(&self) -> u32 {
@@ -802,10 +738,6 @@ impl MailboxInstruction for GetPixelOrder {
         0x40006
     }
 
-    fn get_buffer_bytes(&self) -> u32 {
-        4
-    }
-
     fn get_buffer_words(&self) -> u32 {
         1
     }
@@ -834,10 +766,6 @@ impl SetPixelOrder {
 impl MailboxInstruction for SetPixelOrder {
     fn get_encoding(&self) -> u32 {
         0x48006
-    }
-
-    fn get_buffer_bytes(&self) -> u32 {
-        4
     }
 
     fn get_buffer_words(&self) -> u32 {
