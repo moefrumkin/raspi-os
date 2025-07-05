@@ -12,16 +12,16 @@ pub struct AlignedBuffer<T> {
 impl<T> AlignedBuffer<T> {
     pub fn with_length_align(length: usize, align: usize) -> Self {
         let size = length * Self::element_size();
-        let layout = Layout::from_size_align(size, align).unwrap();
+        let layout = Layout::from_size_align(size, align).expect("Error creating layout");
 
         let start = 
             Global.allocate(layout);
 
         if start.is_err() {
-            panic!("Unable to allocated");
+            panic!("Unable to allocate");
         }
 
-        let start = start.unwrap();
+        let start = start.expect("Error allocating aligned buffer");
 
         Self {
             start: start.as_mut_ptr() as *mut T,
@@ -59,7 +59,7 @@ impl<T> AlignedBuffer<T> {
 impl<T> Drop for AlignedBuffer<T> {
     fn drop(&mut self) {
         unsafe {
-            Global.deallocate(NonNull::new(self.start as *mut u8).unwrap(), self.layout);
+            Global.deallocate(NonNull::new(self.start as *mut u8).expect("Error freeing aligned buffer"), self.layout);
         }
     }
 }
@@ -110,13 +110,13 @@ impl<T> Volatile<T> {
     // TODO: should this use a conversion trait?
     pub fn from_ptr(value: &T) -> &Self {
         unsafe {
-            (value as *const T as *const Volatile<T>).as_ref().unwrap()
+            (value as *const T as *const Volatile<T>).as_ref().expect("Error converting pointer to volatile pointer")
         }
     }
 
     pub fn from_mut_ptr(value: &mut T) -> &mut Self {
         unsafe {
-            (value as *mut T as *mut Volatile<T>).as_mut().unwrap()
+            (value as *mut T as *mut Volatile<T>).as_mut().expect("Error converting pointer to mutable volatile pointer")
         }
     }
 }

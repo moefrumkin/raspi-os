@@ -2,9 +2,8 @@ use crate::platform::raspi3::mailbox::{MailboxController, Channel, MBOX_REQUEST,
 use alloc::vec::Vec;
 use alloc::vec;
 use alloc::boxed::Box;
-use core::fmt;
-use core::fmt::{Display, Formatter};
 use crate::volatile::{AlignedBuffer, Volatile};
+use crate::platform::raspi3::framebuffer::{PixelOrder, Overscan, Dimensions};
 
 pub struct MessageBuilder<'a> {
     pub instructions: Vec<(&'a mut dyn MailboxInstruction, usize)>,
@@ -482,6 +481,10 @@ impl GetPhysicalDimensions {
     pub fn get_height(&self) -> u32 {
         self.height
     }
+
+    pub fn get(&self) -> Dimensions {
+        Dimensions::new(self.width, self.height)
+    }
 }
 
 impl MailboxInstruction for GetPhysicalDimensions {
@@ -500,24 +503,26 @@ impl MailboxInstruction for GetPhysicalDimensions {
 }
 
 pub struct SetPhysicalDimensions {
-    pub width: u32,
-    pub height: u32
+    pub dimensions: Dimensions,
 }
 
 impl SetPhysicalDimensions {
-    pub fn new(width: u32, height: u32) -> Self {
+    pub fn new(dimensions: Dimensions) -> Self {
         Self {
-            width,
-            height
+            dimensions
         }
     }
 
     pub fn get_width(&self) -> u32 {
-        self.width
+        self.dimensions.get_width()
     }
 
     pub fn get_height(&self) -> u32 {
-        self.height
+        self.dimensions.get_height()
+    }
+
+    pub fn get(&self) -> Dimensions {
+        self.dimensions
     }
 }
 
@@ -531,13 +536,13 @@ impl MailboxInstruction for SetPhysicalDimensions {
     }
 
     fn write_data_at_offset(&self, buffer: &mut MailboxBufferSlice) {
-        buffer[0].set(self.width);
-        buffer[1].set(self.height);
+        buffer[0].set(self.dimensions.get_width());
+        buffer[1].set(self.dimensions.get_height());
     }
 
     fn read_data_at_offset(&mut self, buffer: &MailboxBufferSlice) {
-        self.width = buffer[0].get();
-        self.height = buffer[1].get();
+        self.dimensions.set_width(buffer[0].get());
+        self.dimensions.set_height(buffer[1].get());
     }
 }
 
@@ -561,6 +566,10 @@ impl GetVirtualDimensions {
     pub fn get_height(&self) -> u32 {
         self.height
     }
+
+    pub fn get(&self) -> Dimensions {
+        Dimensions::new(self.width, self.height)
+    }
 }
 
 impl MailboxInstruction for GetVirtualDimensions {
@@ -579,24 +588,26 @@ impl MailboxInstruction for GetVirtualDimensions {
 }
 
 pub struct SetVirtualDimensions {
-    pub width: u32,
-    pub height: u32
+    dimensions: Dimensions
 }
 
 impl SetVirtualDimensions {
-    pub fn new(width: u32, height: u32) -> Self {
+    pub fn new(dimensions: Dimensions) -> Self {
         Self {
-            width,
-            height
+            dimensions
         }
     }
 
     pub fn get_width(&self) -> u32 {
-        self.width
+        self.dimensions.get_width()
     }
 
     pub fn get_height(&self) -> u32 {
-        self.height
+        self.dimensions.get_height()
+    }
+
+    pub fn get(&self) -> Dimensions {
+        self.dimensions
     }
 }
 
@@ -610,13 +621,13 @@ impl MailboxInstruction for SetVirtualDimensions {
     }
 
     fn write_data_at_offset(&self, buffer: &mut MailboxBufferSlice) {
-        buffer[0].set(self.width);
-        buffer[1].set(self.height);
+        buffer[0].set(self.dimensions.get_width());
+        buffer[1].set(self.dimensions.get_height());
     }
 
     fn read_data_at_offset(&mut self, buffer: &MailboxBufferSlice) {
-        self.width = buffer[0].get();
-        self.height = buffer[1].get();
+        self.dimensions.set_width(buffer[0].get());
+        self.dimensions.set_height(buffer[1].get());
     }
 }
 
@@ -682,38 +693,6 @@ impl MailboxInstruction for SetDepth {
 
     fn read_data_at_offset(&mut self, buffer: &MailboxBufferSlice) {
         self.depth = buffer[0].get();
-    }
-}
-
-#[derive(Copy, Clone)]
-pub enum PixelOrder {
-    BGR,
-    RGB
-}
-
-impl PixelOrder {
-    pub fn to_u32(self) -> u32 {
-        match self {
-            PixelOrder::BGR => 0x0,
-            PixelOrder::RGB => 0x1
-        }
-    }
-
-    pub fn from_u32(int: u32) -> Self {
-        match int {
-            0 => PixelOrder::BGR,
-            1 => PixelOrder::RGB,
-            _ => panic!("Unknown pixel order") // Better error handling
-        }
-    }
-}
-
-impl Display for PixelOrder {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", match self {
-            PixelOrder::BGR => "BGR",
-            PixelOrder::RGB => "RGB"
-        })
     }
 }
 
@@ -835,29 +814,6 @@ impl MailboxInstruction for GetVirtualOffset {
     fn read_data_at_offset(&mut self, buffer: &MailboxBufferSlice) {
         self.x = buffer[0].get();
         self.y = buffer[1].get();
-    }
-}
-
-#[derive(Debug, Copy, Clone)]
-pub struct Overscan {
-    pub top: u32,
-    pub bottom: u32,
-    pub left: u32,
-    pub right: u32
-}
-
-impl Overscan {
-    pub fn none() -> Self {
-        Self {
-            top: 0,
-            bottom: 0,
-            left: 0,
-            right: 0
-        }
-    }
-    
-    pub fn new(top: u32, bottom: u32, left: u32, right: u32) -> Self {
-        Self { top, bottom, left, right }
     }
 }
 
