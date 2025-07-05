@@ -676,6 +676,10 @@ impl SetDepth {
     pub fn get_depth(&self) -> u32 {
         self.depth
     }
+
+    pub fn get(&self) -> u32 {
+        self.depth 
+    }
 }
 
 impl MailboxInstruction for SetDepth {
@@ -772,6 +776,10 @@ impl GetPitch {
     }
 
     pub fn get_pitch(&self) -> u32 {
+        self.pitch
+    }
+
+    pub fn get(&self) -> u32 {
         self.pitch
     }
 }

@@ -109,15 +109,18 @@ pub extern "C" fn main(heap_start: usize, heap_size: usize, table_start: usize) 
         overscan: Overscan::none()
     };
 
+    println!("Initializing Frame Buffer with config {:?}", fb_config);
 
     let mut fb = FrameBuffer::from_config(fb_config, &mut mailbox);
+
+    println!("Actual config is {:?}", fb.get_config());
 
     for i in 0..(1920 * 1080) {
         fb.write_idx(i, 0xff00ffff);
     }
 
-    for j in 0..1080 {
-        for i in 0..1920 {
+    for j in 0..1920 {
+        for i in 0..1080 {
             fb.write_pixel(j, i, 0xff000000 + ((255 * i / 1920) << 16) + ((255 * j / 1080) << 8) + 0xff);
         }
     }

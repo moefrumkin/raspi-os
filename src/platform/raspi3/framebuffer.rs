@@ -22,8 +22,6 @@ pub struct FrameBuffer<'a> {
 
 impl<'a> FrameBuffer<'a> {
     pub fn from_config(config: FrameBufferConfig, mailbox: &mut MailboxController) -> Self {
-        let frame_buffer_request = MessageBuilder::new();
-        
         // TODO: make sure all are setters
         let mut frame_buffer_request = GetFrameBuffer::with_aligment(32); 
         let mut depth = SetDepth::new(config.depth);
@@ -46,14 +44,34 @@ impl<'a> FrameBuffer<'a> {
 
         frame_buffer_message.send(mailbox);
 
+        let buffer_size = frame_buffer_request.get_size();
+
+        let expected_buffer_size = config.virtual_dimensions.get_width() * config.virtual_dimensions.get_height() * (config.depth / 8);
+
+        if(buffer_size != expected_buffer_size) {
+            //panic!("Requested a buffer with size {}, got size {}", expected_buffer_size, buffer_size);
+        }
+
         let start_addr = (frame_buffer_request.get_start() &0x3fffffff) as u64;
 
         let buffer = unsafe {
             core::slice::from_raw_parts_mut(start_addr as *mut Volatile<u32>, (config.virtual_dimensions.get_width() * config.virtual_dimensions.get_height()) as usize)
         };
 
+        let actual_config = FrameBufferConfig {
+            depth: depth.get(),
+            physical_dimensions: physical_dimensions.get(),
+            virtual_dimensions: virtual_dimensions.get(),
+            pitch: pitch.get(),
+            pixel_order: pixel_order.get_order(),
+            virtual_offset: Offset::none(),
+            overscan: overscan.get_overscan()
+        };
+
+
+
         Self {
-            config,
+            config: actual_config,
             buffer
         }
     }
@@ -65,6 +83,10 @@ impl<'a> FrameBuffer<'a> {
     pub fn write_pixel(&mut self, x: u32, y: u32, color: u32) {
         self.buffer[(y * self.config.physical_dimensions.get_width() + x) as usize].set(color);
     }
+
+    pub fn get_config(&self) -> FrameBufferConfig {
+        self.config
+    }
 }
 
 pub struct FrameBufferController {
@@ -73,7 +95,7 @@ pub struct FrameBufferController {
 
 pub type Depth = u32;
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct Dimensions {
     width: u32,
     height: u32
@@ -106,7 +128,7 @@ impl Dimensions {
 
 pub type Pitch = u32;
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub enum PixelOrder {
     BGR,
     RGB
@@ -138,6 +160,7 @@ impl Display for PixelOrder {
     }
 }
 
+#[derive(Copy, Clone, Debug)]
 pub struct Offset {
     x: u32,
     y: u32
@@ -175,6 +198,7 @@ impl Overscan {
 }
 
 
+#[derive(Copy, Clone, Debug)]
 pub struct FrameBufferConfig {
     pub depth: Depth,
     pub physical_dimensions: Dimensions,
