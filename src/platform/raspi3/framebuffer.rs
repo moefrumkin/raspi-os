@@ -336,3 +336,27 @@ impl Display for FrameBufferConfig {
         self.virtual_offset)
     }
 }
+
+pub struct FrameBufferConfigBuilder {
+    depth: Option<Depth>,
+    overscan: Option<Overscan>,
+    pitch: Option<Pitch>,
+    pixel_order: Option<PixelOrder>,
+    physical_dimensions: Option<Dimensions>,
+    virtual_dimensions: Option<Dimensions>,
+    virtual_offset: Option<Offset>
+}
+
+impl FrameBufferConfigBuilder {
+    pub fn new() -> Self {
+        Self {
+            depth: Option::None,
+            overscan: Option::None,
+            pitch: Option::None,
+            pixel_order: Option::None,
+            physical_dimensions: Option::None,
+            virtual_dimensions: Option::None,
+            virtual_offset: Option::None
+        }
+    }
+}
