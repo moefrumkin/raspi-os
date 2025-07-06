@@ -9,8 +9,6 @@ use crate::platform::raspi3::mailbox_property::{
     SetPhysicalDimensions,
     SetVirtualDimensions,
     GetPitch,
-    GetVirtualOffset,
-    SetOverscan,
     MailboxInstruction,
     MailboxBufferSlice
 };
@@ -25,12 +23,12 @@ impl<'a> FrameBuffer<'a> {
     pub fn from_config(config: FrameBufferConfig, mailbox: &mut MailboxController) -> Self {
         // TODO: make sure all are setters
         let mut depth = SetDepth::new(config.depth);
-        let mut overscan = SetOverscan::new(Overscan::none());
+        let mut overscan = FramebufferPropertyRequest::<Overscan>::set(config.overscan);
         let mut physical_dimensions = SetPhysicalDimensions::new(config.physical_dimensions);
         let mut pitch = GetPitch::new();
         let mut pixel_order = FramebufferPropertyRequest::<PixelOrder>::set(config.pixel_order);
         let mut virtual_dimensions = SetVirtualDimensions::new(config.virtual_dimensions);
-        let mut virtual_offset = GetVirtualOffset::new();
+        let mut virtual_offset = FramebufferPropertyRequest::<Offset>::get();
         let mut frame_buffer_request = GetFrameBuffer::with_aligment(32); 
 
         let mut frame_buffer_message = MessageBuilder::new()
@@ -54,7 +52,7 @@ impl<'a> FrameBuffer<'a> {
 
         let actual_config = FrameBufferConfig {
             depth: depth.get(),
-            overscan: overscan.get_overscan(),
+            overscan: overscan.get_response(),
             physical_dimensions: physical_dimensions.get(),
             pitch: pitch.get(),
             pixel_order: pixel_order.get_response(),
@@ -271,6 +269,20 @@ impl Offset {
     }
 }
 
+impl FramebufferProperty for Offset {
+    const SIZE: u32 = 2;
+    const BASE_ENCODING: u32 = 0x40009;
+
+    fn write_to_buffer(&self, buffer: &mut MailboxBufferSlice) {
+        buffer[0].set(self.x);
+        buffer[1].set(self.y);
+    }
+
+    fn read_from_buffer(buffer: &MailboxBufferSlice) -> Self {
+        Self::new(buffer[0].get(), buffer[1].get())
+    }
+}
+
 impl Display for Offset {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "(x: {}, y: {})", self.x, self.y)
@@ -292,6 +304,22 @@ impl Overscan {
 
     pub fn none() -> Self {
         Self::new(0, 0, 0, 0)
+    }
+}
+
+impl FramebufferProperty for Overscan {
+    const SIZE: u32 = 4;
+    const BASE_ENCODING: u32 = 0x4000a;
+
+    fn write_to_buffer(&self, buffer: &mut MailboxBufferSlice) {
+        buffer[0].set(self.top);
+        buffer[1].set(self.bottom);
+        buffer[2].set(self.left);
+        buffer[3].set(self.right);
+    }
+
+    fn read_from_buffer(buffer: &MailboxBufferSlice) -> Self {
+        Self::new(buffer[0].get(), buffer[1].get(), buffer[2].get(), buffer[3].get())
     }
 }
 

@@ -22,9 +22,6 @@ use super::{
     SetVirtualDimensions,
     SetDepth,
     GetPitch,
-    GetVirtualOffset,
-    GetOverscan,
-    SetOverscan,
     MailboxResponse},
     framebuffer::{
         FrameBuffer, PixelOrder, Overscan, FrameBufferConfig,
