@@ -31,6 +31,11 @@ pub enum Clock {
 }
 
 impl Clock {
+    const GET_CLOCK_RATE: u32 = 0x30002;
+    const GET_CLOCK_RATE_MEASURED: u32 = 0x30047;
+    const GET_MAX_CLOCK_RATE: u32 = 0x30004;
+    const GET_MIN_CLOCK_RATE: u32 = 0x30007;
+
     pub fn as_u32(&self) -> u32 {
         *self as u32
     }
@@ -54,6 +59,48 @@ impl Clock {
             _ => panic!("Invalid Clock id")
         }
     }
+
+    // TODO: find some abstraction for these functions
+    pub fn get_clock_rate(self, mailbox: &mut MailboxController) -> u32 {
+        let mut request = SimpleRequest::<Clock, ClockRateResponse, { Self::GET_CLOCK_RATE} >::with_request(self);
+
+        let mut message = MessageBuilder::new().request(&mut request);
+
+        message.send(mailbox);
+
+        return request.get_response().1;
+    }
+
+    pub fn get_clock_rate_measured(self, mailbox: &mut MailboxController) -> u32 {
+        let mut request = SimpleRequest::<Clock, ClockRateResponse, { Self::GET_CLOCK_RATE_MEASURED} >::with_request(self);
+
+        let mut message = MessageBuilder::new().request(&mut request);
+
+        message.send(mailbox);
+
+        return request.get_response().1;
+    }    
+
+    pub fn get_max_clock_rate(self, mailbox: &mut MailboxController) -> u32 {
+        let mut request = SimpleRequest::<Clock, ClockRateResponse, { Self::GET_MAX_CLOCK_RATE} >::with_request(self);
+
+        let mut message = MessageBuilder::new().request(&mut request);
+
+        message.send(mailbox);
+
+        return request.get_response().1;
+    }
+
+    pub fn get_min_clock_rate(self, mailbox: &mut MailboxController) -> u32 {
+        let mut request = SimpleRequest::<Clock, ClockRateResponse, { Self::GET_MIN_CLOCK_RATE} >::with_request(self);
+
+        let mut message = MessageBuilder::new().request(&mut request);
+
+        message.send(mailbox);
+
+        return request.get_response().1;
+    }
+
 }
 
 impl ToMailboxBuffer for Clock {
@@ -86,12 +133,4 @@ bitfield! {
     }
 }
 
-pub fn get_clock_rate(mailbox: &mut MailboxController, clock: Clock) -> u32 {
-    let mut request = SimpleRequest::<Clock, ClockRateResponse, 0x30002>::with_request(clock);
 
-    let mut message = MessageBuilder::new().request(&mut request);
-
-    message.send(mailbox);
-
-    return request.get_response().1;
-}

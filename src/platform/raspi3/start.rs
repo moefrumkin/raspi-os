@@ -69,7 +69,10 @@ pub extern "C" fn main(heap_start: usize, heap_size: usize, table_start: usize) 
 
     println!("Hardware Configuration Detected: {}\n", hardware_config);
 
-    println!("Core clock rate is {} hz", clock::get_clock_rate(&mut mailbox, Clock::ARM));
+    println!("Core clock rate is {} hz, with max {} hz and min {} hz",
+        Clock::ARM.get_clock_rate(&mut mailbox),
+        Clock::ARM.get_max_clock_rate(&mut mailbox),
+        Clock::ARM.get_min_clock_rate(&mut mailbox));
 
     let resolution = Dimensions::new(1920, 1080);
 
