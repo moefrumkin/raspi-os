@@ -48,10 +48,7 @@ impl<'a> FrameBuffer<'a> {
 
         let expected_buffer_size = config.virtual_dimensions.get_width() * config.virtual_dimensions.get_height() * (config.depth / 8);
 
-        if(buffer_size != expected_buffer_size) {
-            //panic!("Requested a buffer with size {}, got size {}", expected_buffer_size, buffer_size);
-        }
-
+        // TODO remove magic number
         let start_addr = (frame_buffer_request.get_start() &0x3fffffff) as u64;
 
         let buffer = unsafe {
@@ -87,10 +84,6 @@ impl<'a> FrameBuffer<'a> {
     pub fn get_config(&self) -> FrameBufferConfig {
         self.config
     }
-}
-
-pub struct FrameBufferController {
-
 }
 
 pub type Depth = u32;
@@ -201,10 +194,10 @@ impl Overscan {
 #[derive(Copy, Clone, Debug)]
 pub struct FrameBufferConfig {
     pub depth: Depth,
-    pub physical_dimensions: Dimensions,
-    pub virtual_dimensions: Dimensions,
+    pub overscan: Overscan,
     pub pitch: Pitch,
     pub pixel_order: PixelOrder,
-    pub virtual_offset: Offset,
-    pub overscan: Overscan
+    pub physical_dimensions: Dimensions,
+    pub virtual_dimensions: Dimensions,
+    pub virtual_offset: Offset
 }
