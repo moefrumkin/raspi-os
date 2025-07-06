@@ -119,6 +119,12 @@ impl Dimensions {
     }
 }
 
+impl Display for Dimensions {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{} x {}", self.width, self.height) 
+    }
+}
+
 pub type Pitch = u32;
 
 #[derive(Copy, Clone, Debug)]
@@ -172,6 +178,12 @@ impl Offset {
     }
 }
 
+impl Display for Offset {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "(x: {}, y: {})", self.x, self.y)
+    }
+}
+
 #[derive(Debug, Copy, Clone)]
 pub struct Overscan {
     pub top: u32,
@@ -190,6 +202,16 @@ impl Overscan {
     }
 }
 
+impl Display for Overscan {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "(top: {}, bottom: {}, left: {}, right: {})",
+            self.top,
+            self.bottom,
+            self.left,
+            self.right)
+    }
+}
+
 
 #[derive(Copy, Clone, Debug)]
 pub struct FrameBufferConfig {
@@ -200,4 +222,24 @@ pub struct FrameBufferConfig {
     pub physical_dimensions: Dimensions,
     pub virtual_dimensions: Dimensions,
     pub virtual_offset: Offset
+}
+
+impl Display for FrameBufferConfig {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "\n\
+        \t -depth: {} \n\
+        \t -overscan: {} \n\
+        \t -pitch: {} \n\
+        \t -pixel order: {} \n\
+        \t -physical dimensions: {} \n\
+        \t -virtual dimensions: {} \n\
+        \t -virtual offset: {} \n",
+        self.depth,
+        self.overscan,
+        self.pitch,
+        self.pixel_order,
+        self.physical_dimensions,
+        self.virtual_dimensions,
+        self.virtual_offset)
+    }
 }
