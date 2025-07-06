@@ -116,171 +116,62 @@ pub trait MailboxInstruction {
     }
 }
 
-pub struct SimpleRequest {
-    pub encoding: u32,
-    pub response: u32
+pub trait ToMailboxBuffer {
+    fn write_to_mailbox_buffer(&self, buffer: &mut MailboxBufferSlice);
 }
 
-impl SimpleRequest {
-    pub fn with_encoding(encoding: u32) -> Self {
+pub trait FromMailboxBuffer {
+    fn read_from_mailbox_buffer(buffer: &MailboxBufferSlice) -> Self;
+}
+
+pub struct SimpleRequest<T, U, const E: u32>
+where
+    T: ToMailboxBuffer + Copy,
+    U: FromMailboxBuffer + Copy
+{
+    request: T,
+    response: Option<U>
+}
+
+impl<T, U, const E: u32> SimpleRequest<T, U, E>
+where
+    T: ToMailboxBuffer + Copy,
+    U: FromMailboxBuffer + Copy
+{
+    pub fn with_request(request: T) -> Self {
         Self {
-            encoding,
-            response: 0
+            request,
+            response: Option::None
         }
     }
 
-    pub fn get_response(&self) -> u32 {
-        self.response
+    pub fn get_response(&self) -> U {
+        self.response.unwrap()
     }
 }
 
-impl MailboxInstruction for SimpleRequest {
+impl<T, U, const E: u32> MailboxInstruction for SimpleRequest<T, U, E>
+where
+    T: ToMailboxBuffer + Copy,
+    U: FromMailboxBuffer + Copy
+{
     fn get_encoding(&self) -> u32 {
-        self.encoding
+        E
     }
 
+    // Maximum size of request and response type
     fn get_buffer_words(&self) -> u32 {
-        1
+        let bytes = core::cmp::max(core::mem::size_of::<T>(), core::mem::size_of::<U>());
+
+        bytes.div_ceil(4) as u32
     }
 
     fn write_data_at_offset(&self, buffer: &mut MailboxBufferSlice) {
-        buffer[0].set(0);
+        self.request.write_to_mailbox_buffer(buffer);
     }
 
     fn read_data_at_offset(&mut self, buffer: &MailboxBufferSlice) {
-        self.response = buffer[0].get();
-    }
-}
-
-pub struct GetFirmwareRevision {
-    pub revision: u32
-}
-
-
-impl GetFirmwareRevision {
-    pub fn new() -> Self {
-        Self {
-            revision: 0
-        }
-    }
-
-    pub fn get_response(&self) -> u32 {
-        self.revision
-    }
-}
-
-impl MailboxInstruction for GetFirmwareRevision {
-    fn get_encoding(&self) -> u32 {
-        0x1
-    }
-
-    fn get_buffer_words(&self) -> u32 {
-        1
-    }
-
-    fn write_data_at_offset(&self, buffer: &mut MailboxBufferSlice) {
-        buffer[0].set(0);
-    }
-
-    fn read_data_at_offset(&mut self, buffer: &MailboxBufferSlice) {
-        self.revision = buffer[0].get();
-    }
-}
-
-pub struct GetBoardModel {
-    pub model: u32
-}
-
-
-impl GetBoardModel {
-    pub fn new() -> Self {
-        Self {
-            model: 0
-        }
-    }
-
-    pub fn get_response(&self) -> u32 {
-        self.model
-    }
-}
-
-impl MailboxInstruction for GetBoardModel {
-    fn get_encoding(&self) -> u32 {
-        0x10001
-    }
-
-    fn get_buffer_words(&self) -> u32 {
-        1
-    }
-
-    fn read_data_at_offset(&mut self, buffer: &MailboxBufferSlice) {
-        self.model = buffer[0].get();
-    }
-}
-
-
-pub struct GetBoardRevision {
-    pub revision: u32
-}
-
-
-impl GetBoardRevision {
-    pub fn new() -> Self {
-        Self {
-            revision: 0
-        }
-    }
-
-    pub fn get_response(&self) -> u32 {
-        self.revision
-    }
-}
-
-impl MailboxInstruction for GetBoardRevision {
-    fn get_encoding(&self) -> u32 {
-        0x10002
-    }
-
-    fn get_buffer_words(&self) -> u32 {
-        1
-    }
-
-    fn read_data_at_offset(&mut self, buffer: &MailboxBufferSlice) {
-        self.revision = buffer[0].get();
-    }
-}
-
-pub struct GetBoardSerial {
-    pub serial: u64
-}
-
-
-impl GetBoardSerial {
-    pub fn new() -> Self {
-        Self {
-            serial: 0
-        }
-    }
-
-    pub fn get_response(&self) -> u64 {
-        self.serial
-    }
-}
-
-impl MailboxInstruction for GetBoardSerial {
-    fn get_encoding(&self) -> u32 {
-        0x10004
-    }
-
-    fn get_buffer_words(&self) -> u32 {
-        2
-    }
-
-    fn read_data_at_offset(&mut self, buffer: &MailboxBufferSlice) {
-        // TODO: check endianness
-        let first_half = buffer[0].get() as u64;
-        let second_half = buffer[1].get() as u64;
-        self.serial = (first_half << 32) | second_half;
+        self.response = Option::Some(U::read_from_mailbox_buffer(buffer));
     }
 }
 
