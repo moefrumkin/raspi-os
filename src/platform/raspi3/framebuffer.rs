@@ -340,7 +340,6 @@ impl Display for FrameBufferConfig {
 pub struct FrameBufferConfigBuilder {
     depth: Option<Depth>,
     overscan: Option<Overscan>,
-    pitch: Option<Pitch>,
     pixel_order: Option<PixelOrder>,
     physical_dimensions: Option<Dimensions>,
     virtual_dimensions: Option<Dimensions>,
@@ -352,11 +351,52 @@ impl FrameBufferConfigBuilder {
         Self {
             depth: Option::None,
             overscan: Option::None,
-            pitch: Option::None,
             pixel_order: Option::None,
             physical_dimensions: Option::None,
             virtual_dimensions: Option::None,
             virtual_offset: Option::None
         }
+    }
+
+    pub fn build(&self) -> FrameBufferConfig {
+        FrameBufferConfig {
+            depth: self.depth.unwrap(),
+            overscan: self.overscan.unwrap(),
+            pitch: 0, // Pitch can not be set
+            pixel_order: self.pixel_order.unwrap(),
+            physical_dimensions: self.physical_dimensions.unwrap(),
+            virtual_dimensions: self.virtual_dimensions.unwrap(),
+            virtual_offset: self.virtual_offset.unwrap()
+        }
+    }
+
+    pub fn depth(mut self, depth: Depth) -> Self {
+        self.depth = Some(depth);
+        self
+    }
+
+    pub fn overscan(mut self, overscan: Overscan) -> Self {
+        self.overscan = Some(overscan);
+        self
+    }
+
+    pub fn pixel_order(mut self, order: PixelOrder) -> Self {
+        self.pixel_order = Some(order);
+        self
+    }
+
+    pub fn physical_dimensions(mut self, dimensions: Dimensions) -> Self {
+        self.physical_dimensions = Some(dimensions);
+        self
+    }
+
+    pub fn virtual_dimensions(mut self, dimensions: Dimensions) -> Self {
+        self.virtual_dimensions = Some(dimensions);
+        self
+    }
+
+    pub fn virtual_offset(mut self, offset: Offset) -> Self {
+        self.virtual_offset = Some(offset);
+        self
     }
 }

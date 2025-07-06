@@ -29,7 +29,8 @@ use super::{
     framebuffer::{
         FrameBuffer, PixelOrder, Overscan, FrameBufferConfig,
         Offset,
-        Dimensions
+        Dimensions,
+        FrameBufferConfigBuilder
     }
 };
 
@@ -98,15 +99,14 @@ pub extern "C" fn main(heap_start: usize, heap_size: usize, table_start: usize) 
 
     let resolution = Dimensions::new(1920, 1080);
 
-    let fb_config = FrameBufferConfig {
-        depth: 32,
-        physical_dimensions: resolution,
-        virtual_dimensions: resolution,
-        pitch: 32,
-        pixel_order: PixelOrder::RGB,
-        virtual_offset: Offset::none(),
-        overscan: Overscan::none()
-    };
+    let fb_config = FrameBufferConfigBuilder::new()
+        .depth(32)
+        .physical_dimensions(resolution)
+        .virtual_dimensions(resolution)
+        .pixel_order(PixelOrder::RGB)
+        .virtual_offset(Offset::none())
+        .overscan(Overscan::none())
+        .build();
 
     println!("Initializing Frame Buffer with config {}", fb_config);
 
