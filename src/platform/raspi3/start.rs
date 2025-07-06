@@ -121,7 +121,7 @@ pub extern "C" fn main(heap_start: usize, heap_size: usize, table_start: usize) 
 
     for j in 0..1920 {
         for i in 0..1080 {
-            fb.write_pixel(j, i, 0xff000000 + ((255 * i / 1920) << 16) + ((255 * j / 1080) << 8) + 0xff);
+            fb.write_pixel(j, i, 0xff000000 + ((255 * i / 1080) << 16) + ((255 * j / 1920) << 8) + 0xff);
         }
     }
 
