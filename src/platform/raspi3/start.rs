@@ -22,14 +22,13 @@ use super::{
     SetVirtualDimensions,
     SetDepth,
     GetPitch,
-    SetPixelOrder,
-    PixelOrder,
-    GetVirtualOffset,
-    GetOverscan,
-    SetOverscan,
-    Overscan,
     MailboxResponse},
-    framebuffer::FrameBuffer
+    framebuffer::{
+        FrameBuffer, PixelOrder, Overscan, FrameBufferConfig,
+        Offset,
+        Dimensions,
+        FrameBufferConfigBuilder
+    }
 };
 
 static MMIO: MMIOController = MMIOController::new();
@@ -95,56 +94,30 @@ pub extern "C" fn main(heap_start: usize, heap_size: usize, table_start: usize) 
     println!("VC Memory starting at {:#x}, with length {:#x}", vc_memory.get_base(), vc_memory.get_size());
     println!("Serial Number is: {}", board_serial.get_response());
 
-    let mut frame_buffer_request = GetFrameBuffer::with_aligment(32); 
-    let mut depth = SetDepth::new(32);
-    let mut physical_dimensions = SetPhysicalDimensions::new(1920, 1080);
-    let mut virtual_dimensions = SetVirtualDimensions::new(1920, 1080);
-    let mut pitch = GetPitch::new();
-    let mut virtual_offset = GetVirtualOffset::new();
-    let mut overscan = SetOverscan::new(Overscan::none());
-    let mut pixel_order = SetPixelOrder::new(PixelOrder::RGB);
+    let resolution = Dimensions::new(1920, 1080);
 
-    let mut frame_buffer_message = MessageBuilder::new()
-        .request(&mut frame_buffer_request)
-        .request(&mut depth)
-        .request(&mut physical_dimensions)
-        .request(&mut virtual_dimensions)
-        .request(&mut pitch)
-        .request(&mut pixel_order)
-        .request(&mut virtual_offset)
-        .request(&mut overscan);
+    let fb_config = FrameBufferConfigBuilder::new()
+        .depth(32)
+        .physical_dimensions(resolution)
+        .virtual_dimensions(resolution)
+        .pixel_order(PixelOrder::RGB)
+        .virtual_offset(Offset::none())
+        .overscan(Overscan::none())
+        .build();
 
-    frame_buffer_message.send(&mut mailbox);
+    println!("Initializing Frame Buffer with config {}", fb_config);
 
-    println!("The display has physical dimensions: {} x {} and virtual dimensions: {} x {}",
-        physical_dimensions.get_width(),
-        physical_dimensions.get_height(),
-        virtual_dimensions.get_width(),
-        virtual_dimensions.get_height());
+    let mut fb = FrameBuffer::from_config(fb_config, &mut mailbox);
 
-    println!("Display color depth: {}", depth.get_depth());
-
-    println!("Display pixel order: {}", pixel_order.get_order());
-    println!("Display pitch: {}", pitch.get_pitch());
-    println!("Display virtual_offset: (x: {}, y: {})", virtual_offset.get_x(), virtual_offset.get_y());
-    println!("Display overscan: {:?}", overscan.get_overscan());
-
-    println!("Framebuffer Response: size: {:#x}, code: {:#x}", frame_buffer_request.response.get_code(), frame_buffer_request.response.get_size());
-    println!("Framebuffer allocated at {:#x} with length {}", frame_buffer_request.get_start(), frame_buffer_request.get_size());
-
-    let start_addr = (frame_buffer_request.get_start() & 0x3fffffff) as u64;
-
-    println!("Start address converted to: {:#x}", start_addr);
-
-    let mut fb = FrameBuffer::new(start_addr as *mut u32, physical_dimensions.get_width(), physical_dimensions.get_height());
+    println!("Actual config is {}", fb.get_config());
 
     for i in 0..(1920 * 1080) {
         fb.write_idx(i, 0xff00ffff);
     }
 
-    for j in 0..1080 {
-        for i in 0..1920 {
-            fb.write_pixel(j, i, 0xff000000 + ((255 * i / 1920) << 16) + ((255 * j / 1080) << 8) + 0xff);
+    for j in 0..1920 {
+        for i in 0..1080 {
+            fb.write_pixel(j, i, 0xff000000 + ((255 * i / 1080) << 16) + ((255 * j / 1920) << 8) + 0xff);
         }
     }
 

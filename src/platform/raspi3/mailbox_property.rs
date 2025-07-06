@@ -2,9 +2,8 @@ use crate::platform::raspi3::mailbox::{MailboxController, Channel, MBOX_REQUEST,
 use alloc::vec::Vec;
 use alloc::vec;
 use alloc::boxed::Box;
-use core::fmt;
-use core::fmt::{Display, Formatter};
 use crate::volatile::{AlignedBuffer, Volatile};
+use crate::platform::raspi3::framebuffer::{PixelOrder, Overscan, Dimensions};
 
 pub struct MessageBuilder<'a> {
     pub instructions: Vec<(&'a mut dyn MailboxInstruction, usize)>,
@@ -94,7 +93,7 @@ impl MailboxResponse {
     }
 }
 
-type MailboxBufferSlice = [Volatile<u32>];
+pub type MailboxBufferSlice = [Volatile<u32>];
 
 pub trait MailboxInstruction {
     fn get_encoding(&self) -> u32;
@@ -482,6 +481,10 @@ impl GetPhysicalDimensions {
     pub fn get_height(&self) -> u32 {
         self.height
     }
+
+    pub fn get(&self) -> Dimensions {
+        Dimensions::new(self.width, self.height)
+    }
 }
 
 impl MailboxInstruction for GetPhysicalDimensions {
@@ -500,24 +503,26 @@ impl MailboxInstruction for GetPhysicalDimensions {
 }
 
 pub struct SetPhysicalDimensions {
-    pub width: u32,
-    pub height: u32
+    pub dimensions: Dimensions,
 }
 
 impl SetPhysicalDimensions {
-    pub fn new(width: u32, height: u32) -> Self {
+    pub fn new(dimensions: Dimensions) -> Self {
         Self {
-            width,
-            height
+            dimensions
         }
     }
 
     pub fn get_width(&self) -> u32 {
-        self.width
+        self.dimensions.get_width()
     }
 
     pub fn get_height(&self) -> u32 {
-        self.height
+        self.dimensions.get_height()
+    }
+
+    pub fn get(&self) -> Dimensions {
+        self.dimensions
     }
 }
 
@@ -531,13 +536,13 @@ impl MailboxInstruction for SetPhysicalDimensions {
     }
 
     fn write_data_at_offset(&self, buffer: &mut MailboxBufferSlice) {
-        buffer[0].set(self.width);
-        buffer[1].set(self.height);
+        buffer[0].set(self.dimensions.get_width());
+        buffer[1].set(self.dimensions.get_height());
     }
 
     fn read_data_at_offset(&mut self, buffer: &MailboxBufferSlice) {
-        self.width = buffer[0].get();
-        self.height = buffer[1].get();
+        self.dimensions.set_width(buffer[0].get());
+        self.dimensions.set_height(buffer[1].get());
     }
 }
 
@@ -561,6 +566,10 @@ impl GetVirtualDimensions {
     pub fn get_height(&self) -> u32 {
         self.height
     }
+
+    pub fn get(&self) -> Dimensions {
+        Dimensions::new(self.width, self.height)
+    }
 }
 
 impl MailboxInstruction for GetVirtualDimensions {
@@ -579,24 +588,26 @@ impl MailboxInstruction for GetVirtualDimensions {
 }
 
 pub struct SetVirtualDimensions {
-    pub width: u32,
-    pub height: u32
+    dimensions: Dimensions
 }
 
 impl SetVirtualDimensions {
-    pub fn new(width: u32, height: u32) -> Self {
+    pub fn new(dimensions: Dimensions) -> Self {
         Self {
-            width,
-            height
+            dimensions
         }
     }
 
     pub fn get_width(&self) -> u32 {
-        self.width
+        self.dimensions.get_width()
     }
 
     pub fn get_height(&self) -> u32 {
-        self.height
+        self.dimensions.get_height()
+    }
+
+    pub fn get(&self) -> Dimensions {
+        self.dimensions
     }
 }
 
@@ -610,13 +621,13 @@ impl MailboxInstruction for SetVirtualDimensions {
     }
 
     fn write_data_at_offset(&self, buffer: &mut MailboxBufferSlice) {
-        buffer[0].set(self.width);
-        buffer[1].set(self.height);
+        buffer[0].set(self.dimensions.get_width());
+        buffer[1].set(self.dimensions.get_height());
     }
 
     fn read_data_at_offset(&mut self, buffer: &MailboxBufferSlice) {
-        self.width = buffer[0].get();
-        self.height = buffer[1].get();
+        self.dimensions.set_width(buffer[0].get());
+        self.dimensions.set_height(buffer[1].get());
     }
 }
 
@@ -665,6 +676,10 @@ impl SetDepth {
     pub fn get_depth(&self) -> u32 {
         self.depth
     }
+
+    pub fn get(&self) -> u32 {
+        self.depth 
+    }
 }
 
 impl MailboxInstruction for SetDepth {
@@ -685,102 +700,6 @@ impl MailboxInstruction for SetDepth {
     }
 }
 
-#[derive(Copy, Clone)]
-pub enum PixelOrder {
-    BGR,
-    RGB
-}
-
-impl PixelOrder {
-    pub fn to_u32(self) -> u32 {
-        match self {
-            PixelOrder::BGR => 0x0,
-            PixelOrder::RGB => 0x1
-        }
-    }
-
-    pub fn from_u32(int: u32) -> Self {
-        match int {
-            0 => PixelOrder::BGR,
-            1 => PixelOrder::RGB,
-            _ => panic!("Unknown pixel order") // Better error handling
-        }
-    }
-}
-
-impl Display for PixelOrder {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", match self {
-            PixelOrder::BGR => "BGR",
-            PixelOrder::RGB => "RGB"
-        })
-    }
-}
-
-pub struct GetPixelOrder {
-    pub order: PixelOrder
-}
-
-impl GetPixelOrder {
-    pub fn new() -> Self {
-        Self {
-            order: PixelOrder::RGB
-        }
-    }
-
-    pub fn get_order(&self) -> PixelOrder {
-        self.order
-    }
-}
-
-impl MailboxInstruction for GetPixelOrder {
-    fn get_encoding(&self) -> u32 {
-        0x40006
-    }
-
-    fn get_buffer_words(&self) -> u32 {
-        1
-    }
-
-    fn read_data_at_offset(&mut self, buffer: &MailboxBufferSlice) {
-        self.order = PixelOrder::from_u32(buffer[0].get());
-    }
-}
-
-pub struct SetPixelOrder {
-    pub order: PixelOrder
-}
-
-impl SetPixelOrder {
-    pub fn new(order: PixelOrder) -> Self {
-        Self {
-            order
-        }
-    }
-
-    pub fn get_order(&self) -> PixelOrder {
-        self.order
-    }
-}
-
-impl MailboxInstruction for SetPixelOrder {
-    fn get_encoding(&self) -> u32 {
-        0x48006
-    }
-
-    fn get_buffer_words(&self) -> u32 {
-        1
-    }
-
-    fn write_data_at_offset(&self, buffer: &mut MailboxBufferSlice) {
-        buffer[0].set(self.order.to_u32());
-    }
-
-    fn read_data_at_offset(&mut self, buffer: &MailboxBufferSlice) {
-        self.order = PixelOrder::from_u32(buffer[0].get());
-    }
-}
-
 pub struct GetPitch {
     pub pitch: u32
 }
@@ -793,6 +712,10 @@ impl GetPitch {
     }
 
     pub fn get_pitch(&self) -> u32 {
+        self.pitch
+    }
+
+    pub fn get(&self) -> u32 {
         self.pitch
     }
 }
@@ -808,115 +731,6 @@ impl MailboxInstruction for GetPitch {
 
     fn read_data_at_offset(&mut self, buffer: &MailboxBufferSlice) {
         self.pitch = buffer[0].get();
-    }
-}
-
-pub struct GetVirtualOffset {
-    pub x: u32,
-    pub y: u32
-}
-
-impl GetVirtualOffset {
-    pub fn new() -> Self {
-        Self {
-            x: 0,
-            y: 0
-        }
-    }
-
-    pub fn get_x(&self) -> u32 { self.x }
-    pub fn get_y(&self) -> u32 { self.y }
-}
-
-impl MailboxInstruction for GetVirtualOffset {
-    fn get_encoding(&self) -> u32 { 0x40009 }
-    fn get_buffer_words(&self) -> u32 { 2 }
-
-    fn read_data_at_offset(&mut self, buffer: &MailboxBufferSlice) {
-        self.x = buffer[0].get();
-        self.y = buffer[1].get();
-    }
-}
-
-#[derive(Debug, Copy, Clone)]
-pub struct Overscan {
-    pub top: u32,
-    pub bottom: u32,
-    pub left: u32,
-    pub right: u32
-}
-
-impl Overscan {
-    pub fn none() -> Self {
-        Self {
-            top: 0,
-            bottom: 0,
-            left: 0,
-            right: 0
-        }
-    }
-    
-    pub fn new(top: u32, bottom: u32, left: u32, right: u32) -> Self {
-        Self { top, bottom, left, right }
-    }
-}
-
-pub struct GetOverscan {
-    pub overscan: Overscan
-}
-
-impl GetOverscan {
-    pub fn new() -> Self {
-        Self { overscan: Overscan::none() }
-    }
-
-    pub fn get_overscan(&self) -> Overscan {
-        self.overscan
-    }
-}
-
-impl MailboxInstruction for GetOverscan {
-    fn get_encoding(&self) -> u32 { 0x4000a }
-    fn get_buffer_words(&self) -> u32 { 4 }
-
-    fn read_data_at_offset(&mut self, buffer: &MailboxBufferSlice) {
-        self.overscan.top = buffer[0].get();
-        self.overscan.bottom = buffer[1].get();
-        self.overscan.left = buffer[2].get();
-        self.overscan.right = buffer[3].get();
-    }
-}
-
-pub struct SetOverscan {
-    pub overscan: Overscan
-}
-
-impl SetOverscan {
-    pub fn new(overscan: Overscan) -> Self {
-        Self { overscan }
-    }
-
-    pub fn get_overscan(&self) -> Overscan {
-        self.overscan
-    }
-}
-
-impl MailboxInstruction for SetOverscan {
-    fn get_encoding(&self) -> u32 { 0x4800a }
-    fn get_buffer_words(&self) -> u32 { 4 }
-
-    fn write_data_at_offset(&self, buffer: &mut MailboxBufferSlice) {
-        buffer[0].set(self.overscan.top);
-        buffer[1].set(self.overscan.bottom);
-        buffer[2].set(self.overscan.left);
-        buffer[3].set(self.overscan.right);
-    }
-
-    fn read_data_at_offset(&mut self, buffer: &MailboxBufferSlice) {
-        self.overscan.top = buffer[0].get();
-        self.overscan.bottom = buffer[1].get();
-        self.overscan.left = buffer[2].get();
-        self.overscan.right = buffer[3].get();
     }
 }
 
