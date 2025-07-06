@@ -93,7 +93,7 @@ impl MailboxResponse {
     }
 }
 
-type MailboxBufferSlice = [Volatile<u32>];
+pub type MailboxBufferSlice = [Volatile<u32>];
 
 pub trait MailboxInstruction {
     fn get_encoding(&self) -> u32;

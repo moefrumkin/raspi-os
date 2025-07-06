@@ -11,7 +11,9 @@ use crate::platform::raspi3::mailbox_property::{
     GetPitch,
     SetPixelOrder,
     GetVirtualOffset,
-    SetOverscan
+    SetOverscan,
+    MailboxInstruction,
+    MailboxBufferSlice
 };
 use crate::volatile::Volatile;
 
@@ -28,7 +30,7 @@ impl<'a> FrameBuffer<'a> {
         let mut physical_dimensions = SetPhysicalDimensions::new(config.physical_dimensions);
         let mut virtual_dimensions = SetVirtualDimensions::new(config.virtual_dimensions);
         let mut pitch = GetPitch::new();
-        let mut pixel_order = SetPixelOrder::new(config.pixel_order);
+        let mut pixel_order = FramebufferPropertyRequest::<PixelOrder>::set(config.pixel_order);
         let mut virtual_offset = GetVirtualOffset::new();
         let mut overscan = SetOverscan::new(Overscan::none());
 
@@ -44,10 +46,6 @@ impl<'a> FrameBuffer<'a> {
 
         frame_buffer_message.send(mailbox);
 
-        let buffer_size = frame_buffer_request.get_size();
-
-        let expected_buffer_size = config.virtual_dimensions.get_width() * config.virtual_dimensions.get_height() * (config.depth / 8);
-
         // TODO remove magic number
         let start_addr = (frame_buffer_request.get_start() &0x3fffffff) as u64;
 
@@ -60,7 +58,7 @@ impl<'a> FrameBuffer<'a> {
             physical_dimensions: physical_dimensions.get(),
             virtual_dimensions: virtual_dimensions.get(),
             pitch: pitch.get(),
-            pixel_order: pixel_order.get_order(),
+            pixel_order: pixel_order.get_response(),
             virtual_offset: Offset::none(),
             overscan: overscan.get_overscan()
         };
@@ -83,6 +81,88 @@ impl<'a> FrameBuffer<'a> {
 
     pub fn get_config(&self) -> FrameBufferConfig {
         self.config
+    }
+}
+
+pub trait FramebufferProperty {
+    const SIZE: u32;
+    const BASE_ENCODING: u32;
+
+    fn write_to_buffer(&self, buffer: &mut MailboxBufferSlice);
+
+    fn read_from_buffer(buffer: &MailboxBufferSlice) -> Self;
+}
+
+enum FramebufferPropertyRequestType<T: FramebufferProperty> {
+    Get,
+    Test(T),
+    Set(T)
+}
+
+struct FramebufferPropertyRequest<T: FramebufferProperty> {
+    request: FramebufferPropertyRequestType<T>,
+    response: Option<T>
+}
+
+impl<T: FramebufferProperty> FramebufferPropertyRequest<T> {
+    fn with_request(request: FramebufferPropertyRequestType<T>) -> Self {
+        Self {
+            request,
+            response: Option::None
+        }
+    }
+
+    pub fn get() -> Self {
+        Self::with_request(FramebufferPropertyRequestType::Get)
+    }
+
+    pub fn test(value: T) -> Self {
+        Self::with_request(FramebufferPropertyRequestType::Test(value))
+    }
+
+    pub fn set(value: T) -> Self {
+        Self::with_request(FramebufferPropertyRequestType::Set(value))
+    }
+
+}
+
+impl<T: FramebufferProperty + Copy> FramebufferPropertyRequest<T> {
+    pub fn get_response(&self) -> T {
+        self.response.expect("Attempted to get response for an unsent message")
+    }
+
+}
+
+const GET_ENCODING: u32 = 0x0;
+const TEST_ENCODING: u32 = 0x4000;
+const SET_ENCODING: u32 = 0x8000;
+
+impl<T: FramebufferProperty> MailboxInstruction for FramebufferPropertyRequest<T> {
+    fn get_encoding(&self) -> u32 {
+        let modifier = match self.request {
+            FramebufferPropertyRequestType::Get => GET_ENCODING,
+            FramebufferPropertyRequestType::Test(_) => TEST_ENCODING,
+            FramebufferPropertyRequestType::Set(_) => SET_ENCODING
+        };
+
+        T::BASE_ENCODING | modifier
+    }
+
+    fn get_buffer_words(&self) -> u32 {
+        T::SIZE
+    }
+
+    fn write_data_at_offset(&self, buffer: &mut MailboxBufferSlice) {
+        match &self.request {
+            FramebufferPropertyRequestType::Get => {}
+            FramebufferPropertyRequestType::Test(value) | FramebufferPropertyRequestType::Set(value) =>  {
+                value.write_to_buffer(buffer);
+            }
+        };
+    } 
+
+    fn read_data_at_offset(&mut self, buffer: &MailboxBufferSlice) {
+        self.response = Some(T::read_from_buffer(buffer));
     }
 }
 
@@ -134,6 +214,7 @@ pub enum PixelOrder {
 }
 
 impl PixelOrder {
+    // TODO: should these functions use conversion traits?
     pub fn to_u32(self) -> u32 {
         match self {
             PixelOrder::BGR => 0x0,
@@ -147,6 +228,19 @@ impl PixelOrder {
             1 => PixelOrder::RGB,
             _ => panic!("Unknown pixel order") // Better error handling
         }
+    }
+}
+
+impl FramebufferProperty for PixelOrder {
+    const SIZE: u32 = 1;
+    const BASE_ENCODING: u32 = 0x40006;
+
+    fn write_to_buffer(&self, buffer: &mut MailboxBufferSlice) {
+        buffer[0].set(self.to_u32());
+    }
+
+    fn read_from_buffer(buffer: &MailboxBufferSlice) -> Self {
+        Self::from_u32(buffer[0].get())
     }
 }
 
