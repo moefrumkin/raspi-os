@@ -22,7 +22,6 @@ use super::{
     SetVirtualDimensions,
     SetDepth,
     GetPitch,
-    SetPixelOrder,
     GetVirtualOffset,
     GetOverscan,
     SetOverscan,

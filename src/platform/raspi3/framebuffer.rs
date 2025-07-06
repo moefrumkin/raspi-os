@@ -9,7 +9,6 @@ use crate::platform::raspi3::mailbox_property::{
     SetPhysicalDimensions,
     SetVirtualDimensions,
     GetPitch,
-    SetPixelOrder,
     GetVirtualOffset,
     SetOverscan,
     MailboxInstruction,
@@ -25,24 +24,24 @@ pub struct FrameBuffer<'a> {
 impl<'a> FrameBuffer<'a> {
     pub fn from_config(config: FrameBufferConfig, mailbox: &mut MailboxController) -> Self {
         // TODO: make sure all are setters
-        let mut frame_buffer_request = GetFrameBuffer::with_aligment(32); 
         let mut depth = SetDepth::new(config.depth);
+        let mut overscan = SetOverscan::new(Overscan::none());
         let mut physical_dimensions = SetPhysicalDimensions::new(config.physical_dimensions);
-        let mut virtual_dimensions = SetVirtualDimensions::new(config.virtual_dimensions);
         let mut pitch = GetPitch::new();
         let mut pixel_order = FramebufferPropertyRequest::<PixelOrder>::set(config.pixel_order);
+        let mut virtual_dimensions = SetVirtualDimensions::new(config.virtual_dimensions);
         let mut virtual_offset = GetVirtualOffset::new();
-        let mut overscan = SetOverscan::new(Overscan::none());
+        let mut frame_buffer_request = GetFrameBuffer::with_aligment(32); 
 
         let mut frame_buffer_message = MessageBuilder::new()
-            .request(&mut frame_buffer_request)
             .request(&mut depth)
+            .request(&mut overscan)
             .request(&mut physical_dimensions)
-            .request(&mut virtual_dimensions)
             .request(&mut pitch)
             .request(&mut pixel_order)
+            .request(&mut virtual_dimensions)
             .request(&mut virtual_offset)
-            .request(&mut overscan);
+            .request(&mut frame_buffer_request);
 
         frame_buffer_message.send(mailbox);
 
@@ -55,12 +54,12 @@ impl<'a> FrameBuffer<'a> {
 
         let actual_config = FrameBufferConfig {
             depth: depth.get(),
+            overscan: overscan.get_overscan(),
             physical_dimensions: physical_dimensions.get(),
-            virtual_dimensions: virtual_dimensions.get(),
             pitch: pitch.get(),
             pixel_order: pixel_order.get_response(),
-            virtual_offset: Offset::none(),
-            overscan: overscan.get_overscan()
+            virtual_dimensions: virtual_dimensions.get(),
+            virtual_offset: Offset::none()
         };
 
 
