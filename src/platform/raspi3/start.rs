@@ -20,7 +20,11 @@ use super::{
         Dimensions,
         FrameBufferConfigBuilder
     },
-    hardware_config::HardwareConfig
+    hardware_config::HardwareConfig,
+    clock::{
+        self,
+        Clock
+    }
 };
 
 static MMIO: MMIOController = MMIOController::new();
@@ -64,6 +68,8 @@ pub extern "C" fn main(heap_start: usize, heap_size: usize, table_start: usize) 
     let hardware_config = HardwareConfig::from_mailbox(&mut mailbox);
 
     println!("Hardware Configuration Detected: {}\n", hardware_config);
+
+    println!("Core clock rate is {} hz", clock::get_clock_rate(&mut mailbox, Clock::ARM));
 
     let resolution = Dimensions::new(1920, 1080);
 
