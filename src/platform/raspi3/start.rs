@@ -14,20 +14,23 @@ use super::{
     mmio::MMIOController,
     timer::Timer,
     uart::{LogLevel, UARTController, CONSOLE},
-    mailbox_property::{MessageBuilder, Instruction, GetBoardRevision, MailboxInstruction, GetARMMemory, GetFirmwareRevision, GetBoardSerial, GetPhysicalDimensions,
-    GetVCMemory,
-    GetFrameBuffer,
-    SetPhysicalDimensions,
-    GetVirtualDimensions,
-    SetVirtualDimensions,
-    SetDepth,
-    GetPitch,
-    MailboxResponse},
     framebuffer::{
         FrameBuffer, PixelOrder, Overscan, FrameBufferConfig,
         Offset,
         Dimensions,
         FrameBufferConfigBuilder
+    },
+    hardware_config::HardwareConfig,
+    clock::{
+        self,
+        Clock,
+        ClockState,
+        CLOCKS
+    },
+    power::{
+        Device,
+        PowerState,
+        DEVICES
     }
 };
 
@@ -69,30 +72,30 @@ pub extern "C" fn main(heap_start: usize, heap_size: usize, table_start: usize) 
 
     let mut mailbox = MailboxController::new(&mmio);
 
-    let mut firmware_revision = GetFirmwareRevision::new();
-    let mut board_revision = GetBoardRevision::new();
-    let mut arm_memory = GetARMMemory::new();
-    let mut vc_memory = GetVCMemory::new();
-    let mut board_serial = GetBoardSerial::new();
+    let hardware_config = HardwareConfig::from_mailbox(&mut mailbox);
 
-    let mut initial_message = MessageBuilder::new()
-        .request(&mut firmware_revision)
-        .request(&mut board_revision)
-        .request(&mut arm_memory)
-        .request(&mut vc_memory)
-        .request(&mut board_serial);
+    println!("Hardware Configuration Detected: {}\n", hardware_config);
 
-    println!("Sending mailbox message");
+    println!("Devices:");
 
-    initial_message.send(&mut mailbox);
+    for device in &DEVICES {
+        println!("\t-{}: Powered: {}, Timing: {}",
+            device,
+            device.get_power_state(&mut mailbox).is_on(),
+            device.get_timing(&mut mailbox));
+    }
 
-    println!("Message sent!");
+    println!("Clocks:");
 
-    println!("Board Revision: {:#x}", board_revision.get_response());
-    println!("Firmware Revision: {:#x}", firmware_revision.get_response());
-    println!("ARM Memory starting at {:#x}, with length {:#x}", arm_memory.get_base(), arm_memory.get_size());
-    println!("VC Memory starting at {:#x}, with length {:#x}", vc_memory.get_base(), vc_memory.get_size());
-    println!("Serial Number is: {}", board_serial.get_response());
+    for clock in &CLOCKS {
+        println!("\t-{}: On: {}, Set Rate: {}, Min Rate: {}, Max Rate: {}",
+            clock,
+            clock.get_clock_state(&mut mailbox).is_on(),
+            clock.get_clock_rate(&mut mailbox),
+            clock.get_min_clock_rate(&mut mailbox),
+            clock.get_max_clock_rate(&mut mailbox)
+        );
+    }
 
     let resolution = Dimensions::new(1920, 1080);
 

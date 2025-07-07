@@ -10,5 +10,8 @@ pub mod uart;
 pub mod lcd;
 pub mod mailbox_property;
 pub mod framebuffer;
+pub mod clock;
+pub mod hardware_config;
+pub mod power;
 
 mod exception;
