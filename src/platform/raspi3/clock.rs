@@ -10,6 +10,7 @@ use super::{
         MailboxInstruction
     }
 };
+use core::fmt;
 
 #[repr(u32)]
 #[derive(Copy, Clone)]
@@ -30,7 +31,32 @@ pub enum Clock {
     PIXEL_BVB = 0xe
 }
 
+pub const CLOCKS: [Clock; 14] = [Clock::EMMC, Clock::UART, Clock::ARM, Clock::CORE, Clock::V3D, Clock::H264, Clock::ISP, Clock::SDRAM, Clock::PIXEL, Clock::PWM, Clock::HEVC, Clock::EMMC2, Clock::M2MC, Clock::PIXEL_BVB];
+
+impl fmt::Display for Clock {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", match *self {
+            Clock::EMMC => "EMMC",
+            Clock::UART => "UART",
+            Clock::ARM => "ARM",
+            Clock::CORE => "CORE",
+            Clock::V3D => "V3D",
+            Clock::H264 => "H264",
+            Clock::ISP => "ISP",
+            Clock::SDRAM => "SDRAM",
+            Clock::PIXEL => "PIXEL",
+            Clock::PWM => "PWM",
+            Clock::HEVC => "HEVC",
+            Clock::EMMC2 => "EMMC2",
+            Clock::M2MC => "M2MC",
+            Clock::PIXEL_BVB => "PIXEL BVB"
+        })
+    }
+}
+
+
 impl Clock {
+    const GET_CLOCK_STATE: u32 = 0x30001;
     const GET_CLOCK_RATE: u32 = 0x30002;
     const GET_CLOCK_RATE_MEASURED: u32 = 0x30047;
     const GET_MAX_CLOCK_RATE: u32 = 0x30004;
@@ -101,6 +127,16 @@ impl Clock {
         return request.get_response().1;
     }
 
+    pub fn get_clock_state(self, mailbox: &mut MailboxController) -> ClockState {
+        let mut request = SimpleRequest::<Clock, ClockStateResponse, { Self::GET_CLOCK_STATE } >::with_request(self);
+
+        let mut message = MessageBuilder::new().request(&mut request);
+
+        message.send(mailbox);
+
+        return request.get_response().1;
+    }
+
 }
 
 impl ToMailboxBuffer for Clock {
@@ -123,6 +159,12 @@ bitfield! {
         on: 0-0,
         exists: 1-1 
     } with {
+        pub fn from_u32(value: u32) -> Self {
+            Self {
+                value
+            }
+        }
+
         pub fn is_on(&self) -> bool {
             self.get_on() == 1
         }
@@ -133,4 +175,11 @@ bitfield! {
     }
 }
 
+#[derive(Copy, Clone)]
+struct ClockStateResponse(Clock, ClockState);
 
+impl FromMailboxBuffer for ClockStateResponse {
+    fn read_from_mailbox_buffer(buffer: &MailboxBufferSlice) -> Self {
+        Self(Clock::from_u32(buffer[0].get()), ClockState::from_u32(buffer[1].get()))
+    }
+}
