@@ -5,6 +5,7 @@ macro_rules! bitfield {
         {$($field: ident: $start: literal - $end: literal),*}
         $(with {$($attributes: item)+})?
     ) => {
+        #[repr(transparent)]
         #[derive(Copy, Clone)]
         pub struct $name {
             value: $type
