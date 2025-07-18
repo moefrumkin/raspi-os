@@ -31,6 +31,9 @@ use super::{
         Device,
         PowerState,
         DEVICES
+    },
+    emmc::{
+        EMMCRegisters
     }
 };
 
@@ -96,6 +99,29 @@ pub extern "C" fn main(heap_start: usize, heap_size: usize, table_start: usize) 
             clock.get_max_clock_rate(&mut mailbox)
         );
     }
+
+    println!("Trying to initialize the sd card");
+
+    let emmc_regs = EMMCRegisters::get();
+
+    emmc_regs.sd_init(&timer, &gpio);
+
+    let mut buffer: [u8; 512] = [0; 512];
+
+    println!("Reading block");
+    emmc_regs.sd_readblock(0, &mut buffer, 1, &timer);
+
+    for i in 0..128 {
+        if i % 64 == 0 {
+            println!("");
+        }
+
+        if(buffer[i] != 0) {
+            print!("{}", buffer[i] as char);
+        }
+    }
+
+    println!("");
 
     let resolution = Dimensions::new(1920, 1080);
 

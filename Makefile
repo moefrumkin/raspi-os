@@ -17,13 +17,15 @@ else
 endif
 
 QEMU_CMD = $(QEMU_ARCH) \
-	-machine $(MACHINE) \
-	-m 1024M -cpu $(CPU) \
-	-smp $(CORES) \
+	-M $(MACHINE) \
 	-kernel $(KERNEL_ELF) \
-	-d int,mmu,guest_errors,page \
 	-serial null \
-	-serial mon:stdio
+	-serial mon:stdio \
+	-drive file=image.dd,if=sd,format=raw
+
+#	-m 1024M -cpu $(CPU) \
+#	-smp $(CORES) \
+#	-d int,mmu,guest_errors,page \
 
 OBJDUMP = llvm-objdump
 OBJDUMP_CMD = $(OBJDUMP) --disassemble-all $(KERNEL_ELF)

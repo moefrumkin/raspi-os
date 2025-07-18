@@ -2,6 +2,10 @@ use crate::volatile::Volatile;
 use crate::bitfield;
 use super::timer::Timer;
 use super::mmio::MMIOController;
+use super::gpio::{GPIOController, Pin, Pull, Mode};
+use crate::aarch64::cpu::wait_for_cycles;
+use super::uart::CONSOLE;
+use crate::println;
 
 enum CommandFlag {
     NeedApp = 0x8000_0000,
@@ -70,7 +74,7 @@ pub struct EMMCRegisters {
 }
 
 impl EMMCRegisters {
-    const EMMC_CONTROLLER_BASE: usize = 0x7E30_0000;
+    const EMMC_CONTROLLER_BASE: usize = 0x3F30_0000;
 
     const InterruptErrorMask: u32 = 0x017E_8000;
 
@@ -80,8 +84,30 @@ impl EMMCRegisters {
     const InterruptReadReady: u32 = 0x00000020;
     const InterruptCommandDone: u32 = 0x00000001;
 
+    const HOST_SPEC_NUM: u32 = 0xff_0000;
+    const HOST_SPEC_NUM_SHIFT: u32 = 16;
+
+    const C0_HCTL_DWIDTH: u32 = 0x2;
+    
+    const C1_SRST_HC: u32 = 0x0100_0000;
+    const C1_CLK_INTLEN: u32 = 0x1;
+    const C1_TOUNIT_MAX: u32 = 0xe_0000;
+
     const C1_CLK_EN: u32 = 0x4;
     const C1_CLK_STABLE: u32 = 0x2;
+
+    const SCR_SD_BUS_WIDTH_4: u32 = 0x400;
+    const SCR_SUPP_SET_BLKCNT: u32 = 0x0200_0000;
+
+    const SCR_SUPP_CCS: u32 = 0x1;
+
+    const ACMD41_CMD_COMPLETE: u32 = 0x8000_0000;
+    const ACMD41_CMD_CCS: u32 = 0x40000000;
+    const ACMD41_ARG_HC: u32 = 0x51ff8000;
+    const ACMD41_VOLTAGE: u32 = 0x0ff_8000;
+
+    const INT_READ_RDY: u32 = 0x20;
+
 
     const HOST_SPEC_V2: u64 = 1;
 
@@ -138,6 +164,7 @@ impl EMMCRegisters {
     }
 
     pub fn sd_command(&mut self, mut command: u32, arg: u32, timer: &Timer) -> u32 {
+        //println!("Sending command {:#x}, arg {:#x}", command, arg);
         let mut r = 0;
 
         if (command & CommandFlag::NeedApp as u32) != 0 {
@@ -149,16 +176,17 @@ impl EMMCRegisters {
             }
 
             command &= !(CommandFlag::NeedApp as u32);
-        }
+            }
+        println!("Sending command {:#x}, arg {:#x}", command, arg);
 
-        if(self.sd_status(StatusSetting::CommandInhibit as u32, timer)) {
+        if(!self.sd_status(StatusSetting::CommandInhibit as u32, timer)) {
             panic!("ERROR: EMMC busy");
         }
         
         // Do we really need to do this?--It seems redundant
         self.interrupt.set(self.interrupt.get());
         self.arg1.set(arg);
-        self.arg2.set(command);
+        self.cmdtm.set(CMDTM{value: command});
 
         if(command == Command::SendOpCommand as u32) {
             timer.delay(1000);
@@ -249,6 +277,8 @@ impl EMMCRegisters {
             d = 2;
             s = 0;
         }
+
+        println!("sd_clk divisor {}, shift {}", d, s);
         
         if(unsafe {sd_hv > Self::HOST_SPEC_V2}) {
             h = (d&0x300) >> 2;
@@ -282,6 +312,271 @@ impl EMMCRegisters {
         if(count <= 0) {
             panic!("ERROR: failed to get stable clock");
         }
+    }
+
+    pub fn sd_init(&mut self, timer: &Timer, gpio: &GPIOController) {
+        let cd = Pin::new(47).unwrap();
+
+        println!("Initializing cd");
+
+        gpio.set_mode(cd, Mode::AF3);
+
+        gpio.pull(cd, Pull::Up);
+        gpio.set_gphen(cd, 1);
+
+        println!("Done!");
+
+        println!("Initializing clk and cmd");
+
+        let clk = Pin::new(48).unwrap();
+        let cmd = Pin::new(49).unwrap();
+
+        gpio.set_mode(clk, Mode::AF3);
+        gpio.set_mode(cmd, Mode::AF3);
+
+        gpio.pull(clk, Pull::Up);
+        gpio.pull(cmd, Pull::Up);
+
+        println!("Done!");
+
+        println!("Initializing data pins");
+
+        let dat0 = Pin::new(50).unwrap();
+        let dat1 = Pin::new(51).unwrap();
+        let dat2 = Pin::new(52).unwrap();
+        let dat3 = Pin::new(53).unwrap();
+
+        gpio.set_mode(dat0, Mode::AF3);
+        gpio.set_mode(dat1, Mode::AF3);
+        gpio.set_mode(dat2, Mode::AF3);
+        gpio.set_mode(dat3, Mode::AF3);
+
+        gpio.pull(dat0, Pull::Up);
+        gpio.pull(dat1, Pull::Up);
+        gpio.pull(dat2, Pull::Up);
+        gpio.pull(dat3, Pull::Up);
+
+        println!("Pins initialized");
+
+        unsafe {
+            sd_hv = ((self.slotisr_ver.get().as_u32() & Self::HOST_SPEC_NUM) >> Self::HOST_SPEC_NUM_SHIFT) as u64;
+        }
+
+        println!("sd_hv is: {}", unsafe {sd_hv});
+
+        println!("Resetting card");
+
+        // Resetting the card
+        self.control0.set(Control0{value: 0});
+        self.control1.set(Control1{
+            value: self.control1.get().as_u32() | Self::C1_SRST_HC
+        });
+
+        let mut count = 10000;
+
+        timer.delay(10);
+
+        println!("Waiting");
+
+        println!("Control1 is at: {:p}", &self.control1);
+
+        while (self.control1.get().as_u32() & Self::C1_SRST_HC) != 0
+        && count > 0 {
+            //println!("Control0: {}, Control1: {:#x}", self.control0.get().as_u32(), self.control1.get().as_u32());
+            count -= 1;
+            timer.delay(10);
+        }
+
+        if(count <= 0) {
+            panic!("ERROR: failed to reset EMMC");
+        }
+        
+        println!("Reset successful");
+
+        // At this point, reset has succeeded
+        self.control1.set(Control1{
+            value: self.control1.get().as_u32() | Self::C1_CLK_INTLEN | Self::C1_TOUNIT_MAX
+        });
+
+        timer.delay(10);
+
+        // Set clock frequency
+        self.sd_clk(400_000, timer);
+
+        println!("irpt_en is at {:p} and irpt_mask is at {:p}", &self.irpt_en, &self.irpt_mask);
+
+        self.irpt_en.set(InterruptEnable{
+            value: 0xffff_ffff
+        });
+
+        self.irpt_mask.set(InterruptMask{
+            value: 0xffff_ffff
+        });
+
+        // This should be redundant because of initialization value
+        unsafe {
+            sd_scr[0] = 0;
+            sd_scr[1] = 0;
+            sd_rca = 0;
+            sd_err = 0;
+        }
+
+        println!("Going idle");
+
+        // TODO: this might not be the correct error checking
+        if(self.sd_command(Command::GoIdle as u32, 0, timer) != 0) {
+            panic!("Unable to go idle");
+        }
+
+        if(self.sd_command(Command::SendIfCond as u32, 0x1AA, timer) != 0) {
+            panic!("Unable to send conditions")
+        }
+
+        println!("Done!");
+
+        let mut cnt = 6;
+        let mut r = 0;
+
+        while(r & Self::ACMD41_CMD_COMPLETE == 0) && cnt >= 0 {
+            cnt -= 1;
+            wait_for_cycles(400);
+
+            println!("Sending...");
+            r = self.sd_command(Command::SendOpCommand as u32, Self::ACMD41_ARG_HC, timer);
+
+            println!("returned: {:#x}", r);
+
+            // TODO: check for errors
+        }
+
+        if(r & Self::ACMD41_CMD_COMPLETE == 0 || cnt <= 0) {
+            panic!("SD timed out");
+        }
+
+        if(r & Self::ACMD41_VOLTAGE == 0) {
+            panic!("Voltage not set correctly")
+        }
+
+        let mut ccs = 0;
+
+        if(r & Self::ACMD41_CMD_CCS == 0) {
+            ccs = Self::SCR_SUPP_CCS;
+        } 
+
+        self.sd_command(Command::AllSendCid as u32, 0, timer);
+
+        unsafe {
+            sd_rca = self.sd_command(Command::SendRelAddr as u32, 0, timer) as u64;
+        }
+
+        self.sd_clk(25_000_000, timer);
+
+        // TODO error checking
+        self.sd_command(Command::CardSelect as u32, unsafe {sd_rca as u32}, timer);
+
+        if(!self.sd_status(StatusSetting::DataInhibit as u32, timer)) {
+            panic!("Timeout");
+        }
+
+        self.blockSizeAndCount.set(BlockSizeAndCount{ value: (1 << 16) | 8});
+
+        //TODO: check errors
+        self.sd_command(Command::SendScr as u32, 0, timer);
+        
+        if(!self.sd_int(Self::INT_READ_RDY, timer)) {
+            panic!("Something failed");
+        }
+
+        let mut r = 0;
+        let mut cnt = 100_000;
+
+        while(r < 2 && cnt > 0) {
+            if(self.status.get().as_u32() & StatusSetting::ReadAvailable as u32!= 0) {
+                unsafe {
+                    sd_scr[r] = self.data.get() as u64;
+                    r += 1;
+                }
+            } else {
+                timer.delay(1);
+            }
+        }
+
+        if(r != 2) {
+            panic!("Could not read scr");
+        }
+        
+        if(unsafe{sd_scr[0] as u32} & Self::SCR_SD_BUS_WIDTH_4 != 0) {
+            self.sd_command(Command::SetBusWidth as u32, unsafe {sd_rca as u32} | 2, timer);
+            self.control0.set(
+                Control0 {
+                    value: self.control0.get().as_u32() | Self::C0_HCTL_DWIDTH
+                }
+            );
+        }
+
+        unsafe {
+            // TODO: figure out types and where negation goes
+            sd_scr[0] &= !(Self::SCR_SUPP_CCS as u64);
+            sd_scr[0] |= ccs as u64;
+        }
+    }
+
+    pub fn sd_readblock(&mut self, start: u32, buffer: &mut [u8], num: u32, timer: &Timer) -> u32 {
+        let mut r: u32;
+        let mut c = 0;
+        let mut d: u32;
+
+        let mut length = buffer.len() / 4;
+        // TODO; this is awful
+        let mut buffer = unsafe { core::slice::from_raw_parts_mut(buffer.as_mut_ptr() as *mut u32, length)};
+
+        if(!self.sd_status(StatusSetting::DataInhibit as u32, timer)) {
+            panic!("Data is inhibited");
+        }
+
+        if(unsafe {sd_scr[0]} as u32 & Self::SCR_SUPP_CCS != 0) {
+            if(num > 1 && (unsafe {sd_scr[0]} as u32 & Self::SCR_SUPP_SET_BLKCNT != 0)) {
+                self.sd_command(Command::SetBlockCount as u32, num, timer);
+            }
+
+            self.blockSizeAndCount.set(BlockSizeAndCount{
+                value: (num << 16) | 512
+            });
+
+            let command = if num == 1 { Command::ReadSingle as u32} else {Command::ReadMulti as u32};
+
+            self.sd_command(command, start, timer);
+        } else {
+            self.blockSizeAndCount.set(BlockSizeAndCount {
+                value: (1 << 16) | 512
+            })
+        }
+
+        let mut buffer_offset = 0;
+        while(c < num) {
+            if(unsafe {sd_scr[0] as u32 & Self::SCR_SUPP_CCS == 0}) {
+                self.sd_command(Command::ReadSingle as u32, (start + c) * 512, timer);
+            }
+
+            if(!self.sd_int(Self::INT_READ_RDY, timer)) {
+                panic!("Timeout waiting to read sd");
+            }
+
+            for d in 0..128 {
+                buffer[buffer_offset + d] = self.data.get();
+            }
+            
+            c += 1;
+            buffer_offset += 128;
+        }
+
+        if(num > 1 && (unsafe {sd_scr[0] as u32 & Self::SCR_SUPP_SET_BLKCNT} == 0) )
+            && unsafe {sd_scr[0] as u32} & Self::SCR_SUPP_CCS != 0
+        {
+            self.sd_command(Command::StopTrans as u32, 0, timer);
+        }
+
+        return if c!= num {0} else {num *512};
     }
 }
 
@@ -336,6 +631,10 @@ bitfield! {
         SPI_MODE: 20-20,
         BOOT_EN: 21-21,
         ALT_BOOT_EN: 22-22
+    } with {
+        pub fn as_u32(&self) -> u32 {
+            self.value
+        }
     }
 }
 
@@ -509,5 +808,9 @@ bitfield! {
         VENDOR: 24-31,
         SDVERSION: 16-23,
         SLOT_STATUS: 0-7
+    } with {
+        pub fn as_u32(&self) -> u32 {
+            self.value
+        }
     }
 }
