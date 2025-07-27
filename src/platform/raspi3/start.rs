@@ -34,6 +34,12 @@ use super::{
     },
     emmc::{
         EMMCRegisters
+    },
+    fat32::{
+        Sector,
+        BootSector,
+        MBRSector,
+        PartitionEntry
     }
 };
 
@@ -102,27 +108,58 @@ pub extern "C" fn main(heap_start: usize, heap_size: usize, table_start: usize) 
 
     println!("Trying to initialize the sd card");
 
-    let emmc_regs = EMMCRegisters::get();
+    let mut emmc_regs = EMMCRegisters::get();
 
     emmc_regs.sd_init(&timer, &gpio);
 
-    let mut buffer: [u8; 512] = [0; 512];
 
-    println!("Reading block");
-    emmc_regs.sd_readblock(0, &mut buffer, 1, &timer);
+    println!("Sector 0x2001 {}", Sector::load(0x2001, &mut emmc_regs, &timer));
 
-    for i in 0..128 {
-        if i % 64 == 0 {
-            println!("");
+    let mut block = 0;
+
+
+    let mbr_sector: MBRSector;
+    loop {
+        let sector = Sector::load(block, &mut emmc_regs, &timer);
+
+        println!("Sector {} {}", block, sector);
+        
+        if let Ok(sector) = MBRSector::try_from_sector(sector) {
+            mbr_sector = sector;
+            break
         }
-
-        if(buffer[i] != 0) {
-            print!("{}", buffer[i] as char);
-        }
+        block += 1; 
     }
 
-    println!("");
+    println!("Boot sector found: {}", block);
 
+    for n in 0..4 {
+        let partition = mbr_sector.partition_entries[n];
+
+        println!("Partition {}: {:?}", n, partition);
+    }
+
+    let boot_partition = mbr_sector.partition_entries[0];
+
+    let mut block = boot_partition.get_first_sector_lba();
+    let boot_sector: BootSector;
+
+    loop {
+        let sector = Sector::load(block, &mut emmc_regs, &timer);
+
+        println!("Sector {} {}", block, sector);
+
+        if let Ok(sector) = BootSector::try_from_sector(&sector) {
+            boot_sector = sector;
+            println!("Found boot sector at {}", block);
+            break
+        }
+
+        block += 1;
+    }
+
+    println!("Boot sector: {:?}", boot_sector);
+    
     let resolution = Dimensions::new(1920, 1080);
 
     let fb_config = FrameBufferConfigBuilder::new()

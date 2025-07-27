@@ -21,7 +21,7 @@ QEMU_CMD = $(QEMU_ARCH) \
 	-kernel $(KERNEL_ELF) \
 	-serial null \
 	-serial mon:stdio \
-	-drive file=image.dd,if=sd,format=raw
+	-drive file=image.img,if=sd,format=raw
 
 #	-m 1024M -cpu $(CPU) \
 #	-smp $(CORES) \

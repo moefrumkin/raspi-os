@@ -177,7 +177,6 @@ impl EMMCRegisters {
 
             command &= !(CommandFlag::NeedApp as u32);
             }
-        println!("Sending command {:#x}, arg {:#x}", command, arg);
 
         if(!self.sd_status(StatusSetting::CommandInhibit as u32, timer)) {
             panic!("ERROR: EMMC busy");
