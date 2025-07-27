@@ -30,6 +30,7 @@ enum Command {
     SendScr = (0x3322_0010 | 0x8000_0000)
 }
 
+#[derive(Copy, Clone)]
 enum StatusSetting {
     ReadAvailable = 0x0000_0800,
     DataInhibit = 0x0000_0002,
@@ -118,10 +119,10 @@ impl EMMCRegisters {
     }
 
     // Returns true is success
-    pub fn sd_status(&mut self, mask: u32, timer: &Timer) -> bool {
+    pub fn sd_status(&mut self, status: StatusSetting, timer: &Timer) -> bool {
         let mut count: u32 = 500_000;
 
-        while (self.status.get().as_u32() & mask) != 0
+        while self.status.get().get_status(status) 
             && !self.interrupt.get().is_err()
             && count != 0
         {
@@ -178,7 +179,7 @@ impl EMMCRegisters {
             command &= !(CommandFlag::NeedApp as u32);
             }
 
-        if(!self.sd_status(StatusSetting::CommandInhibit as u32, timer)) {
+        if !self.sd_status(StatusSetting::CommandInhibit, timer) {
             panic!("ERROR: EMMC busy");
         }
         
@@ -473,7 +474,7 @@ impl EMMCRegisters {
         // TODO error checking
         self.sd_command(Command::CardSelect as u32, unsafe {sd_rca as u32}, timer);
 
-        if(!self.sd_status(StatusSetting::DataInhibit as u32, timer)) {
+        if(!self.sd_status(StatusSetting::DataInhibit, timer)) {
             panic!("Timeout");
         }
 
@@ -529,7 +530,7 @@ impl EMMCRegisters {
         // TODO; this is awful
         let mut buffer = unsafe { core::slice::from_raw_parts_mut(buffer.as_mut_ptr() as *mut u32, length)};
 
-        if(!self.sd_status(StatusSetting::DataInhibit as u32, timer)) {
+        if(!self.sd_status(StatusSetting::DataInhibit, timer)) {
             panic!("Data is inhibited");
         }
 
@@ -603,17 +604,28 @@ bitfield! {
 
 bitfield! {
     Status(u32) {
-        CMD_INHIBIT: 0-0,
-        DAT_INHIBIT: 1-1,
+        command_inhibit: 0-0,
+        data_inhibit: 1-1,
         DAT_ACTIVE: 2-2,
+        app_command: 5-5,
         WRITE_TRANSFER: 8-8,
         READ_TRANSFER: 9-9,
+        read_available: 11-11,
         DAT_LEVEL0: 20-23,
         CMD_LEVEL: 24-24,
         DAT_LEVEL1: 25-28
     } with {
         pub fn as_u32(&self) -> u32 {
             self.value
+        }
+
+        pub fn get_status(&self, status: StatusSetting) -> bool {
+            match(status) {
+                StatusSetting::CommandInhibit => self.get_command_inhibit() != 0,
+                StatusSetting::DataInhibit => self.get_data_inhibit() != 0,
+                StatusSetting::AppCommand => self.get_app_command() != 0,
+                StatusSetting::ReadAvailable => self.get_read_available() != 0
+            }
         }
     }
 }
