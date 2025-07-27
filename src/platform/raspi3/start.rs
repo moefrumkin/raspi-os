@@ -159,6 +159,10 @@ pub extern "C" fn main(heap_start: usize, heap_size: usize, table_start: usize) 
     }
 
     println!("Boot sector: {:?}", boot_sector);
+
+    let config = boot_sector.as_config();
+
+    println!("Boot sector config: {}", config);
     
     let resolution = Dimensions::new(1920, 1080);
 

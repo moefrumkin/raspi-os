@@ -117,11 +117,12 @@ impl EMMCRegisters {
         } 
     }
 
+    // Returns true is success
     pub fn sd_status(&mut self, mask: u32, timer: &Timer) -> bool {
         let mut count: u32 = 500_000;
 
         while (self.status.get().as_u32() & mask) != 0
-            && (self.interrupt.get().as_u32() & Self::InterruptErrorMask) == 0
+            && !self.interrupt.get().is_err()
             && count != 0
         {
             count -= 1;
@@ -131,8 +132,7 @@ impl EMMCRegisters {
         if count == 0 {
             return false;
         } else {
-            let intr_val = self.interrupt.get().as_u32() & Self::InterruptErrorMask;
-            return intr_val == 0
+            return !self.interrupt.get().is_err();
         }
     }
 
@@ -146,16 +146,16 @@ impl EMMCRegisters {
             timer.delay(1);
         }
 
-        let interrupt = self.interrupt.get().as_u32();
+        let interrupt = self.interrupt.get();
 
         // TODO these should just be bits on the bitfield
         if count <= 0
-            || interrupt & Self::InterruptCommandTimeout != 0
-            || interrupt & Self::InterruptDataTimeout != 0
-            || interrupt & Self::InterruptErrorMask != 0
+            || interrupt.is_command_timeout_error()
+            || interrupt.is_command_timeout_error()
+            || interrupt.is_err()
         {
             // Is this necessary?
-            self.interrupt.set(Interrupt{value:  interrupt });
+            self.interrupt.set(interrupt);
             return false;
         } else {
             self.interrupt.set(Interrupt{value: next_mask});
@@ -554,7 +554,7 @@ impl EMMCRegisters {
         let mut buffer_offset = 0;
         while(c < num) {
             if(unsafe {sd_scr[0] as u32 & Self::SCR_SUPP_CCS == 0}) {
-                self.sd_command(Command::ReadSingle as u32, (start + c) * 512, timer);
+                self.sd_command(Command::ReadSingle as u32, (start + c), timer);
             }
 
             if(!self.sd_int(Self::INT_READ_RDY, timer)) {
@@ -658,7 +658,7 @@ bitfield! {
 
 bitfield! {
     Interrupt(u32) {
-        CMD_DONE: 0-0,
+        command_done: 0-0,
         DATA_DONE: 1-1,
         BLOCK_GAP: 2-2,
         WRITE_RDY: 4-4,
@@ -668,17 +668,35 @@ bitfield! {
         BOOTACK: 13-13,
         ENDBOOT: 14-14,
         ERR: 15-15,
-        CTO_ERR: 16-16,
+        command_timeout_error: 16-16,
         CCRC_ERR: 17-17,
         CEND_ERR: 18-18,
         CBAD_ERR: 19-19,
-        DTO_ERR: 20-20,
+        data_timeout_error: 20-20,
         DCRC_ERR: 21-21,
         DEND_ERR: 22-22,
         ACMD_ERR: 24-24
     } with {
+        const INTERRUPT_ERROR_MASK: u32 = 0x017E_8000;
+
         pub fn as_u32(&self) -> u32 {
             self.value
+        }
+
+        pub fn is_err(&self) -> bool {
+            self.value & Self::INTERRUPT_ERROR_MASK != 0
+        }
+
+        pub fn is_command_done(&self) -> bool {
+            self.get_command_done() != 0
+        }
+
+        pub fn is_command_timeout_error(&self) -> bool {
+            self.get_command_timeout_error() != 0
+        }
+
+        pub fn is_data_timeout_error(&self) -> bool {
+            self.get_data_timeout_error() != 0
         }
     }
 }
