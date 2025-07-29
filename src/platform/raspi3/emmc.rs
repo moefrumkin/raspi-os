@@ -31,7 +31,7 @@ enum Command {
 }
 
 #[derive(Copy, Clone)]
-enum StatusSetting {
+pub enum StatusSetting {
     ReadAvailable = 0x0000_0800,
     DataInhibit = 0x0000_0002,
     CommandInhibit = 0x0000_0001,
@@ -526,9 +526,9 @@ impl EMMCRegisters {
         let mut c = 0;
         let mut d: u32;
 
-        let mut length = buffer.len() / 4;
+        let length = buffer.len() / 4;
         // TODO; this is awful
-        let mut buffer = unsafe { core::slice::from_raw_parts_mut(buffer.as_mut_ptr() as *mut u32, length)};
+        let buffer = unsafe { core::slice::from_raw_parts_mut(buffer.as_mut_ptr() as *mut u32, length)};
 
         if(!self.sd_status(StatusSetting::DataInhibit, timer)) {
             panic!("Data is inhibited");

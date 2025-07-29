@@ -1,6 +1,7 @@
 use super::emmc::EMMCRegisters;
 use super::timer::Timer;
 use core::fmt;
+use crate::bitfield;
 
 #[repr(transparent)]
 pub struct Sector {
@@ -14,7 +15,7 @@ pub struct BootSector {
     jmp_boot: [u8; 3],
     oem_name: [u8; 8],
     bytes_per_sector: [u8; 2],
-    sectors_per_allocation_unit: u8,
+    sectors_per_cluster: u8,
     reserved_sectors: [u8; 2],
     number_of_fats: u8,
     root_entry_count: [u8; 2],
@@ -45,7 +46,7 @@ pub struct BootSector {
 
 pub struct FAT32Config {
     pub bytes_per_sector: u16,
-    pub sectors_per_allocation_unit: u8,
+    pub sectors_per_cluster: u8,
     pub reserved_sectors: u16,
     pub number_of_fats: u8,
     pub root_entry_count: u16,
@@ -59,7 +60,7 @@ impl fmt::Display for FAT32Config {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "\n\
             \t-bytes per sector: {} \n\
-            \t-sectors per allocation unit: {} \n\
+            \t-sectors per cluster: {} \n\
             \t-reserved sectors: {}\n\
             \t-number of fats: {}\n\
             \t-root entry count: {}\n\
@@ -68,7 +69,7 @@ impl fmt::Display for FAT32Config {
             \t-root cluster: {}\n\
             \t-fs info sector: {}",
             self.bytes_per_sector,
-            self.sectors_per_allocation_unit,
+            self.sectors_per_cluster,
             self.reserved_sectors,
             self.number_of_fats,
             self.root_entry_count,
@@ -98,10 +99,10 @@ impl BootSector {
             || bytes_per_sector == 4096
         ) { return Err(()); }
 
-        let sectors_per_allocation_unit = candidate_boot_sector.get_sectors_per_allocation_unit();
+        let sectors_per_cluster = candidate_boot_sector.get_sectors_per_cluster();
 
         // Bit hack to check if number is a power of 2
-        if sectors_per_allocation_unit & (sectors_per_allocation_unit >> 1) != 0 {
+        if sectors_per_cluster & (sectors_per_cluster >> 1) != 0 {
             return Err(());
         }
 
@@ -140,8 +141,8 @@ impl BootSector {
         u16::from_le_bytes(self.bytes_per_sector)
     }
 
-    pub fn get_sectors_per_allocation_unit(&self) -> u8 {
-        self.sectors_per_allocation_unit
+    pub fn get_sectors_per_cluster(&self) -> u8 {
+        self.sectors_per_cluster
     }
 
     pub fn get_reserved_sectors(&self) -> u16 {
@@ -174,7 +175,7 @@ impl BootSector {
     }
 
     pub fn get_sectors_per_fat(&self) -> u32 {
-        u32::from_le_bytes(self.total_sectors32)
+        u32::from_le_bytes(self.sectors_per_fat)
     }
 
     pub fn get_root_cluster_sector(&self) -> u32 {
@@ -192,7 +193,7 @@ impl BootSector {
     pub fn as_config(&self) -> FAT32Config {
         FAT32Config {
             bytes_per_sector: self.get_bytes_per_sector(),
-            sectors_per_allocation_unit: self.get_sectors_per_allocation_unit(),
+            sectors_per_cluster: self.get_sectors_per_cluster(),
             reserved_sectors: self.get_reserved_sectors(),
             number_of_fats: self.get_number_of_fats(),
             root_entry_count: self.get_root_entry_count(),
@@ -283,6 +284,77 @@ impl fmt::Display for Sector {
                 }
             }
         }
+
+        Ok(())
+    }
+}
+
+#[repr(transparent)]
+pub struct DirectorySector  {
+    pub directory_entries: [DirectoryEntry; 16]
+}
+
+impl DirectorySector {
+    pub unsafe fn from_sector(sector: Sector) -> Self {
+        core::mem::transmute::<Sector, DirectorySector>(sector)
+    }
+} 
+
+#[repr(packed)]
+#[derive(Debug)]
+pub struct DirectoryEntry {
+    name: [u8; 11],
+    attributes: DirectoryAttributes,
+    res0: u8,
+    creation_time_tenth: u8,
+    creation_time: u16,
+    creation_date: u16,
+    last_access_date: u16,
+    first_cluster_high_word: u16,
+    last_write_time: u16,
+    last_write_date: u16,
+    first_cluster_low_word: u16,
+    file_size: u32
+}
+
+bitfield! {
+    DirectoryAttributes(u8) {
+        read_only: 1-1,
+        hidden: 2-2,
+        system: 3-3,
+        volume_id: 4-4,
+        directory: 5-5,
+        archive: 6-6
+    }
+}
+
+impl DirectoryEntry {
+    pub fn get_name(&self) -> Result<&str, core::str::Utf8Error> {
+        core::str::from_utf8(&self.name)
+    }
+
+    pub fn is_free(&self) -> bool {
+        self.name[0] == 0xE5
+            || self.name[0] == 0x0
+    }
+}
+
+impl fmt::Display for DirectoryEntry {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let entry_type = match self.attributes.get_directory() {
+            0 => "File",
+            1 => "Directory",
+            _ => panic!("")
+        };
+        write!(f, "{}: {}", entry_type, self.get_name().unwrap())?;
+
+        if(self.attributes.get_read_only() != 0) {
+            write!(f, " read only")?;
+        }
+        
+        let size = self.file_size;
+
+        write!(f, " {} sectors", size)?;
 
         Ok(())
     }
