@@ -359,3 +359,38 @@ impl fmt::Display for DirectoryEntry {
         Ok(())
     }
 }
+
+#[repr(u32)]
+enum FAT32Entry {
+    Free = 0x0,
+    Allocated(u32),
+    Defective,
+    Reserved,
+    EndOfFile
+}
+
+impl FAT32Entry {
+    pub fn from_u32(value: u32) -> Self {
+        match value {
+            0 => FAT32Entry::Free,
+            x if (1..0xFFF_FFF7).contains(&x) => FAT32Entry::Allocated(x),
+            0xFFF_FFF7 => FAT32Entry::Defective,
+            0xFFF_FFF8..=0xFFF_FFFE => FAT32Entry::Reserved,
+            0xFFF_FFFF => FAT32Entry::EndOfFile,
+            _ => FAT32Entry::Reserved
+        }
+    }
+}
+
+#[repr(transparent)]
+pub struct FATSector {
+    fat_entries: [u32; 128]
+}
+
+impl FATSector {
+    pub fn from_sector(sector: Sector) -> Self {
+        unsafe {
+            core::mem::transmute::<Sector, FATSector>(sector)
+        }
+    }
+}

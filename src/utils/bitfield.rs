@@ -6,22 +6,22 @@ macro_rules! bitfield {
         $(with {$($attributes: item)+})?
     ) => {
         #[repr(transparent)]
-        #[derive(Copy, Clone, Debug)]
+        #[derive(Copy, Clone, Debug, PartialEq)]
         pub struct $name {
             value: $type
         }
 
         impl $name {
             $(paste::item! {
-                fn [< $field _mask >]() -> $type {
+                const fn [< $field _mask >]() -> $type {
                     ((1 << ($end - $start + 1)) - 1) << $start
                 }
 
-                pub fn [< get_ $field >](self) -> $type {
+                pub const fn [< get_ $field >](self) -> $type {
                     (self.value & Self::[< $field _mask>]()) >> $start
                 }
 
-                pub fn [< set_ $field>](mut self, value: $type) -> Self {
+                pub const fn [< set_ $field>](mut self, value: $type) -> Self {
                     let mask = Self::[< $field _mask >]();
                     self.value &= !mask;
                     self.value |= mask & (value << $start);

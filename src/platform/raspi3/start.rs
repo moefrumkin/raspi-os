@@ -166,25 +166,18 @@ pub extern "C" fn main(heap_start: usize, heap_size: usize, table_start: usize) 
 
     println!("Boot sector config: {}", config);
 
-    let sectors_per_cluster = config.sectors_per_cluster as u32;
-    let number_of_fats = config.number_of_fats as u32;
-
-    let fat_start_sector = mbr_block_index
-        + boot_partition.get_first_sector_lba();
-
-    let root_dir_sector = boot_partition.get_first_sector_lba()
-        + config.sectors_per_fat as u32 * config.number_of_fats as u32
-        + config.reserved_sectors as u32
-        + (config.root_cluster - 2) * config.sectors_per_cluster as u32
-        + mbr_block_index;
-
     let fs_start = mbr_block_index + boot_partition.get_first_sector_lba();
 
     println!("The filesystem starts at {}", fs_start);
 
-    let first_data_sector = fs_start
-        + config.reserved_sectors as u32
+    let fat_start = fs_start + config.reserved_sectors as u32;
+
+    let first_data_sector = fat_start
         + config.number_of_fats as u32 * config.sectors_per_fat;
+
+    let root_dir_sector = first_data_sector;
+
+    println!("The FAT starts at {:#x}", fat_start);
 
     println!("The data block starts at {:#x}", first_data_sector);
     

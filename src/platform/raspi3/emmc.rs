@@ -49,7 +49,7 @@ pub struct EMMCRegisters {
     pub arg2: Volatile<u32>,
     pub blockSizeAndCount: Volatile<BlockSizeAndCount>,
     pub arg1: Volatile<u32>,
-    pub cmdtm: Volatile<CMDTM>,
+    pub command: Volatile<SDCommand>,
     pub resp0: Volatile<u32>,
     pub resp1: Volatile<u32>,
     pub resp2: Volatile<u32>,
@@ -164,19 +164,24 @@ impl EMMCRegisters {
         }
     }
 
-    pub fn sd_command(&mut self, mut command: u32, arg: u32, timer: &Timer) -> u32 {
+    pub fn sd_command(&mut self, mut command: SDCommand, arg: u32, timer: &Timer) -> u32 {
         //println!("Sending command {:#x}, arg {:#x}", command, arg);
         let mut r = 0;
 
-        if (command & CommandFlag::NeedApp as u32) != 0 {
-            let new_command = Command::AppCommand  as u32 | (if unsafe {sd_rca } != 0 {CommandFlag::Response48 as u32} else {0});
+        if command.get_is_application_specific() == 1 {
+            println!("App specific: {:#x}", SDCommand::APPPLICATION_SPECIFIC_COMMAND.value);
+            let mut new_command = SDCommand::APPPLICATION_SPECIFIC_COMMAND;
+            
+            if unsafe{ sd_rca } != 0 {
+                new_command = new_command.set_response_type(ResponseType::Response48Bit as u32);
+            }
             r = self.sd_command(new_command, unsafe {sd_rca as u32}, timer);
 
             if(unsafe { sd_rca != 0} && r == 0) {
                 panic!("ERROR: failed to send SD APP command");
             }
 
-            command &= !(CommandFlag::NeedApp as u32);
+            command = command.set_is_application_specific(0);
             }
 
         if !self.sd_status(StatusSetting::CommandInhibit, timer) {
@@ -186,11 +191,12 @@ impl EMMCRegisters {
         // Do we really need to do this?--It seems redundant
         self.interrupt.set(self.interrupt.get());
         self.arg1.set(arg);
-        self.cmdtm.set(CMDTM{value: command});
+        self.command.set(command);
 
-        if(command == Command::SendOpCommand as u32) {
+        if command == SDCommand::SEND_OP_COND {
             timer.delay(1000);
-        } else if(command == Command::SendIfCond as u32 || command == Command::AppCommand as u32) {
+        } else if command == SDCommand::SEND_INTERFACE_CONDITIONS
+            || command == SDCommand::APPPLICATION_SPECIFIC_COMMAND {
             timer.delay(100);
         }
 
@@ -200,24 +206,24 @@ impl EMMCRegisters {
 
         r = self.resp0.get();
 
-        if(command == Command::GoIdle as u32 || command == Command::AppCommand as u32) {
+        if(command == SDCommand::GO_IDLE || command == SDCommand::APPPLICATION_SPECIFIC_COMMAND) {
             return 0
-        } else if(command == Command::AppCommand as u32 | CommandFlag::Response48 as u32) {
+        } else if command == SDCommand::APPPLICATION_SPECIFIC_COMMAND.set_response_type(ResponseType::Response48Bit as u32) {
             return r & StatusSetting::AppCommand as u32;
-        } else if(command == Command::SendOpCommand as u32) {
+        } else if(command == SDCommand::SEND_OP_COND) {
             return r;
-        } else if(command == Command::SendIfCond as u32) {
+        } else if(command == SDCommand::SEND_INTERFACE_CONDITIONS) {
             if r == arg {
                 return 0;
             } else {
                 return 1;
             }
-        } else if (command == Command::AllSendCid as u32) {
+        } else if (command == SDCommand::SEND_CARD_IDENTIFICATION) {
             r |= self.resp3.get();
             r |= self.resp2.get();
             r |= self.resp1.get();
             return r;
-        } else if (command == Command::SendRelAddr as u32) {
+        } else if (command == SDCommand::SEND_RELATIVE_ADDRESS) {
             unsafe {
                 sd_err = ((((r&0x1fff))|((r&0x2000)<<6)|((r&0x4000)<<8)|((r&0x8000)<<8))& CommandFlag::ErrorsMask as u32) as u64;
                 return r & CommandFlag::RcaMask as u32;
@@ -292,6 +298,8 @@ impl EMMCRegisters {
             }
         );
 
+        println!("Control set for the first time");
+
         timer.delay(10);
 
         self.control1.set(
@@ -299,6 +307,8 @@ impl EMMCRegisters {
                 value: self.control1.get().as_u32() | Self::C1_CLK_EN
             }
         );
+
+        println!("Control set for the second time");
 
         timer.delay(10);
 
@@ -424,11 +434,12 @@ impl EMMCRegisters {
         println!("Going idle");
 
         // TODO: this might not be the correct error checking
-        if(self.sd_command(Command::GoIdle as u32, 0, timer) != 0) {
+        if(self.sd_command(SDCommand::GO_IDLE, 0, timer) != 0) {
             panic!("Unable to go idle");
         }
 
-        if(self.sd_command(Command::SendIfCond as u32, 0x1AA, timer) != 0) {
+        println!("IF command: {:#x}", SDCommand::SEND_INTERFACE_CONDITIONS.value);
+        if(self.sd_command(SDCommand::SEND_INTERFACE_CONDITIONS, 0x1AA, timer) != 0) {
             panic!("Unable to send conditions")
         }
 
@@ -441,8 +452,8 @@ impl EMMCRegisters {
             cnt -= 1;
             wait_for_cycles(400);
 
-            println!("Sending...");
-            r = self.sd_command(Command::SendOpCommand as u32, Self::ACMD41_ARG_HC, timer);
+            println!("Sending... {:#x}", SDCommand::SEND_OP_COND.value);
+            r = self.sd_command(SDCommand::SEND_OP_COND, Self::ACMD41_ARG_HC, timer);
 
             println!("returned: {:#x}", r);
 
@@ -463,16 +474,21 @@ impl EMMCRegisters {
             ccs = Self::SCR_SUPP_CCS;
         } 
 
-        self.sd_command(Command::AllSendCid as u32, 0, timer);
+        println!("CID: {:#x}", SDCommand::SEND_CARD_IDENTIFICATION.value);
+        self.sd_command(SDCommand::SEND_CARD_IDENTIFICATION, 0, timer);
 
         unsafe {
-            sd_rca = self.sd_command(Command::SendRelAddr as u32, 0, timer) as u64;
+            println!("Rel addr: {:#x}", SDCommand::SEND_RELATIVE_ADDRESS.value);
+            sd_rca = self.sd_command(SDCommand::SEND_RELATIVE_ADDRESS, 0, timer) as u64;
         }
 
         self.sd_clk(25_000_000, timer);
 
+        println!("Clock set");
+
+        println!("Card select: {:#x}", SDCommand::CARD_SELECT.value);
         // TODO error checking
-        self.sd_command(Command::CardSelect as u32, unsafe {sd_rca as u32}, timer);
+        self.sd_command(SDCommand::CARD_SELECT, unsafe {sd_rca as u32}, timer);
 
         if(!self.sd_status(StatusSetting::DataInhibit, timer)) {
             panic!("Timeout");
@@ -480,8 +496,9 @@ impl EMMCRegisters {
 
         self.blockSizeAndCount.set(BlockSizeAndCount{ value: (1 << 16) | 8});
 
+        println!("SCR: {:#x}", SDCommand::SEND_SD_CONFIGURATION_REGISTER.value);
         //TODO: check errors
-        self.sd_command(Command::SendScr as u32, 0, timer);
+        self.sd_command(SDCommand::SEND_SD_CONFIGURATION_REGISTER, 0, timer);
         
         if(!self.sd_int(Self::INT_READ_RDY, timer)) {
             panic!("Something failed");
@@ -504,9 +521,11 @@ impl EMMCRegisters {
         if(r != 2) {
             panic!("Could not read scr");
         }
+
+        println!("SCR read");
         
         if(unsafe{sd_scr[0] as u32} & Self::SCR_SD_BUS_WIDTH_4 != 0) {
-            self.sd_command(Command::SetBusWidth as u32, unsafe {sd_rca as u32} | 2, timer);
+            self.sd_command(SDCommand::SET_BUS_WIDTH, unsafe {sd_rca as u32} | 2, timer);
             self.control0.set(
                 Control0 {
                     value: self.control0.get().as_u32() | Self::C0_HCTL_DWIDTH
@@ -536,14 +555,14 @@ impl EMMCRegisters {
 
         if(unsafe {sd_scr[0]} as u32 & Self::SCR_SUPP_CCS != 0) {
             if(num > 1 && (unsafe {sd_scr[0]} as u32 & Self::SCR_SUPP_SET_BLKCNT != 0)) {
-                self.sd_command(Command::SetBlockCount as u32, num, timer);
+                self.sd_command(SDCommand::SET_BLOCK_COUNT, num, timer);
             }
 
             self.blockSizeAndCount.set(BlockSizeAndCount{
                 value: (num << 16) | 512
             });
 
-            let command = if num == 1 { Command::ReadSingle as u32} else {Command::ReadMulti as u32};
+            let command = if num == 1 { SDCommand::READ_SINGLE_BLOCK } else {SDCommand::READ_MULTIPLE_BLOCKS };
 
             self.sd_command(command, start, timer);
         } else {
@@ -555,7 +574,7 @@ impl EMMCRegisters {
         let mut buffer_offset = 0;
         while(c < num) {
             if(unsafe {sd_scr[0] as u32 & Self::SCR_SUPP_CCS == 0}) {
-                self.sd_command(Command::ReadSingle as u32, (start + c), timer);
+                self.sd_command(SDCommand::READ_SINGLE_BLOCK, (start + c), timer);
             }
 
             if(!self.sd_int(Self::INT_READ_RDY, timer)) {
@@ -573,7 +592,7 @@ impl EMMCRegisters {
         if(num > 1 && (unsafe {sd_scr[0] as u32 & Self::SCR_SUPP_SET_BLKCNT} == 0) )
             && unsafe {sd_scr[0] as u32} & Self::SCR_SUPP_CCS != 0
         {
-            self.sd_command(Command::StopTrans as u32, 0, timer);
+            self.sd_command(SDCommand::STOP_TRANSMISSION, 0, timer);
         }
 
         return if c!= num {0} else {num *512};
@@ -588,18 +607,97 @@ bitfield! {
 }
 
 bitfield! {
-    CMDTM(u32) {
-        TM_BLKCNT_EN: 1-1,
-        TM_AUTO_CMD_END: 2-3,
-        TM_DAT_DIR: 4-4,
-        TM_MULTI_BLOCK: 5-5,
-        CMD_RSPNS_TYPE: 16-17,
-        CMD_CRCCHK_EN: 19-19,
-        CMD_IXCHK_EN: 20-20,
-        CMD_ISDATA: 21-21,
-        CMD_TYPE: 22-23,
-        CMD_INDEX: 24-29
+    SDCommand(u32) {
+        enable_block_counter: 1-1,
+        auto_command: 2-3,
+        data_direction: 4-4,
+        multiple_blocks: 5-5,
+        response_type: 16-17,
+        check_response_CRC: 19-19,
+        check_response_index: 20-20,
+        data_transfer: 21-21,
+        command_type: 22-23,
+        command_index: 24-29,
+
+        // always write as 0. Useful to store metadata
+        is_application_specific: 31-31
+    } with {
+        const GO_IDLE: Self = Self::with_command_index(0);
+
+        const SEND_CARD_IDENTIFICATION: Self = Self::with_command_index(2)
+            .set_response_type(ResponseType::Response136Bit as u32);
+
+        const SEND_RELATIVE_ADDRESS: Self = Self::with_command_index(3)
+            .set_response_type(ResponseType::Response48Bit as u32);
+
+        const CARD_SELECT: Self = Self::with_command_index(7)
+            .set_response_type(ResponseType::Response48BitUsingBusy as u32);
+
+        const SEND_INTERFACE_CONDITIONS: Self = Self::with_command_index(8)
+            .set_response_type(ResponseType::Response48Bit as u32);
+
+        const STOP_TRANSMISSION: Self = Self::with_command_index(12)
+            .set_response_type(ResponseType::Response48Bit as u32);
+
+        const READ_SINGLE_BLOCK: Self = Self::with_command_index(17)
+            .set_response_type(ResponseType::Response48Bit as u32)
+            .set_data_direction(1) // Card to host
+            .set_data_transfer(1);
+
+        const READ_MULTIPLE_BLOCKS: Self = Self::with_command_index(18)
+            .set_response_type(ResponseType::Response48Bit as u32)
+            .set_enable_block_counter(1)
+            .set_data_direction(1)
+            .set_multiple_blocks(1)
+            .set_data_transfer(1);
+
+        const SET_BLOCK_COUNT: Self = Self::with_command_index(23)
+            .set_response_type(ResponseType::Response48Bit as u32);
+
+        const APPPLICATION_SPECIFIC_COMMAND: Self = Self::with_command_index(55);
+
+        const SET_BUS_WIDTH: Self = Self::with_command_index(6)
+            .set_response_type(ResponseType::Response48Bit as u32)
+            .set_is_application_specific(1);
+
+        const SEND_OP_COND: Self = Self::with_command_index(41)
+            .set_response_type(ResponseType::Response48Bit as u32)
+            .set_is_application_specific(1);
+
+        const SEND_SD_CONFIGURATION_REGISTER: Self = Self::with_command_index(51)
+            .set_response_type(ResponseType::Response48Bit as u32)
+            .set_data_direction(1)
+            .set_data_transfer(1)
+            .set_is_application_specific(1);
+
+        const fn empty_command() -> Self {
+            Self { value: 0 }
+        }
+
+        const fn with_command_index(index: u32) -> Self {
+            Self::empty_command().set_command_index(index)
+        }
     }
+}
+
+enum AutoCommand {
+    None = 0,
+    CMD12 = 0b01,
+    CMD23 = 0b10
+}
+
+enum ResponseType {
+    NoResponse = 0,
+    Response136Bit = 01,
+    Response48Bit = 10,
+    Response48BitUsingBusy = 11
+}
+
+enum CommandType {
+    Normal = 00,
+    Suspend = 01,
+    Resume = 10,
+    Abort = 11
 }
 
 bitfield! {
