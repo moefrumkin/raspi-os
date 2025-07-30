@@ -47,7 +47,7 @@ static mut sd_hv: u64 = 0;
 #[repr(C)]
 pub struct EMMCRegisters {
     pub arg2: Volatile<u32>,
-    pub blockSizeAndCount: Volatile<BlockSizeAndCount>,
+    pub block_size_and_count: Volatile<BlockSizeAndCount>,
     pub arg1: Volatile<u32>,
     pub command: Volatile<SDCommand>,
     pub resp0: Volatile<u32>,
@@ -59,10 +59,10 @@ pub struct EMMCRegisters {
     pub control0: Volatile<Control0>,
     pub control1: Volatile<Control1>,
     pub interrupt: Volatile<Interrupt>,
-    pub irpt_mask: Volatile<InterruptMask>,
-    pub irpt_en: Volatile<InterruptEnable>,
+    pub irpt_mask: Volatile<Interrupt>,
+    pub irpt_en: Volatile<Interrupt>,
     pub control2: Volatile<u32>,
-    pub force_irpt: Volatile<ForceInterrupt>,
+    pub force_irpt: Volatile<Interrupt>,
     pub boot_timeout: Volatile<u32>,
     pub dbg_sgl: Volatile<DBG_SEL>,
     pub exrdfifo_cfg: Volatile<EXRDFIFO_CFG>,
@@ -71,7 +71,7 @@ pub struct EMMCRegisters {
     pub tune_steps_std: Volatile<TUNE_STEPS_STD>,
     pub tune_steps_ddr: Volatile<TUNE_STEPS_DDR>,
     pub spi_int_spt: Volatile<SPI_INT_SPT>,
-    pub slotisr_ver: Volatile<SLOTISR_VER>
+    pub slotisr_ver: Volatile<SlotInterruptStatusAndVersion>
 }
 
 impl EMMCRegisters {
@@ -150,6 +150,7 @@ impl EMMCRegisters {
         let interrupt = self.interrupt.get();
 
         // TODO these should just be bits on the bitfield
+        // Is this correct?
         if count <= 0
             || interrupt.is_command_timeout_error()
             || interrupt.is_command_timeout_error()
@@ -165,7 +166,6 @@ impl EMMCRegisters {
     }
 
     pub fn sd_command(&mut self, mut command: SDCommand, arg: u32, timer: &Timer) -> u32 {
-        //println!("Sending command {:#x}, arg {:#x}", command, arg);
         let mut r = 0;
 
         if command.get_is_application_specific() == 1 {
@@ -302,10 +302,8 @@ impl EMMCRegisters {
 
         timer.delay(10);
 
-        self.control1.set(
-            Control1 {
-                value: self.control1.get().as_u32() | Self::C1_CLK_EN
-            }
+        self.control1.map(|control1|
+            control1.set_clock_enabled(1)
         );
 
         println!("Control set for the second time");
@@ -314,7 +312,7 @@ impl EMMCRegisters {
 
         count = 10_000;
 
-        while(self.control1.get().as_u32() & Self::C1_CLK_STABLE == 0) && count > 0 {
+        while(self.control1.get().get_clock_enabled() == 0) && count > 0 {
             count -= 1;
             timer.delay(10);
         }
@@ -369,7 +367,7 @@ impl EMMCRegisters {
         println!("Pins initialized");
 
         unsafe {
-            sd_hv = ((self.slotisr_ver.get().as_u32() & Self::HOST_SPEC_NUM) >> Self::HOST_SPEC_NUM_SHIFT) as u64;
+            sd_hv = self.slotisr_ver.get().get_host_controller_specification_version() as u64;
         }
 
         println!("sd_hv is: {}", unsafe {sd_hv});
@@ -378,9 +376,9 @@ impl EMMCRegisters {
 
         // Resetting the card
         self.control0.set(Control0{value: 0});
-        self.control1.set(Control1{
-            value: self.control1.get().as_u32() | Self::C1_SRST_HC
-        });
+        self.control1.map(|control1|
+            control1.set_reset_complete_host_circuit(1)
+        );
 
         let mut count = 10000;
 
@@ -390,7 +388,7 @@ impl EMMCRegisters {
 
         println!("Control1 is at: {:p}", &self.control1);
 
-        while (self.control1.get().as_u32() & Self::C1_SRST_HC) != 0
+        while self.control1.get().get_reset_complete_host_circuit() != 0
         && count > 0 {
             //println!("Control0: {}, Control1: {:#x}", self.control0.get().as_u32(), self.control1.get().as_u32());
             count -= 1;
@@ -404,10 +402,11 @@ impl EMMCRegisters {
         println!("Reset successful");
 
         // At this point, reset has succeeded
-        self.control1.set(Control1{
-            value: self.control1.get().as_u32() | Self::C1_CLK_INTLEN | Self::C1_TOUNIT_MAX
-        });
-
+        self.control1.map(|control1|
+            control1.set_enable_internal_clocks(1)
+                .set_data_timeout_unit_exponent(0b1110)
+        );
+        
         timer.delay(10);
 
         // Set clock frequency
@@ -415,13 +414,9 @@ impl EMMCRegisters {
 
         println!("irpt_en is at {:p} and irpt_mask is at {:p}", &self.irpt_en, &self.irpt_mask);
 
-        self.irpt_en.set(InterruptEnable{
-            value: 0xffff_ffff
-        });
+        self.irpt_en.set(Interrupt::ALL_ENABLED);
 
-        self.irpt_mask.set(InterruptMask{
-            value: 0xffff_ffff
-        });
+        self.irpt_mask.set(Interrupt::ALL_ENABLED);
 
         // This should be redundant because of initialization value
         unsafe {
@@ -494,7 +489,7 @@ impl EMMCRegisters {
             panic!("Timeout");
         }
 
-        self.blockSizeAndCount.set(BlockSizeAndCount{ value: (1 << 16) | 8});
+        self.block_size_and_count.set(BlockSizeAndCount{ value: (1 << 16) | 8});
 
         println!("SCR: {:#x}", SDCommand::SEND_SD_CONFIGURATION_REGISTER.value);
         //TODO: check errors
@@ -508,7 +503,7 @@ impl EMMCRegisters {
         let mut cnt = 100_000;
 
         while(r < 2 && cnt > 0) {
-            if(self.status.get().as_u32() & StatusSetting::ReadAvailable as u32!= 0) {
+            if self.status.get().get_read_available() == 1 {
                 unsafe {
                     sd_scr[r] = self.data.get() as u64;
                     r += 1;
@@ -558,7 +553,7 @@ impl EMMCRegisters {
                 self.sd_command(SDCommand::SET_BLOCK_COUNT, num, timer);
             }
 
-            self.blockSizeAndCount.set(BlockSizeAndCount{
+            self.block_size_and_count.set(BlockSizeAndCount{
                 value: (num << 16) | 512
             });
 
@@ -566,7 +561,7 @@ impl EMMCRegisters {
 
             self.sd_command(command, start, timer);
         } else {
-            self.blockSizeAndCount.set(BlockSizeAndCount {
+            self.block_size_and_count.set(BlockSizeAndCount {
                 value: (1 << 16) | 512
             })
         }
@@ -749,14 +744,14 @@ bitfield! {
 
 bitfield! {
     Control1(u32) {
-        CLK_INTLEN: 0-0,
-        CLK_STABLE: 1-1,
-        CLK_EN: 2-2,
+        enable_internal_clocks: 0-0,
+        clock_stable: 1-1,
+        clock_enabled: 2-2,
         CLK_GENSEL: 5-5,
         CLK_FREQ_MS2: 6-7,
         CLK_FREQ8: 8-15,
-        DATA_TOUNIT: 16-19,
-        SRST_HC: 24-24,
+        data_timeout_unit_exponent: 16-19,
+        reset_complete_host_circuit: 24-24,
         SRST_CMD: 25-25,
         SRST_DATA: 26-26
     } with {
@@ -789,6 +784,8 @@ bitfield! {
     } with {
         const INTERRUPT_ERROR_MASK: u32 = 0x017E_8000;
 
+        const ALL_ENABLED: Self = Self { value: 0xffff_ffff };
+
         pub fn as_u32(&self) -> u32 {
             self.value
         }
@@ -812,48 +809,6 @@ bitfield! {
 }
 
 bitfield! {
-    InterruptMask(u32) {
-        CMD_DONE: 0-0,
-        DATA_DONE: 1-1,
-        BLOCK_GAP: 2-2,
-        WRITE_RDY: 4-4,
-        READ_RDY: 5-5,
-        CARD: 8-8,
-        RETUNE: 12-12,
-        BOOTACK: 13-13,
-        ENDBOOT: 14-14,
-        CTO_ERR: 16-16,
-        CRRC_ERR: 17-17,
-        CBAD_ERR: 19-19,
-        DTO_ERR: 20-20,
-        DCRC_ERR: 21-21,
-        DEND_ERR: 22-22,
-        ACMD_ERR: 24-24
-    }
-}
-
-bitfield! {
-    InterruptEnable(u32) {
-        CMD_DONE: 0-0,
-        DATA_DONE: 1-1,
-        BLOCK_GAP: 2-2,
-        WRITE_RDY: 4-4,
-        READ_RDY: 5-5,
-        CARD: 8-8,
-        RETUNE: 12-12,
-        BOOTACK: 13-13,
-        ENDBOOT: 14-14,
-        CTO_ERR: 16-16,
-        CRRC_ERR: 17-17,
-        CBAD_ERR: 19-19,
-        DTO_ERR: 20-20,
-        DCRC_ERR: 21-21,
-        DEND_ERR: 22-22,
-        ACMD_ERR: 24-24
-    }
-}
-
-bitfield! {
     Control2(u32) {
         ACNOX_ERR: 0-0,
         ACTO_ERR: 1-1,
@@ -864,27 +819,6 @@ bitfield! {
         UHSMODE: 16-18,
         TUNEON: 22-22,
         TUNED: 23-23
-    }
-}
-
-bitfield! {
-    ForceInterrupt(u32) {
-        CMD_DONE: 0-0,
-        DATA_DONE: 1-1,
-        BLOCK_GAP: 2-2,
-        WRITE_RDY: 4-4,
-        READ_RDY: 5-5,
-        CARD: 8-8,
-        RETUNE: 12-12,
-        BOOTACK: 13-13,
-        ENDBOOT: 14-14,
-        CTO_ERR: 16-16,
-        CRRC_ERR: 17-17,
-        CBAD_ERR: 19-19,
-        DTO_ERR: 20-20,
-        DCRC_ERR: 21-21,
-        DEND_ERR: 22-22,
-        ACMD_ERR: 24-24
     }
 }
 
@@ -931,13 +865,9 @@ bitfield! {
 }
 
 bitfield! {
-    SLOTISR_VER(u32) {
-        VENDOR: 24-31,
-        SDVERSION: 16-23,
-        SLOT_STATUS: 0-7
-    } with {
-        pub fn as_u32(&self) -> u32 {
-            self.value
-        }
+    SlotInterruptStatusAndVersion(u32) {
+        vendor_version_number: 24-31,
+        host_controller_specification_version: 16-23,
+        slot_status: 0-7
     }
 }
