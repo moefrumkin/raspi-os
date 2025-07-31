@@ -80,23 +80,9 @@ impl EMMCRegisters {
     const InterruptErrorMask: u32 = 0x017E_8000;
 
         // INTERRUPT register settings
-    const InterruptDataTimeout: u32 = 0x00100000;
-    const InterruptCommandTimeout: u32 = 0x00010000;
-    const InterruptReadReady: u32 = 0x00000020;
     const InterruptCommandDone: u32 = 0x00000001;
 
-    const HOST_SPEC_NUM: u32 = 0xff_0000;
-    const HOST_SPEC_NUM_SHIFT: u32 = 16;
-
-    const C0_HCTL_DWIDTH: u32 = 0x2;
     
-    const C1_SRST_HC: u32 = 0x0100_0000;
-    const C1_CLK_INTLEN: u32 = 0x1;
-    const C1_TOUNIT_MAX: u32 = 0xe_0000;
-
-    const C1_CLK_EN: u32 = 0x4;
-    const C1_CLK_STABLE: u32 = 0x2;
-
     const SCR_SD_BUS_WIDTH_4: u32 = 0x400;
     const SCR_SUPP_SET_BLKCNT: u32 = 0x0200_0000;
 
@@ -252,8 +238,10 @@ impl EMMCRegisters {
             panic!("ERROR: timeout waiting for inhibit flag");
         }
 
-        let control1_value = self.control1.get().as_u32();
-        self.control1.set(Control1{ value: control1_value & !Self::C1_CLK_EN});
+        self.control1.map(|control1|
+            control1.set_clock_enabled(0)
+        );
+
         timer.delay(10);
 
         x = c - 1;
@@ -375,7 +363,7 @@ impl EMMCRegisters {
         println!("Resetting card");
 
         // Resetting the card
-        self.control0.set(Control0{value: 0});
+        self.control0.set(Control0::empty());
         self.control1.map(|control1|
             control1.set_reset_complete_host_circuit(1)
         );
@@ -521,10 +509,8 @@ impl EMMCRegisters {
         
         if(unsafe{sd_scr[0] as u32} & Self::SCR_SD_BUS_WIDTH_4 != 0) {
             self.sd_command(SDCommand::SET_BUS_WIDTH, unsafe {sd_rca as u32} | 2, timer);
-            self.control0.set(
-                Control0 {
-                    value: self.control0.get().as_u32() | Self::C0_HCTL_DWIDTH
-                }
+            self.control0.map(|control0|
+                control0.set_use_four_data_lines(1)
             );
         }
 
@@ -728,7 +714,7 @@ bitfield! {
 
 bitfield! {
     Control0(u32) {
-        HCTL_DWIDTH: 1-1,
+        use_four_data_lines: 1-1,
         HCTL_HS_EN: 2-2,
         HCTL_8BIT: 5-5,
         GAP_STOP: 16-16,
@@ -741,6 +727,10 @@ bitfield! {
     } with {
         pub fn as_u32(&self) -> u32 {
             self.value
+        }
+
+        pub fn empty() -> Self {
+            Self { value: 0 }
         }
     }
 }
