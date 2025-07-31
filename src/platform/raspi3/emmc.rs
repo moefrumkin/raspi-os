@@ -489,7 +489,7 @@ impl EMMCRegisters {
             panic!("Timeout");
         }
 
-        self.block_size_and_count.set(BlockSizeAndCount{ value: (1 << 16) | 8});
+        self.block_size_and_count.set(BlockSizeAndCount::with_size_and_count(8, 1));
 
         println!("SCR: {:#x}", SDCommand::SEND_SD_CONFIGURATION_REGISTER.value);
         //TODO: check errors
@@ -553,17 +553,13 @@ impl EMMCRegisters {
                 self.sd_command(SDCommand::SET_BLOCK_COUNT, num, timer);
             }
 
-            self.block_size_and_count.set(BlockSizeAndCount{
-                value: (num << 16) | 512
-            });
+            self.block_size_and_count.set(BlockSizeAndCount::with_size_and_count(512, 16));
 
             let command = if num == 1 { SDCommand::READ_SINGLE_BLOCK } else {SDCommand::READ_MULTIPLE_BLOCKS };
 
             self.sd_command(command, start, timer);
         } else {
-            self.block_size_and_count.set(BlockSizeAndCount {
-                value: (1 << 16) | 512
-            })
+            self.block_size_and_count.set(BlockSizeAndCount::with_size_and_count(512, 1));
         }
 
         let mut buffer_offset = 0;
@@ -596,8 +592,15 @@ impl EMMCRegisters {
 
 bitfield! {
     BlockSizeAndCount(u32) {
-        blockSize: 0-9,
-        numberOfBlocks: 16-31
+        block_size: 0-9,
+        number_of_blocks: 16-31
+    } with {
+        fn empty() -> Self {
+            Self { value: 0 }
+        }
+        pub fn with_size_and_count(size: u32, count: u32) -> Self {
+            Self::empty().set_block_size(size).set_number_of_blocks(count)
+        }
     }
 }
 
