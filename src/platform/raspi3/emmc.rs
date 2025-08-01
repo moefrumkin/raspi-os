@@ -38,8 +38,16 @@ pub enum StatusSetting {
     AppCommand = 0x0000_0020
 }
 
+pub struct SDController<'a> {
+    registers: &'a mut EMMCRegisters,
+    gpio: &'a mut GPIOController<'a>,
+    timer: &'a mut Timer<'a>,
+
+    operating_condition_register: u32,
+
+}
+
 static mut sd_scr: [u64; 2] = [0, 0];
-static mut sd_ocr: u64 = 0;
 static mut sd_rca: u64 = 0;
 static mut sd_err: u64 = 0;
 static mut sd_hv: u64 = 0;
