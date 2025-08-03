@@ -119,12 +119,16 @@ impl LinkedListAllocator {
     //TODO coalesce neighboring blocks
     fn free(&mut self, start: usize, size: usize) {
         self.stats.frees += 1;
+
+        // TODO: should be a single source of truth for expanding blocks
+        let size = size.max(mem::size_of::<FreeBlock>());
+
         if start % mem::align_of::<FreeBlock>() != 0 {
             panic!("Incompatible memory alignment of freed block. Block address: {:x}, needs alignment {}", start, mem::align_of::<FreeBlock>());
         }
 
         if size < mem::size_of::<FreeBlock>() {
-            panic!("Block too small to free");
+            panic!("Block too small to free: {:#x}, {}", start, size);
         }
 
         //No actual computation, just a cast

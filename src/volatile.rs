@@ -134,6 +134,10 @@ impl <T: Copy> Volatile<T> {
             core::ptr::write_volatile(&mut self.value, value)
         }
     }
+
+    pub fn map(&mut self, f: fn(T) -> T) {
+        self.set(f(self.get()))
+    }
 }
 
 #[cfg(test)]

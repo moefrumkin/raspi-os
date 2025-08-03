@@ -16,12 +16,14 @@ const GPSET_BASE_OFFSET: u32 = GPIO_BASE_OFFSET + 0x1c;
 const GPCLR_SIZE: u32 = 32;
 const GPCLR_BASE_OFFSET: u32 = GPIO_BASE_OFFSET + 0x28;
 
+const GPHEN_BASE_OFFSET: u32 = GPIO_BASE_OFFSET + 0x64;
+
 #[allow(dead_code)]
 const GPPPUD: u32 = GPIO_BASE_OFFSET + 0x94;
 
 #[allow(dead_code)]
 const GPPUDCLK_SIZE: u32 = 32;
-const GPPUDCLK_BASE_OFFSET: u32 = GPCLR_BASE_OFFSET + 0x98;
+const GPPUDCLK_BASE_OFFSET: u32 = GPIO_BASE_OFFSET + 0x98;
 
 pub struct GPIOController<'a> {
     mmio: &'a MMIOController,
@@ -94,6 +96,19 @@ impl<'a> GPIOController<'a> {
     fn get_gpclr(&self, pin: Pin) -> u32 {
         self.mmio
             .read_at_offset((GPCLR_BASE_OFFSET + pin.gpclr_block() * 4) as usize)
+    }
+
+    // TODO: do this better
+    pub fn set_gphen(&self, pin: Pin, value: u32) {
+        let bank;
+        if(pin.number < 32) {
+            bank = 0;
+        } else {
+            bank = 1
+        }
+
+        let offset_in_bank = pin.number - 32 * bank;
+        self.mmio.write_at_offset(value | (1 << offset_in_bank), (bank * 4 + GPHEN_BASE_OFFSET) as usize);
     }
 }
 

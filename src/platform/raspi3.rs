@@ -13,5 +13,6 @@ pub mod framebuffer;
 pub mod clock;
 pub mod hardware_config;
 pub mod power;
+pub mod emmc;
 
 mod exception;

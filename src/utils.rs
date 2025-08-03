@@ -5,3 +5,5 @@ pub use super::aarch64::math as math;
 pub mod math;
 
 pub mod bitfield;
+
+pub mod fat_name;

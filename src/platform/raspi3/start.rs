@@ -6,6 +6,13 @@ use crate::{print, println, read, write};
 use alloc::vec::Vec;
 use alloc::slice;
 
+use crate::{
+    device::sector_device::SectorDevice,
+    filesystem::{
+        master_boot_record::{MasterBootRecord},
+        fat32::{FAT32Filesystem}
+    }
+};
 
 use super::{
     gpio::{GPIOController, OutputLevel, Pin, StatusLight},
@@ -31,7 +38,11 @@ use super::{
         Device,
         PowerState,
         DEVICES
-    }
+    },
+    emmc::{
+        EMMCRegisters,
+        EMMCController
+    },
 };
 
 static MMIO: MMIOController = MMIOController::new();
@@ -96,6 +107,35 @@ pub extern "C" fn main(heap_start: usize, heap_size: usize, table_start: usize) 
             clock.get_max_clock_rate(&mut mailbox)
         );
     }
+
+    println!("Trying to initialize the sd card");
+
+    let mut emmc_regs = EMMCRegisters::get();
+
+    let mut emmc_gpio = GPIOController::new(&mmio);
+    let mut emmc_timer = Timer::new(&mmio);
+
+    let mut emmc_controller = EMMCController::new(&mut emmc_regs, &mut emmc_gpio, &mut emmc_timer);
+
+    emmc_controller.initialize();
+
+    let (mbr_sector_number, master_boot_record) = MasterBootRecord::scan_device_for_mbr(
+        &mut emmc_controller,
+        0,
+        20)
+        .expect("Unable to read Master Boot Record");
+
+    let partition = master_boot_record.partition_entries[0];
+    
+    let mut filesystem = FAT32Filesystem::load_in_partition(
+        &mut emmc_controller,
+        mbr_sector_number + partition.first_sector_address(),
+        mbr_sector_number + partition.last_sector_address())
+        .expect("Unable to initialize a FAT32 filesystem in partition");
+
+    let root_dir = filesystem.get_root_directory();
+
+    println!("Root directory: {}", root_dir);
 
     let resolution = Dimensions::new(1920, 1080);
 
