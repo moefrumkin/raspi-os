@@ -42,7 +42,8 @@ use super::{
         MBRSector,
         PartitionEntry,
         DirectorySector,
-        DirectoryEntry
+        DirectoryEntry,
+        FAT32Filesystem
     }
 };
 
@@ -149,62 +150,13 @@ pub extern "C" fn main(heap_start: usize, heap_size: usize, table_start: usize) 
 
     let boot_partition = mbr_sector.partition_entries[0];
 
-    let mut block = boot_partition.get_first_sector_lba();
-    let boot_sector: BootSector;
-
-    loop {
-        let sector = Sector::load(block, &mut emmc_controller);
-
-        println!("Sector {} {}", block, sector);
-
-        if let Ok(sector) = BootSector::try_from_sector(&sector) {
-            boot_sector = sector;
-            println!("Found boot sector at {}", block);
-            break
-        }
-
-        block += 1;
-    }
-
-    println!("Boot sector: {:?}", boot_sector);
-
-    let config = boot_sector.as_config();
-
-    println!("Boot sector config: {}", config);
-
-    let fs_start = mbr_block_index + boot_partition.get_first_sector_lba();
-
-    println!("The filesystem starts at {}", fs_start);
-
-    let fat_start = fs_start + config.reserved_sectors as u32;
-
-    let first_data_sector = fat_start
-        + config.number_of_fats as u32 * config.sectors_per_fat;
-
-    let root_dir_sector = first_data_sector;
-
-    println!("The FAT starts at {:#x}", fat_start);
-
-    println!("The data block starts at {:#x}", first_data_sector);
+    let block = boot_partition.get_first_sector_lba();
     
-    println!("The root dir sector is: {:#x}", root_dir_sector);
+    let mut filesystem = FAT32Filesystem::new(&mut emmc_controller, block).unwrap();
 
-    let root_sector = Sector::load(root_dir_sector, &mut emmc_controller);
+    let root_dir = filesystem.get_root_directory();
 
-
-    println!("Root dir: {}", root_sector);
-    
-    let root_directory = unsafe { DirectorySector::from_sector(root_sector) };
-
-    for i in 0..16 {
-        let entry = &root_directory.directory_entries[i];
-
-        if !entry.is_free() {
-            println!("{}", entry);
-        } else {
-            println!("free");
-        }
-    }
+    println!("Root directory: {}", root_dir);
 
     let resolution = Dimensions::new(1920, 1080);
 

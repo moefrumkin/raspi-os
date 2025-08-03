@@ -330,8 +330,6 @@ impl<'a> EMMCController<'a> {
 
         self.registers.irpt_mask.set(Interrupt::ALL_ENABLED);
 
-        // This should be redundant because of initialization value
-
         // TODO: this might not be the correct error checking
         if self.send_command(SDCommand::GO_IDLE, 0).unwrap() != 0 {
             panic!("Unable to go idle");
