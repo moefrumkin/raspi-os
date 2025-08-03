@@ -46,7 +46,7 @@ impl TryFrom<Sector> for MasterBootRecord {
             core::mem::transmute::<Sector, MasterBootRecord>(value)
         };    
 
-        if(master_boot_record_candidate.boot_signature == Self::BOOT_SIGNATURE) {
+        if master_boot_record_candidate.boot_signature == Self::BOOT_SIGNATURE {
             return Ok(master_boot_record_candidate)
         } else {
             return Err(());
