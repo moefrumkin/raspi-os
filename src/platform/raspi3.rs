@@ -14,6 +14,5 @@ pub mod clock;
 pub mod hardware_config;
 pub mod power;
 pub mod emmc;
-pub mod fat32;
 
 mod exception;

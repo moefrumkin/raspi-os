@@ -5,6 +5,11 @@ use super::mmio::MMIOController;
 use super::gpio::{GPIOController, Pin, Pull, Mode};
 use crate::aarch64::cpu::wait_for_cycles;
 use super::uart::CONSOLE;
+use crate::device::sector_device::{
+    Sector,
+    SectorAddress,
+    SectorDevice
+};
 
 enum CommandFlag {
     NeedApp = 0x8000_0000,
@@ -45,6 +50,16 @@ pub struct EMMCController<'a> {
     configuration: SDConfigurationRegister,
     relative_card_address: u32,
     hardware_version: u32
+}
+
+impl<'a> SectorDevice for EMMCController<'a> {
+    fn read_sector(&mut self, address: SectorAddress) -> Sector {
+        let mut buffer: [u8; 512] = [0; 512];
+
+        self.read_blocks(address, &mut buffer, 1);
+
+        Sector::from(buffer)
+    }
 }
 
 impl<'a> EMMCController<'a> {

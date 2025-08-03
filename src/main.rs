@@ -33,6 +33,9 @@ mod utils;
 
 mod volatile;
 
+mod device;
+mod filesystem;
+
 #[cfg(not(test))]
 #[lang = "eh_personality"]
 pub extern "C" fn eh_personality() {}

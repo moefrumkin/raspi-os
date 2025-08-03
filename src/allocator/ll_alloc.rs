@@ -120,6 +120,7 @@ impl LinkedListAllocator {
     fn free(&mut self, start: usize, size: usize) {
         self.stats.frees += 1;
 
+        // TODO: should be a single source of truth for expanding blocks
         let size = size.max(mem::size_of::<FreeBlock>());
 
         if start % mem::align_of::<FreeBlock>() != 0 {

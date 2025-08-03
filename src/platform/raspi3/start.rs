@@ -6,6 +6,13 @@ use crate::{print, println, read, write};
 use alloc::vec::Vec;
 use alloc::slice;
 
+use crate::{
+    device::sector_device::SectorDevice,
+    filesystem::{
+        master_boot_record::{MasterBootRecord},
+        fat32::{FAT32Filesystem}
+    }
+};
 
 use super::{
     gpio::{GPIOController, OutputLevel, Pin, StatusLight},
@@ -36,15 +43,6 @@ use super::{
         EMMCRegisters,
         EMMCController
     },
-    fat32::{
-        Sector,
-        BootSector,
-        MBRSector,
-        PartitionEntry,
-        DirectorySector,
-        DirectoryEntry,
-        FAT32Filesystem
-    }
 };
 
 static MMIO: MMIOController = MMIOController::new();
@@ -121,38 +119,19 @@ pub extern "C" fn main(heap_start: usize, heap_size: usize, table_start: usize) 
 
     emmc_controller.initialize();
 
+    let (mbr_sector_number, master_boot_record) = MasterBootRecord::scan_device_for_mbr(
+        &mut emmc_controller,
+        0,
+        20)
+        .expect("Unable to read Master Boot Record");
 
-    println!("Sector 0x2001 {}", Sector::load(0x2001, &mut emmc_controller));
-
-    let mut mbr_block_index = 0;
-
-
-    let mbr_sector: MBRSector;
-    loop {
-        let sector = Sector::load(mbr_block_index, &mut emmc_controller);
-
-        println!("Sector {} {}", mbr_block_index, sector);
-        
-        if let Ok(sector) = MBRSector::try_from_sector(sector) {
-            mbr_sector = sector;
-            break
-        }
-        mbr_block_index += 1; 
-    }
-
-    println!("Boot sector found: {}", mbr_block_index);
-
-    for n in 0..4 {
-        let partition = mbr_sector.partition_entries[n];
-
-        println!("Partition {}: {:?}", n, partition);
-    }
-
-    let boot_partition = mbr_sector.partition_entries[0];
-
-    let block = boot_partition.get_first_sector_lba();
+    let partition = master_boot_record.partition_entries[0];
     
-    let mut filesystem = FAT32Filesystem::new(&mut emmc_controller, block).unwrap();
+    let mut filesystem = FAT32Filesystem::load_in_partition(
+        &mut emmc_controller,
+        mbr_sector_number + partition.first_sector_address(),
+        mbr_sector_number + partition.last_sector_address())
+        .expect("Unable to initialize a FAT32 filesystem in partition");
 
     let root_dir = filesystem.get_root_directory();
 
