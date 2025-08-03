@@ -95,16 +95,7 @@ impl<'a> FAT32Filesystem<'a> {
         let fat_sector_number = self.fat_start + (fat_offset / self.config.bytes_per_sector as u32);
         let fat_sector_offset = cluster_number % self.config.bytes_per_sector as u32;
 
-        println!("FAT starts as: {:#x}, cluster_number is: {:#x}, fat sector number is: {:#x} offset is {}",
-            self.fat_start,
-            cluster_number,
-            fat_sector_number,
-            fat_sector_offset);
-
-        let sector = Sector::load(fat_sector_number, self.emmc_controller);
         let fat_sector = FATSector::from_sector(Sector::load(fat_sector_number, self.emmc_controller));
-
-        println!("{}", sector);
 
         fat_sector.get_entry(fat_sector_offset)
     }
@@ -311,7 +302,6 @@ impl BootSector {
     }
 
     pub fn as_config(&self) -> FAT32Config {
-        println!("Media: {:#x}", self.media);
         FAT32Config {
             bytes_per_sector: self.get_bytes_per_sector(),
             sectors_per_cluster: self.get_sectors_per_cluster(),
