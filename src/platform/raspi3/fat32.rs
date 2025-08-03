@@ -560,4 +560,3 @@ impl<'a> fmt::Display for Directory<'a> {
         Ok(())
     }
 }
-
