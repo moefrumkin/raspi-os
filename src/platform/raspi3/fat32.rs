@@ -3,6 +3,7 @@ use super::uart::CONSOLE;
 use core::fmt;
 use crate::{bitfield, print, println};
 use alloc::vec::Vec;
+use crate::utils::fat_name::fat_name_from_chars;
 
 #[repr(transparent)]
 #[derive(Copy, Clone)]
@@ -442,8 +443,8 @@ bitfield! {
 }
 
 impl DirectoryEntry {
-    pub fn get_name(&self) -> Result<&str, core::str::Utf8Error> {
-        core::str::from_utf8(&self.name)
+    pub fn get_name(&self) -> Result<alloc::string::String, core::str::Utf8Error> {
+        Ok(fat_name_from_chars(&self.name))
     }
 
     pub fn is_directory_entry(&self) -> bool {
