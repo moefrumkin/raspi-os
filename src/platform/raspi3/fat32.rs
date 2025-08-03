@@ -1,5 +1,4 @@
-use super::emmc::EMMCRegisters;
-use super::timer::Timer;
+use super::emmc::EMMCController;
 use core::fmt;
 use crate::bitfield;
 
@@ -250,12 +249,12 @@ impl PartitionEntry {
 impl Sector {
     pub const SECTOR_SIZE: usize = 512;
 
-    pub fn load(number: u32, emmc: &mut EMMCRegisters, timer: &Timer) -> Self {
+    pub fn load(number: u32, emmc: &mut EMMCController) -> Self {
         let mut sector = Self {
             values: [0; Self::SECTOR_SIZE]
         };
 
-        emmc.sd_readblock(number, &mut sector.values, 1, timer);
+        emmc.read_blocks(number, &mut sector.values, 1);
 
         return sector;
     }

@@ -33,7 +33,8 @@ use super::{
         DEVICES
     },
     emmc::{
-        EMMCRegisters
+        EMMCRegisters,
+        EMMCController
     },
     fat32::{
         Sector,
@@ -112,17 +113,22 @@ pub extern "C" fn main(heap_start: usize, heap_size: usize, table_start: usize) 
 
     let mut emmc_regs = EMMCRegisters::get();
 
-    emmc_regs.sd_init(&timer, &gpio);
+    let mut emmc_gpio = GPIOController::new(&mmio);
+    let mut emmc_timer = Timer::new(&mmio);
+
+    let mut emmc_controller = EMMCController::new(&mut emmc_regs, &mut emmc_gpio, &mut emmc_timer);
+
+    emmc_controller.initialize();
 
 
-    println!("Sector 0x2001 {}", Sector::load(0x2001, &mut emmc_regs, &timer));
+    println!("Sector 0x2001 {}", Sector::load(0x2001, &mut emmc_controller));
 
     let mut mbr_block_index = 0;
 
 
     let mbr_sector: MBRSector;
     loop {
-        let sector = Sector::load(mbr_block_index, &mut emmc_regs, &timer);
+        let sector = Sector::load(mbr_block_index, &mut emmc_controller);
 
         println!("Sector {} {}", mbr_block_index, sector);
         
@@ -147,7 +153,7 @@ pub extern "C" fn main(heap_start: usize, heap_size: usize, table_start: usize) 
     let boot_sector: BootSector;
 
     loop {
-        let sector = Sector::load(block, &mut emmc_regs, &timer);
+        let sector = Sector::load(block, &mut emmc_controller);
 
         println!("Sector {} {}", block, sector);
 
@@ -183,7 +189,7 @@ pub extern "C" fn main(heap_start: usize, heap_size: usize, table_start: usize) 
     
     println!("The root dir sector is: {:#x}", root_dir_sector);
 
-    let root_sector = Sector::load(root_dir_sector, &mut emmc_regs, &timer);
+    let root_sector = Sector::load(root_dir_sector, &mut emmc_controller);
 
 
     println!("Root dir: {}", root_sector);
