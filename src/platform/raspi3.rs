@@ -6,7 +6,7 @@ pub mod mmio;
 #[cfg(not(test))]
 pub mod start;
 pub mod timer;
-pub mod uart;
+pub mod mini_uart;
 pub mod lcd;
 pub mod mailbox_property;
 pub mod framebuffer;

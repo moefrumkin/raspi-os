@@ -4,7 +4,7 @@ use super::timer::Timer;
 use super::mmio::MMIOController;
 use super::gpio::{GPIOController, Pin, Pull, Mode};
 use crate::aarch64::cpu::wait_for_cycles;
-use super::uart::CONSOLE;
+use super::mini_uart::CONSOLE;
 use crate::device::sector_device::{
     Sector,
     SectorAddress,

@@ -20,7 +20,7 @@ use super::{
     mailbox::{Channel, MailboxController},
     mmio::MMIOController,
     timer::Timer,
-    uart::{LogLevel, UARTController, CONSOLE},
+    mini_uart::{LogLevel, MiniUARTController, CONSOLE},
     framebuffer::{
         FrameBuffer, PixelOrder, Overscan, FrameBufferConfig,
         Offset,
@@ -60,7 +60,7 @@ pub extern "C" fn main(heap_start: usize, heap_size: usize, table_start: usize) 
 
     blink_sequence(&status_light, &timer, 100);
 
-    let mut console = UARTController::init(&GPIO, &MMIO);
+    let mut console = MiniUARTController::init(&GPIO, &MMIO);
     console.set_log_level(LogLevel::Debug);
 
     unsafe {

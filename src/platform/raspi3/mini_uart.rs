@@ -10,7 +10,7 @@ use core::{
 };
 
 // TODO: make this non mutable using an interior mutability pattern
-pub static mut CONSOLE: SpinMutex<Option<UARTController>> = SpinMutex::new(None);
+pub static mut CONSOLE: SpinMutex<Option<MiniUARTController>> = SpinMutex::new(None);
 
 #[macro_export]
 macro_rules! print {
@@ -67,7 +67,7 @@ const AUX_MU_CNTL: u32 = UART_BASE_OFFSET + 0x60;
 const AUX_MU_BAUD: u32 = UART_BASE_OFFSET + 0x68;
 
 #[allow(dead_code)]
-pub struct UARTController<'a> {
+pub struct MiniUARTController<'a> {
     gpio: &'a GPIOController<'a>,
     mmio: &'a MMIOController,
     config: UARTConfig,
@@ -93,14 +93,14 @@ pub enum LogLevel {
     Debug,
 }
 
-impl<'a> Write for UARTController<'a> {
+impl<'a> Write for MiniUARTController<'a> {
     fn write_str(&mut self, s: &str) -> Result<(), Error> {
         self.write(s);
         Ok(())
     }
 }
 
-impl<'a> UARTController<'a> {
+impl<'a> MiniUARTController<'a> {
     pub fn new(gpio: &'a GPIOController, mmio: &'a MMIOController) -> Self {
         Self {
             gpio,
