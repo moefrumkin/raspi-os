@@ -60,7 +60,8 @@ pub extern "C" fn main(heap_start: usize, heap_size: usize, table_start: usize) 
 
     blink_sequence(&status_light, &timer, 100);
 
-    let mut console = MiniUARTController::init(&GPIO, &MMIO);
+    let mut console = MiniUARTController::new(&GPIO, &MMIO);
+    console.new_2();
     console.set_log_level(LogLevel::Debug);
 
     unsafe {

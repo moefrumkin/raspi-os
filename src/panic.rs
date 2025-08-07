@@ -6,7 +6,7 @@
 use super::platform::{
     gpio::{GPIOController, OutputLevel, StatusLight},
     mmio::MMIOController,
-    uart::UARTController,
+    mini_uart::MiniUARTController,
 };
 use core::{panic::PanicInfo, alloc::Layout};
 use crate::ALLOCATOR;
@@ -17,7 +17,7 @@ use crate::ALLOCATOR;
 fn on_panic(info: &PanicInfo) -> ! {
     let mmio = MMIOController::default();
     let gpio = GPIOController::new(&mmio);
-    let mut uart = UARTController::init(&gpio, &mmio);
+    let mut uart = MiniUARTController::init(&gpio, &mmio);
     let status_light = StatusLight::init(&gpio);
 
     status_light.set_green(OutputLevel::Low);
@@ -52,7 +52,7 @@ fn on_panic(info: &PanicInfo) -> ! {
 fn on_alloc_error(layout: Layout) -> ! {
     let mmio = MMIOController::default();
     let gpio = GPIOController::new(&mmio);
-    let mut uart = UARTController::init(&gpio, &mmio);
+    let mut uart = MiniUARTController::init(&gpio, &mmio);
     let status_light = StatusLight::init(&gpio);
 
     status_light.set_green(OutputLevel::Low);
