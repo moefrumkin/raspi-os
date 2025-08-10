@@ -1,5 +1,5 @@
 use core::arch::global_asm;
-use crate::aarch64::{cpu, mmu};
+use crate::aarch64::{cpu, mmu, interrupt};
 use crate::canvas::{canvas2d::Canvas2D, line::Line, matrix::Matrix, vector::Vector};
 use crate::ALLOCATOR;
 use crate::{print, println, read, write};
@@ -43,6 +43,9 @@ use super::{
         EMMCRegisters,
         EMMCController
     },
+    interrupt::{
+        InterruptController
+    }
 };
 
 static MMIO: MMIOController = MMIOController::new();
@@ -54,7 +57,7 @@ global_asm!(include_str!("start.s"));
 pub extern "C" fn main(heap_start: usize, heap_size: usize, table_start: usize) {
     let mmio = MMIOController::default();
     let gpio = GPIOController::new(&mmio);
-    let timer = Timer::new(&mmio);
+    let mut timer = Timer::new();
     
     let status_light = StatusLight::init(&gpio);
 
@@ -114,7 +117,7 @@ pub extern "C" fn main(heap_start: usize, heap_size: usize, table_start: usize) 
     let mut emmc_regs = EMMCRegisters::get();
 
     let mut emmc_gpio = GPIOController::new(&mmio);
-    let mut emmc_timer = Timer::new(&mmio);
+    let mut emmc_timer = Timer::new();
 
     let mut emmc_controller = EMMCController::new(&mut emmc_regs, &mut emmc_gpio, &mut emmc_timer);
 
@@ -137,6 +140,17 @@ pub extern "C" fn main(heap_start: usize, heap_size: usize, table_start: usize) 
     let root_dir = filesystem.get_root_directory();
 
     println!("Root directory: {}", root_dir);
+
+    println!("Enabling IRQs");
+
+    interrupt::enable_irq();
+
+    let mut interrupt_controller = InterruptController::new();
+
+    interrupt_controller.enable_timer_interrupt_3();
+    interrupt_controller.enable_mini_uart_interrupt();
+
+    println!("Timer interrupt enabled!");
 
     let resolution = Dimensions::new(1920, 1080);
 

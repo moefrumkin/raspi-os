@@ -101,7 +101,7 @@ _start: //spin if not main core
         [9]: D: 1 masks Watchpoint, Breakpoint and Software Step exceptions
 
     */
-    mov     x2, 0b1111000100
+    mov     x2, 0b1111000101
     msr     spsr_el2, x2
 
     //set the exception link register to point to 5f

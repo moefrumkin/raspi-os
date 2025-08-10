@@ -1,5 +1,7 @@
 use core::arch::global_asm;
-use super::{mmio::MMIOController, gpio::{GPIOController, StatusLight, OutputLevel}, timer::Timer};
+use super::{mmio::MMIOController, gpio::{GPIOController, StatusLight, OutputLevel}, timer::Timer,
+    mini_uart::MiniUARTController
+};
 
 global_asm!(include_str!("exception.s"));
 
@@ -7,7 +9,17 @@ global_asm!(include_str!("exception.s"));
 pub extern "C" fn handle_exception(exception_source: usize, exception_type: usize, esr: usize, elr: usize, _spsr: usize, _far: usize, _sp: usize) {
     let mmio = MMIOController::default();
     let gpio = GPIOController::new(&mmio);
-    let timer = Timer::new(&mmio);
+    let timer = Timer::new();
+
+    let mut uart = MiniUARTController::new(&gpio, &mmio);
+    uart.new_2();
+
+    uart.writefln(format_args!(
+        "Exception of type {} received with source {}",
+        exception_type,
+        exception_source)
+    );
+
     let status_light = StatusLight::init(&gpio);
 
     const LONG_WAIT: u64 = 1500;

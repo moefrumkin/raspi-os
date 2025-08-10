@@ -14,5 +14,6 @@ pub mod clock;
 pub mod hardware_config;
 pub mod power;
 pub mod emmc;
+pub mod interrupt;
 
 mod exception;

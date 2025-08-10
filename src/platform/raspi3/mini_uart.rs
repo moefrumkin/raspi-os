@@ -58,7 +58,7 @@ macro_rules! println {
 struct MiniUARTRegisters {
     interrupt: Volatile<InterruptSource>,
     enables: Volatile<InterruptEnable>,
-    res: [u8; 32],
+    res: [u8; 56],
     io_data: Volatile<MiniUARTIO>,
     interrupt_enable: Volatile<MiniUARTInterruptEnable>,
     interrupt_identify: Volatile<MiniUARTInterruptStatus>,
@@ -155,7 +155,7 @@ impl<'a> MiniUARTController<'a> {
         );
 
         // Disable Interrupts
-        self.registers.interrupt_enable.set(MiniUARTInterruptEnable::disabled());
+        self.registers.interrupt_enable.set(MiniUARTInterruptEnable::enabled());
 
         // Clear fifo bits
         self.registers.interrupt_identify.map(|line_control|
@@ -321,6 +321,10 @@ bitfield! {
     } with {
         pub fn disabled() -> Self {
             Self { value: 0 }
+        }
+
+        pub fn enabled() -> Self {
+            Self { value: 0b01 }
         }
     }
 }
