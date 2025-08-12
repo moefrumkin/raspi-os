@@ -15,6 +15,6 @@ pub mod hardware_config;
 pub mod power;
 pub mod emmc;
 pub mod interrupt;
-pub mod hardware_devices;
+pub mod platform_devices;
 
 mod exception;

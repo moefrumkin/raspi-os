@@ -1,6 +1,6 @@
 use core::{arch::asm, cell::RefCell};
 use alloc::{vec, vec::Vec};
-use crate::volatile::{AlignedBuffer, Volatile};
+use crate::{bitfield, volatile::{AlignedBuffer, Volatile}};
 use alloc::rc::Rc;
 
 const MBOX_BASE_OFFSET: usize = 0xB880;
@@ -20,46 +20,71 @@ pub const MBOX_RESPONSE: u32 = 0x80000000;
 const MBOX_FULL: u32 = 0x80000000;
 const MBOX_EMPTY: u32 = 0x40000000;
 
-pub struct MailboxController {
-    mmio: Rc<RefCell<MMIOController>>
+#[repr(C)]
+pub struct MailboxRegisters {
+    read: Volatile<u32>,
+    res0: [u32; 5],
+    status: Volatile<MailboxStatus>,
+    res1: [u32; 1],
+    write: Volatile<MailboxWriteData>
 }
 
-impl MailboxController {
-    pub fn new(mmio: Rc<RefCell<MMIOController>>) -> Self {
-        return Self { mmio };
+bitfield! {
+    MailboxStatus(u32) {
+        is_empty: 30-30,
+        is_full: 31-31
+    }
+}
+
+bitfield! {
+    MailboxWriteData(u32) {
+        channel: 0-3,
+        data: 4-31
+    }
+}
+
+pub struct MailboxController<'a> {
+    registers: &'a mut MailboxRegisters
+}
+
+impl<'a> MailboxController<'a> {
+    pub fn with_registers(registers: &'a mut MailboxRegisters) -> Self {
+        return Self { registers };
     }
 
     /// Send the message to the channel and wait for the response.
     /// The lower 4 bits of the message must be 0, otherwise things won't be pretty
-    pub fn call(&self, message: u32, channel: Channel) -> u32 {
+    pub fn call(&mut self, message: u32, channel: Channel) -> u32 {
         //wait there is space to write
-        while self.mmio.borrow().read_at_offset(MBOX_STATUS) & MBOX_FULL != 0 {
+        while self.registers.status.get().get_is_full() == 1 {
             unsafe {
                 asm!("nop");
             }
         }
 
-        self.mmio.borrow_mut()
-            .write_at_offset(message | channel as u32, MBOX_WRITE);
+        self.registers.write.map_closure(&|write|
+            write.set_channel(channel as u32).set_data(message)
+        );
 
         //loop until the message has a response
         loop {
             //wait until the mailbox is not empty
-            while self.mmio.borrow().read_at_offset(MBOX_STATUS) & MBOX_EMPTY != 0 {
+            while self.registers.status.get().get_is_empty() == 1 {
                 unsafe {
                     asm!("nop");
                 }
             }
 
-            let response = self.mmio.borrow().read_at_offset(MBOX_READ as usize);
+            let response = self.registers.read.get();
 
+            // TODO get rid of magic number
             if response & 0b1111 == channel as u32 {
                 return response;
             }
         }
     }
 
-    pub fn property_message(&self, buffer: &MailboxBuffer) {
+    pub fn property_message(&mut self, buffer: &MailboxBuffer) {
         let addr = buffer.as_ptr();
 
         self.call(addr as u32, Channel::Prop);

@@ -26,7 +26,7 @@ macro_rules! println {
        console.newline()
     };
     ($($args:tt)*) => {
-        let console = crate::platform::raspi3::hardware_devices::PLATFORM.get_console().expect("Console not initialized");
+        let console = crate::platform::raspi3::platform_devices::PLATFORM.get_console().expect("Console not initialized");
         console.borrow_mut().writefln(format_args!($($args)*))
     }
 }
