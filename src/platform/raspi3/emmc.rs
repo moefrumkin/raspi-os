@@ -1,15 +1,16 @@
+use core::cell::RefCell;
+
 use crate::volatile::Volatile;
 use crate::bitfield;
 use super::timer::Timer;
-use super::mmio::MMIOController;
 use super::gpio::{GPIOController, Pin, Pull, Mode};
 use crate::aarch64::cpu::wait_for_cycles;
-use super::mini_uart::CONSOLE;
 use crate::device::sector_device::{
     Sector,
     SectorAddress,
     SectorDevice
 };
+use alloc::rc::Rc;
 
 enum CommandFlag {
     NeedApp = 0x8000_0000,
@@ -44,8 +45,8 @@ pub enum StatusSetting {
 
 pub struct EMMCController<'a> {
     registers: &'a mut EMMCRegisters,
-    gpio: &'a mut GPIOController<'a>,
-    timer: &'a mut Timer<'a>,
+    gpio: Rc<RefCell<GPIOController>>,
+    timer: Rc<RefCell<Timer<'a>>>,
 
     configuration: SDConfigurationRegister,
     relative_card_address: u32,
@@ -64,8 +65,8 @@ impl<'a> SectorDevice for EMMCController<'a> {
 
 impl<'a> EMMCController<'a> {
     pub fn new(registers: &'a mut EMMCRegisters,
-        gpio: &'a mut GPIOController<'a>,
-        timer: &'a mut Timer<'a>
+        gpio: Rc<RefCell<GPIOController>>,
+        timer: Rc<RefCell<Timer<'a>>>
     ) -> Self {
         Self {
             registers, gpio, timer,
@@ -141,10 +142,10 @@ impl<'a> EMMCController<'a> {
         self.registers.command.set(command);
 
         if command == SDCommand::SEND_OP_COND {
-            self.timer.delay(1000);
+            self.timer.borrow().delay(1000);
         } else if command == SDCommand::SEND_INTERFACE_CONDITIONS
             || command == SDCommand::APPPLICATION_SPECIFIC_COMMAND {
-            self.timer.delay(100);
+            self.timer.borrow().delay(100);
         }
 
         self.wait_for_interrupt(InterruptType::CommandDone).expect("ERROR: failed to send EMMC command");
@@ -195,7 +196,7 @@ impl<'a> EMMCController<'a> {
             && count > 0
         {
                 count -= 1;
-                self.timer.delay(1);
+                self.timer.borrow().delay(1);
         }
 
         if count <= 0 {
@@ -206,7 +207,7 @@ impl<'a> EMMCController<'a> {
             control1.set_clock_enabled(0)
         );
 
-        self.timer.delay(10);
+        self.timer.borrow().delay(10);
 
         x = c - 1;
         if x == 0  {
@@ -248,19 +249,19 @@ impl<'a> EMMCController<'a> {
             }
         );
 
-        self.timer.delay(10);
+        self.timer.borrow().delay(10);
 
         self.registers.control1.map(|control1|
             control1.set_clock_enabled(1)
         );
 
-        self.timer.delay(10);
+        self.timer.borrow().delay(10);
 
         count = 10_000;
 
         while(self.registers.control1.get().get_clock_enabled() == 0) && count > 0 {
             count -= 1;
-            self.timer.delay(10);
+            self.timer.borrow().delay(10);
         }
 
         if count <= 0  {
@@ -271,34 +272,34 @@ impl<'a> EMMCController<'a> {
     fn initialize_pins(&self) {
         let cd = Pin::new(47).unwrap();
 
-        self.gpio.set_mode(cd, Mode::AF3);
+        self.gpio.borrow_mut().set_mode(cd, Mode::AF3);
 
-        self.gpio.pull(cd, Pull::Up);
-        self.gpio.set_gphen(cd, 1);
+        self.gpio.borrow_mut().pull(cd, Pull::Up);
+        self.gpio.borrow_mut().set_gphen(cd, 1);
 
         let clk = Pin::new(48).unwrap();
         let cmd = Pin::new(49).unwrap();
 
-        self.gpio.set_mode(clk, Mode::AF3);
-        self.gpio.set_mode(cmd, Mode::AF3);
+        self.gpio.borrow_mut().set_mode(clk, Mode::AF3);
+        self.gpio.borrow_mut().set_mode(cmd, Mode::AF3);
 
-        self.gpio.pull(clk, Pull::Up);
-        self.gpio.pull(cmd, Pull::Up);
+        self.gpio.borrow_mut().pull(clk, Pull::Up);
+        self.gpio.borrow_mut().pull(cmd, Pull::Up);
 
         let dat0 = Pin::new(50).unwrap();
         let dat1 = Pin::new(51).unwrap();
         let dat2 = Pin::new(52).unwrap();
         let dat3 = Pin::new(53).unwrap();
 
-        self.gpio.set_mode(dat0, Mode::AF3);
-        self.gpio.set_mode(dat1, Mode::AF3);
-        self.gpio.set_mode(dat2, Mode::AF3);
-        self.gpio.set_mode(dat3, Mode::AF3);
+        self.gpio.borrow_mut().set_mode(dat0, Mode::AF3);
+        self.gpio.borrow_mut().set_mode(dat1, Mode::AF3);
+        self.gpio.borrow_mut().set_mode(dat2, Mode::AF3);
+        self.gpio.borrow_mut().set_mode(dat3, Mode::AF3);
 
-        self.gpio.pull(dat0, Pull::Up);
-        self.gpio.pull(dat1, Pull::Up);
-        self.gpio.pull(dat2, Pull::Up);
-        self.gpio.pull(dat3, Pull::Up);
+        self.gpio.borrow_mut().pull(dat0, Pull::Up);
+        self.gpio.borrow_mut().pull(dat1, Pull::Up);
+        self.gpio.borrow_mut().pull(dat2, Pull::Up);
+        self.gpio.borrow_mut().pull(dat3, Pull::Up);
 
     }
 
@@ -310,12 +311,12 @@ impl<'a> EMMCController<'a> {
 
         let mut count = 10000;
 
-        self.timer.delay(10);
+        self.timer.borrow().delay(10);
 
         while self.registers.control1.get().get_reset_complete_host_circuit() != 0
         && count > 0 {
             count -= 1;
-            self.timer.delay(10);
+            self.timer.borrow().delay(10);
         }
 
         if count <= 0 {
@@ -336,7 +337,7 @@ impl<'a> EMMCController<'a> {
                 .set_data_timeout_unit_exponent(0b1110)
         );
         
-        self.timer.delay(10);
+        self.timer.borrow().delay(10);
 
         // Set clock frequency
         self.set_clock_frequency(400_000);
@@ -413,7 +414,7 @@ impl<'a> EMMCController<'a> {
                 scr[r] = self.registers.data.get();
                 r += 1;
             } else {
-                self.timer.delay(1);
+                self.timer.borrow().delay(1);
             }
         }
 

@@ -21,7 +21,6 @@ use sync::SpinMutex;
 #[global_allocator]
 static ALLOCATOR: SpinMutex<LinkedListAllocator> = SpinMutex::new(LinkedListAllocator::new());
 
-#[cfg(not(test))]
 mod aarch64;
 mod allocator;
 mod canvas;

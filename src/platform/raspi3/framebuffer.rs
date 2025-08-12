@@ -1,6 +1,8 @@
 
+use core::cell::RefCell;
 use core::fmt::{Display, Formatter};
 use core::fmt;
+use alloc::rc::Rc;
 use crate::platform::raspi3::mailbox::{MailboxController};
 use crate::platform::raspi3::mailbox_property::{
     MessageBuilder,
@@ -20,7 +22,7 @@ pub struct FrameBuffer<'a> {
 }
 
 impl<'a> FrameBuffer<'a> {
-    pub fn from_config(config: FrameBufferConfig, mailbox: &mut MailboxController) -> Self {
+    pub fn from_config(config: FrameBufferConfig, mailbox: Rc<RefCell<MailboxController>>) -> Self {
         // TODO: make sure all are setters
         let mut depth = SetDepth::new(config.depth);
         let mut overscan = FramebufferPropertyRequest::<Overscan>::set(config.overscan);

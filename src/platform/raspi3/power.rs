@@ -10,17 +10,18 @@ use super::{
         MailboxInstruction
     }
 };
-use core::fmt;
+use core::{cell::RefCell, fmt};
 use alloc::vec;
 use alloc::vec::Vec;
+use alloc::rc::Rc;
 
 #[repr(u32)]
 #[derive(Copy, Clone)]
 pub enum Device {
-    SD_Card = 0x0,
+    SDCard = 0x0,
     UART0 = 0x1,
     UART1 = 0x2,
-    USB_HCD = 0x3,
+    USBHCD = 0x3,
     I2C0 = 0x4,
     I2C1 = 0x5,
     I2C2 = 0x6,
@@ -28,7 +29,7 @@ pub enum Device {
     CCP2TX = 0x8
 }
 
-pub const DEVICES: [Device; 9] = [Device::SD_Card, Device::UART0, Device::UART1, Device::USB_HCD, Device::I2C0, Device::I2C1, Device::I2C2, Device::SPI, Device::CCP2TX];
+pub const DEVICES: [Device; 9] = [Device::SDCard, Device::UART0, Device::UART1, Device::USBHCD, Device::I2C0, Device::I2C1, Device::I2C2, Device::SPI, Device::CCP2TX];
 
 impl Device {
     const GET_POWER_STATE: u32 = 0x20001;
@@ -40,10 +41,10 @@ impl Device {
 
     pub fn from_u32(val: u32) -> Self {
         match val {
-            0x0 => Device::SD_Card,
+            0x0 => Device::SDCard,
             0x1 => Device::UART0,
             0x2 => Device::UART1,
-            0x3 => Device::USB_HCD,
+            0x3 => Device::USBHCD,
             0x4 => Device::I2C0,
             0x5 => Device::I2C1,
             0x6 => Device::I2C2,
@@ -53,7 +54,7 @@ impl Device {
         }
     }
 
-    pub fn get_power_state(self, mailbox: &mut MailboxController) -> PowerState {
+    pub fn get_power_state(self, mailbox: Rc<RefCell<MailboxController>>) -> PowerState {
         let mut request = SimpleRequest::<Device, PowerStateResponse, { Self::GET_POWER_STATE } >::with_request(self);
 
         let mut message = MessageBuilder::new().request(&mut request);
@@ -64,7 +65,7 @@ impl Device {
  
     }
 
-    pub fn get_timing(self, mailbox: &mut MailboxController) -> u32 {
+    pub fn get_timing(self, mailbox: Rc<RefCell<MailboxController>>) -> u32 {
         let mut request = SimpleRequest::<Device, TimingResponse, { Self::GET_TIMING } >::with_request(self);
 
         let mut message = MessageBuilder::new().request(&mut request);
@@ -80,10 +81,10 @@ impl Device {
 impl fmt::Display for Device {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", match *self {
-            Device::SD_Card => "SD Card Reader",
+            Device::SDCard => "SD Card Reader",
             Device::UART0 => "UART Controller 0",
             Device::UART1 => "UART Controller 1",
-            Device::USB_HCD => "USB HCD",
+            Device::USBHCD => "USB HCD",
             Device::I2C0 => "I2C Controller 0",
             Device::I2C1 => "I2C Controller 1",
             Device::I2C2 => "I2C Controller 2",

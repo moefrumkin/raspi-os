@@ -1,8 +1,7 @@
 use super::gpio::{GPIOController, Pin, OutputLevel, Mode};
 use super::timer::Timer;
 
-/// 4 bit 16 x 2 LCD display
-pub struct LCDController<'a> {
+/*pub struct LCDController<'a> {
     gpio: &'a GPIOController<'a>,
     timer: &'a Timer<'a>,
     register_select: Pin,
@@ -87,3 +86,4 @@ impl<'a> LCDController<'a> {
         self.timer.delay_microseconds(100);
     }
 }
+*/

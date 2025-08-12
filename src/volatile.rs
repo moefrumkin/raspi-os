@@ -138,6 +138,10 @@ impl <T: Copy> Volatile<T> {
     pub fn map(&mut self, f: fn(T) -> T) {
         self.set(f(self.get()))
     }
+
+    pub fn map_closure(&mut self, f: &dyn Fn(T) -> T) {
+        self.set(f(self.get()))
+    }
 }
 
 #[cfg(test)]

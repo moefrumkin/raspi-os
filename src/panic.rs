@@ -5,9 +5,13 @@
 #[cfg(feature = "raspi3")]
 use super::platform::{
     gpio::{GPIOController, OutputLevel, StatusLight},
-    mmio::MMIOController,
     mini_uart::MiniUARTController,
+    hardware_devices::PLATFORM
 };
+
+#[cfg(feature = "raspi3")]
+use crate::println;
+
 use core::{panic::PanicInfo, alloc::Layout};
 use crate::ALLOCATOR;
 
@@ -15,33 +19,31 @@ use crate::ALLOCATOR;
 #[cfg(feature = "raspi3")]
 #[panic_handler]
 fn on_panic(info: &PanicInfo) -> ! {
-    let mmio = MMIOController::default();
-    let gpio = GPIOController::new(&mmio);
-    let mut uart = MiniUARTController::init(&gpio, &mmio);
-    let status_light = StatusLight::init(&gpio);
+    let status_light = PLATFORM.get_status_light().unwrap();
+    let status_light = status_light.borrow_mut();
 
     status_light.set_green(OutputLevel::Low);
     status_light.set_blue(OutputLevel::Low);
 
     status_light.set_red(OutputLevel::High);
 
-    uart.writeln("");
-    uart.writeln("A Fatal Kernel Panic Occured");
+    println!("");
+    println!("A Fatal Kernel Panic Occured");
 
     // TODO:?
-    uart.writefln(format_args!("{}", info));
+    println!("{}", info);
     
     // TODO: tidy up
     if let Some(args) = info.message().as_str() {
-        uart.writeln(args);
+        println!("{}", args);
     } else {
-        uart.writeln("No message supplied");
+        println!("No message supplied");
     }
 
     if let Some(location) = info.location() {
-        uart.writefln(format_args!("@{}:{}", location.file(), location.line()));
+        println!("@{}:{}", location.file(), location.line());
     } else {
-        uart.writeln("No location found");
+        println!("No location found");
     }
 
     loop {}
@@ -50,22 +52,20 @@ fn on_panic(info: &PanicInfo) -> ! {
 #[cfg(feature = "raspi3")]
 #[alloc_error_handler]
 fn on_alloc_error(layout: Layout) -> ! {
-    let mmio = MMIOController::default();
-    let gpio = GPIOController::new(&mmio);
-    let mut uart = MiniUARTController::init(&gpio, &mmio);
-    let status_light = StatusLight::init(&gpio);
+    let status_light = PLATFORM.get_status_light().unwrap();
+    let status_light = status_light.borrow_mut();
 
     status_light.set_green(OutputLevel::Low);
     status_light.set_blue(OutputLevel::Low);
     status_light.set_red(OutputLevel::High);
 
-    uart.writeln("A Fatal Allocation Error Occured");
-    uart.writefln(format_args!("Unable to allocate: {:?} using allocator: {:?}", layout, ALLOCATOR));
+    println!("A Fatal Allocation Error Occured");
+    println!("Unable to allocate: {:?} using allocator: {:?}", layout, ALLOCATOR);
 
     let stats = ALLOCATOR.stats();
 
-    uart.writefln(format_args!("{} allocations, {} frees", stats.allocs, stats.frees));
-    uart.writefln(format_args!("{} bytes in {} blocks", stats.free_space, stats.blocks));
+    println!("{} allocations, {} frees", stats.allocs, stats.frees);
+    println!("{} bytes in {} blocks", stats.free_space, stats.blocks);
 
     loop {}
 }

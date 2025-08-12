@@ -1,58 +1,13 @@
 use super::{
     gpio::{GPIOController, Mode, Pin},
-    mmio::MMIOController,
 };
 use crate::{aarch64::cpu, sync::SpinMutex, volatile::Volatile, bitfield};
 
 use core::{
-    fmt,
-    fmt::{Arguments, Error, Write},
-    arch::asm,
+    arch::asm, cell::RefCell, fmt::{self, Arguments, Error, Write}
 };
 
-// TODO: make this non mutable using an interior mutability pattern
-pub static mut CONSOLE: SpinMutex<Option<MiniUARTController>> = SpinMutex::new(None);
-
-#[macro_export]
-macro_rules! print {
-    ($($arg:tt)*) => {
-        unsafe {
-            #[allow(static_mut_refs)]
-            CONSOLE.execute_mut(|console|
-                match console {
-                    Some(console) => console.writef(format_args!($($arg)*)),
-                    None => panic!("Print to Uninitialized Console")
-                }
-            );
-        }
-    };
-}
-
-#[macro_export]
-macro_rules! println {
-    () => {
-        unsafe {
-            #[allow(static_mut_refs)]
-            CONSOLE.execute_mut(|console|
-                match console {
-                    Some(console) => console.newline(),
-                    None => panic!("Print to Uninitialized Console")
-                }
-            );
-        }
-    };
-    ($($arg:tt)*) => {
-        unsafe {
-            #[allow(static_mut_refs)]
-            CONSOLE.execute_mut(|console|
-                match console {
-                    Some(console) => console.writefln(format_args!($($arg)*)),
-                    None => panic!("Print to Uninitialized Console")
-                }
-            );
-        }
-    }
-}
+use alloc::rc::Rc;
 
 #[repr(C)]
 struct MiniUARTRegisters {
@@ -74,7 +29,7 @@ struct MiniUARTRegisters {
 
 impl MiniUARTRegisters {
     const MINI_UART_REGISTER_BASE: usize = 0x3F21_5000;
-    pub fn get() -> &'static mut Self {
+    pub const fn get() -> &'static mut Self {
         unsafe {
             &mut *{Self::MINI_UART_REGISTER_BASE as *mut Self}
         }
@@ -96,8 +51,7 @@ const AUX_MU_BAUD: u32 = UART_BASE_OFFSET + 0x68;
 
 #[allow(dead_code)]
 pub struct MiniUARTController<'a> {
-    gpio: &'a GPIOController<'a>,
-    mmio: &'a MMIOController,
+    gpio: Rc<RefCell<GPIOController>>,
     registers: &'a mut MiniUARTRegisters,
     config: UARTConfig,
 }
@@ -130,16 +84,15 @@ impl<'a> Write for MiniUARTController<'a> {
 }
 
 impl<'a> MiniUARTController<'a> {
-    pub fn new(gpio: &'a GPIOController, mmio: &'a MMIOController) -> Self {
+    pub const fn new(gpio: Rc<RefCell<GPIOController>>) -> Self {
         Self {
             gpio,
-            mmio,
             registers: MiniUARTRegisters::get(),
             config: UARTConfig::new(),
         }
     }
 
-    pub fn new_2(&mut self) {
+    pub fn init(&mut self) {
         self.registers.enables.map(|enables|
             enables.set_mini_uart(1)
         );
@@ -169,61 +122,21 @@ impl<'a> MiniUARTController<'a> {
         let rx = Pin::new(15).unwrap();
 
 
-        self.gpio.set_mode(tx, Mode::AF5);
-        self.gpio.set_mode(rx, Mode::AF5);
+        self.gpio.borrow_mut().set_mode(tx, Mode::AF5);
+        self.gpio.borrow_mut().set_mode(rx, Mode::AF5);
 
         self.registers.extra_control.set(ExtraControl::enabled());
     }
 
-    pub fn init(gpio: &'a GPIOController, mmio: &'a MMIOController) -> Self {
-        //Enable UART
-        mmio.write_at_offset(
-            mmio.read_at_offset(AUX_ENABLE as usize) | 1,
-            AUX_ENABLE as usize,
-        );
-
-        //Disable Tx and Rx
-        mmio.write_at_offset(0, AUX_MU_CNTL as usize);
-
-        //Set data format to 8 bit
-        mmio.write_at_offset(0b11, AUX_MU_LCR as usize);
-
-        //Set rts line high
-        mmio.write_at_offset(0, AUX_MU_MCR as usize);
-
-        //Disable interrupts
-        mmio.write_at_offset(0, AUX_MU_IER as usize);
-
-        //Clear fifo bits
-        mmio.write_at_offset(0b11000110, AUX_MU_IIR as usize);
-
-        //Set baud rate to 115,200
-        mmio.write_at_offset(270, AUX_MU_BAUD as usize);
-
-        let tx = Pin::new(14).unwrap();
-        let rx = Pin::new(15).unwrap();
-
-        gpio.set_mode(tx, Mode::AF5);
-        gpio.set_mode(rx, Mode::AF5);
-
-        //enable Tx and Rx
-        mmio.write_at_offset(3, AUX_MU_CNTL as usize);
-
-        Self {
-            gpio,
-            mmio,
-            registers: MiniUARTRegisters::get(),
-            config: UARTConfig::new(),
-        }
-    }
-
-    pub fn putc(&self, c: char) {
-        while self.mmio.read_at_offset(AUX_MU_LSR as usize) & 0b100000 == 0 {
+    pub fn putc(&mut self, c: char) {
+        while self.registers.line_status.get().get_transmitter_empty() == 0 {
             unsafe {
                 asm!("nop");
             }
         }
-        self.mmio.write_at_offset(c as u32, AUX_MU_IO as usize);
+
+        // TODO: update to use registers
+        self.registers.io_data.set(MiniUARTIO::with_data(c));
     }
 
     pub fn newline(&mut self) {
@@ -232,7 +145,7 @@ impl<'a> MiniUARTController<'a> {
     }
 
     #[allow(dead_code)]
-    pub fn write(&self, s: &str) {
+    pub fn write(&mut self, s: &str) {
         for c in s.chars() {
             self.putc(c);
         }
@@ -259,13 +172,16 @@ impl<'a> MiniUARTController<'a> {
 
     #[allow(dead_code)]
     pub fn read(&self) -> Result<char, ()> {
-        while self.mmio.read_at_offset(AUX_MU_LSR as usize) & 0b1 == 0 {
+        unimplemented!();
+        /* TODO: is this the right check?
+        while self.mmio.borrow().read_at_offset(AUX_MU_LSR as usize) & 0b1 == 0 {
             unsafe {
                 asm!("nop");
             }
         }
+        */
 
-        core::char::from_u32(self.mmio.read_at_offset(AUX_MU_IO as usize)).ok_or(())
+        core::char::from_u32(self.registers.io_data.get().get_data()).ok_or(())
     }
 
     pub fn set_log_level(&mut self, level: LogLevel) {
@@ -310,6 +226,12 @@ bitfield! {
     MiniUARTIO(u32) {
         data: 0-7,
         baud_rate_lower_half: 0-7
+    } with {
+        pub fn with_data(data: char) -> Self {
+            Self {
+                value: data as u32
+            }
+        }
     }
 }
 

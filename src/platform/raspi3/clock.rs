@@ -10,7 +10,8 @@ use super::{
         MailboxInstruction
     }
 };
-use core::fmt;
+use core::{cell::RefCell, fmt};
+use alloc::rc::Rc;
 
 #[repr(u32)]
 #[derive(Copy, Clone)]
@@ -28,10 +29,10 @@ pub enum Clock {
     HEVC = 0xb,
     EMMC2 = 0xc,
     M2MC = 0xd,
-    PIXEL_BVB = 0xe
+    PixelBVB = 0xe
 }
 
-pub const CLOCKS: [Clock; 14] = [Clock::EMMC, Clock::UART, Clock::ARM, Clock::CORE, Clock::V3D, Clock::H264, Clock::ISP, Clock::SDRAM, Clock::PIXEL, Clock::PWM, Clock::HEVC, Clock::EMMC2, Clock::M2MC, Clock::PIXEL_BVB];
+pub const CLOCKS: [Clock; 14] = [Clock::EMMC, Clock::UART, Clock::ARM, Clock::CORE, Clock::V3D, Clock::H264, Clock::ISP, Clock::SDRAM, Clock::PIXEL, Clock::PWM, Clock::HEVC, Clock::EMMC2, Clock::M2MC, Clock::PixelBVB];
 
 impl fmt::Display for Clock {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -49,7 +50,7 @@ impl fmt::Display for Clock {
             Clock::HEVC => "HEVC",
             Clock::EMMC2 => "EMMC2",
             Clock::M2MC => "M2MC",
-            Clock::PIXEL_BVB => "PIXEL BVB"
+            Clock::PixelBVB => "PIXEL BVB"
         })
     }
 }
@@ -81,13 +82,13 @@ impl Clock {
             0xb => Clock::HEVC,
             0xc => Clock::EMMC2,
             0xd => Clock::M2MC,
-            0xe => Clock::PIXEL_BVB,
+            0xe => Clock::PixelBVB,
             _ => panic!("Invalid Clock id")
         }
     }
 
     // TODO: find some abstraction for these functions
-    pub fn get_clock_rate(self, mailbox: &mut MailboxController) -> u32 {
+    pub fn get_clock_rate(self, mailbox: Rc<RefCell<MailboxController>>) -> u32 {
         let mut request = SimpleRequest::<Clock, ClockRateResponse, { Self::GET_CLOCK_RATE} >::with_request(self);
 
         let mut message = MessageBuilder::new().request(&mut request);
@@ -97,7 +98,7 @@ impl Clock {
         return request.get_response().1;
     }
 
-    pub fn get_clock_rate_measured(self, mailbox: &mut MailboxController) -> u32 {
+    pub fn get_clock_rate_measured(self, mailbox: Rc<RefCell<MailboxController>>) -> u32 {
         let mut request = SimpleRequest::<Clock, ClockRateResponse, { Self::GET_CLOCK_RATE_MEASURED} >::with_request(self);
 
         let mut message = MessageBuilder::new().request(&mut request);
@@ -107,7 +108,7 @@ impl Clock {
         return request.get_response().1;
     }    
 
-    pub fn get_max_clock_rate(self, mailbox: &mut MailboxController) -> u32 {
+    pub fn get_max_clock_rate(self, mailbox: Rc<RefCell<MailboxController>>) -> u32 {
         let mut request = SimpleRequest::<Clock, ClockRateResponse, { Self::GET_MAX_CLOCK_RATE} >::with_request(self);
 
         let mut message = MessageBuilder::new().request(&mut request);
@@ -117,7 +118,7 @@ impl Clock {
         return request.get_response().1;
     }
 
-    pub fn get_min_clock_rate(self, mailbox: &mut MailboxController) -> u32 {
+    pub fn get_min_clock_rate(self, mailbox: Rc<RefCell<MailboxController>>) -> u32 {
         let mut request = SimpleRequest::<Clock, ClockRateResponse, { Self::GET_MIN_CLOCK_RATE} >::with_request(self);
 
         let mut message = MessageBuilder::new().request(&mut request);
@@ -127,7 +128,7 @@ impl Clock {
         return request.get_response().1;
     }
 
-    pub fn get_clock_state(self, mailbox: &mut MailboxController) -> ClockState {
+    pub fn get_clock_state(self, mailbox: Rc<RefCell<MailboxController>>) -> ClockState {
         let mut request = SimpleRequest::<Clock, ClockStateResponse, { Self::GET_CLOCK_STATE } >::with_request(self);
 
         let mut message = MessageBuilder::new().request(&mut request);

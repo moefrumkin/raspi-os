@@ -16,11 +16,9 @@ use crate::{
 
 use super::{
     gpio::{GPIOController, OutputLevel, Pin, StatusLight},
-    lcd::LCDController,
     mailbox::{Channel, MailboxController},
-    mmio::MMIOController,
     timer::Timer,
-    mini_uart::{LogLevel, MiniUARTController, CONSOLE},
+    mini_uart::{LogLevel, MiniUARTController},
     framebuffer::{
         FrameBuffer, PixelOrder, Overscan, FrameBufferConfig,
         Offset,
@@ -45,32 +43,28 @@ use super::{
     },
     interrupt::{
         InterruptController
+    },
+    hardware_devices::{
+        PLATFORM
     }
 };
-
-static MMIO: MMIOController = MMIOController::new();
-static GPIO: GPIOController = GPIOController::new(&MMIO);
 
 global_asm!(include_str!("start.s"));
 
 #[no_mangle]
 pub extern "C" fn main(heap_start: usize, heap_size: usize, table_start: usize) {
-    let mmio = MMIOController::default();
-    let gpio = GPIOController::new(&mmio);
-    let mut timer = Timer::new();
-    
-    let status_light = StatusLight::init(&gpio);
+    ALLOCATOR.lock().init(heap_start, heap_size);
+    PLATFORM.init();
 
-    blink_sequence(&status_light, &timer, 100);
+    //let status_light = PLATFORM.get_status_light().unwrap();
+    let timer = PLATFORM.get_timer().unwrap();
+    let console = PLATFORM.get_console().unwrap();
 
-    let mut console = MiniUARTController::new(&GPIO, &MMIO);
-    console.new_2();
-    console.set_log_level(LogLevel::Debug);
+    //blink_sequence(&status_light.borrow(), &timer.borrow(), 100);
 
-    unsafe {
-        // TODO: refactor
-        *CONSOLE.lock() = Some(console);
-    }
+    println!("Starting");
+
+    console.borrow_mut().set_log_level(LogLevel::Debug);
 
     println!("Entering Boot Sequence (with new build system?)");
     println!("Initializing Memory Virtualization");
@@ -82,12 +76,11 @@ pub extern "C" fn main(heap_start: usize, heap_size: usize, table_start: usize) 
     println!("Memory Virtualization Initialized");
 
     println!("Initializing Heap Allocator");
-    ALLOCATOR.lock().init(heap_start, heap_size);
     println!("Heap Allocator initialized at {:#x} with size {}", heap_start, heap_size);
 
-    let mut mailbox = MailboxController::new(&mmio);
+    let mut mailbox = PLATFORM.get_mailbox_controller().unwrap();
 
-    let hardware_config = HardwareConfig::from_mailbox(&mut mailbox);
+    let hardware_config = HardwareConfig::from_mailbox(mailbox.clone());
 
     println!("Hardware Configuration Detected: {}\n", hardware_config);
 
@@ -96,8 +89,8 @@ pub extern "C" fn main(heap_start: usize, heap_size: usize, table_start: usize) 
     for device in &DEVICES {
         println!("\t-{}: Powered: {}, Timing: {}",
             device,
-            device.get_power_state(&mut mailbox).is_on(),
-            device.get_timing(&mut mailbox));
+            device.get_power_state(mailbox.clone()).is_on(),
+            device.get_timing(mailbox.clone()));
     }
 
     println!("Clocks:");
@@ -105,26 +98,17 @@ pub extern "C" fn main(heap_start: usize, heap_size: usize, table_start: usize) 
     for clock in &CLOCKS {
         println!("\t-{}: On: {}, Set Rate: {}, Min Rate: {}, Max Rate: {}",
             clock,
-            clock.get_clock_state(&mut mailbox).is_on(),
-            clock.get_clock_rate(&mut mailbox),
-            clock.get_min_clock_rate(&mut mailbox),
-            clock.get_max_clock_rate(&mut mailbox)
+            clock.get_clock_state(mailbox.clone()).is_on(),
+            clock.get_clock_rate(mailbox.clone()),
+            clock.get_min_clock_rate(mailbox.clone()),
+            clock.get_max_clock_rate(mailbox.clone())
         );
     }
 
-    println!("Trying to initialize the sd card");
-
-    let mut emmc_regs = EMMCRegisters::get();
-
-    let mut emmc_gpio = GPIOController::new(&mmio);
-    let mut emmc_timer = Timer::new();
-
-    let mut emmc_controller = EMMCController::new(&mut emmc_regs, &mut emmc_gpio, &mut emmc_timer);
-
-    emmc_controller.initialize();
+    let mut emmc_controller = PLATFORM.get_emmc_controller().unwrap();
 
     let (mbr_sector_number, master_boot_record) = MasterBootRecord::scan_device_for_mbr(
-        &mut emmc_controller,
+        emmc_controller.clone(),
         0,
         20)
         .expect("Unable to read Master Boot Record");
@@ -132,7 +116,7 @@ pub extern "C" fn main(heap_start: usize, heap_size: usize, table_start: usize) 
     let partition = master_boot_record.partition_entries[0];
     
     let mut filesystem = FAT32Filesystem::load_in_partition(
-        &mut emmc_controller,
+        emmc_controller.clone(),
         mbr_sector_number + partition.first_sector_address(),
         mbr_sector_number + partition.last_sector_address())
         .expect("Unable to initialize a FAT32 filesystem in partition");
@@ -165,7 +149,7 @@ pub extern "C" fn main(heap_start: usize, heap_size: usize, table_start: usize) 
 
     println!("Initializing Frame Buffer with config {}", fb_config);
 
-    let mut fb = FrameBuffer::from_config(fb_config, &mut mailbox);
+    let mut fb = FrameBuffer::from_config(fb_config, mailbox);
 
     println!("Actual config is {}", fb.get_config());
 
@@ -181,7 +165,7 @@ pub extern "C" fn main(heap_start: usize, heap_size: usize, table_start: usize) 
 
     println!("Done!");
    
-    status_light.set_green(OutputLevel::High);
+    //status_light.borrow_mut().set_green(OutputLevel::High);
 
     loop{}
 }

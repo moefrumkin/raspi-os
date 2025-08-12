@@ -1,7 +1,9 @@
 //! This module provides support for the raspberry pi's general purpose input output (gpio) pins
 
-use super::mmio::MMIOController;
-use crate::aarch64::cpu;
+use core::cell::RefCell;
+use alloc::rc::Rc;
+
+use crate::{aarch64::cpu, bitfield, utils::bit_array::BitArray, volatile::Volatile};
 
 const PINS: u32 = 53;
 
@@ -25,40 +27,66 @@ const GPPPUD: u32 = GPIO_BASE_OFFSET + 0x94;
 const GPPUDCLK_SIZE: u32 = 32;
 const GPPUDCLK_BASE_OFFSET: u32 = GPIO_BASE_OFFSET + 0x98;
 
+#[repr(C)]
+pub struct GPIORegisters {
+    function_select_banks: [Volatile<FunctionSelectBlock>; 6],
+    res0: u32,
+    set_output: [Volatile<BitArray<u32>>; 2],
+    res1: u32,
+    clear_output: [Volatile<BitArray<u32>>; 2],
+    res2: u32,
+    gplev: [Volatile<BitArray<u32>>; 2],
+    res3: u32,
+    gpsed: [Volatile<u32>; 2],
+    res4: u32,
+    gpren: [Volatile<u32>; 2],
+    res5: u32,
+    gpfen: [Volatile<u32>; 2],
+    res6: u32,
+    high_detect_enable: [Volatile<BitArray<u32>>; 2],
+    res7: u32,
+    gplen: [Volatile<u32>; 2],
+    res8: u32,
+    gparen: [Volatile<u32>; 2],
+    res9: u32,
+    gpafen: [Volatile<u32>; 2],
+    res10: u32,
+    pull_register: Volatile<PullRegister>,
+    pull_enable: [Volatile<BitArray<u32>>; 2]
+}
+
 pub struct GPIOController<'a> {
-    mmio: &'a MMIOController,
+    registers: &'a mut GPIORegisters
 }
 
 #[allow(dead_code)]
 impl<'a> GPIOController<'a> {
-    pub const fn new(mmio: &'a MMIOController) -> Self {
-        GPIOController { mmio }
+    pub const fn with_registers(registers: &'a mut GPIORegisters) -> Self {
+        Self {
+            registers
+        }
     }
 
-    pub fn set_mode(&self, pin: Pin, mode: Mode) {
-        let mut fsel = self.get_gpfsel(pin);
-        let offset = pin.gpfsel_offset();
-
-        fsel &= !(111 << offset);
-        fsel |= (mode as u32) << offset;
-        self.mmio
-            .write_at_offset(fsel, (GPFSEL_BASE_OFFSET + pin.gpfsel_block() * 4) as usize);
+    pub fn set_mode(&mut self, pin: Pin, mode: Mode) {
+        self.registers.function_select_banks[
+            pin.function_select_bank_number()
+        ].map_closure(&|bank: FunctionSelectBlock|
+            bank.set_pin_mode(pin.number_in_function_select_bank(), mode)
+        );
     }
 
     /// Sets the output of an output pin to the desired level
     /// Note: this does not check that the pin is set to output
-    pub fn set_out(&self, pin: Pin, output: OutputLevel) {
+    pub fn set_out(&mut self, pin: Pin, output: OutputLevel) {
         match output {
             OutputLevel::High => {
-                self.mmio.write_at_offset(
-                    self.get_gpset(pin) | (1 << pin.gpset_offset()),
-                    (GPSET_BASE_OFFSET + pin.gpset_block() * 4) as usize,
+                self.registers.set_output[pin.set_block()].map_closure(&move |output_block: BitArray<u32>|
+                    output_block.set_bit(pin.set_offset(), 1)
                 );
             }
             OutputLevel::Low => {
-                self.mmio.write_at_offset(
-                    self.get_gpclr(pin) | 1 << pin.gpclr_offset(),
-                    (GPCLR_BASE_OFFSET + pin.gpclr_block() * 4) as usize,
+                self.registers.clear_output[pin.clear_block()].map_closure(&move |clear_block: BitArray<u32>|
+                    clear_block.set_bit(pin.clear_offset(), 1)
                 );
             }
         }
@@ -68,47 +96,81 @@ impl<'a> GPIOController<'a> {
     /// You should remember this, there is no way of reading the mode once set
     /// It takes > 300 clock cycles for this instuction to run because of the wait time after setting the pull mode
     /// TODO: this should have an array slice version because the waits take a while
-    pub fn pull(&self, pin: Pin, mode: Pull) {
-        let gppudckl_offset = GPPUDCLK_BASE_OFFSET + 4 * pin.gppudclk_block();
+    pub fn pull(&mut self, pin: Pin, mode: Pull) {
+        let pull_enable_block = pin.pull_enable_block();
+        let pull_enable_offset = pin.pull_enable_offset();
 
-        self.mmio.write_at_offset(mode as u32, GPPPUD as usize);
-
-        cpu::wait_for_cycles(150);
-
-        self.mmio
-            .write_at_offset(1 << pin.gppudclk_offset(), gppudckl_offset as usize);
+        self.registers.pull_register.set(PullRegister::mode(mode));
 
         cpu::wait_for_cycles(150);
 
-        self.mmio.write_at_offset(0, gppudckl_offset as usize);
+        self.registers.pull_enable[pull_enable_block].map_closure(&|pull_enable|
+            pull_enable.set_bit(pull_enable_offset, 1)
+        );
+
+        cpu::wait_for_cycles(150);
+
+        self.registers.pull_enable[pull_enable_block].map_closure(&|pull_enable|
+            pull_enable.set_bit(pull_enable_offset, 0)
+        );
     }
 
-    fn get_gpfsel(&self, pin: Pin) -> u32 {
-        self.mmio
-            .read_at_offset((GPFSEL_BASE_OFFSET + pin.gpfsel_block() * 4) as usize)
-    }
-
-    fn get_gpset(&self, pin: Pin) -> u32 {
-        self.mmio
-            .read_at_offset((GPSET_BASE_OFFSET + pin.gpset_block() * 4) as usize)
-    }
-
-    fn get_gpclr(&self, pin: Pin) -> u32 {
-        self.mmio
-            .read_at_offset((GPCLR_BASE_OFFSET + pin.gpclr_block() * 4) as usize)
+    fn get_pin_mode(&self, pin: Pin) -> u32 {
+        self.registers.function_select_banks[pin.function_select_bank_number()].get()
+            .get_pin_mode(pin.number_in_function_select_bank())
     }
 
     // TODO: do this better
-    pub fn set_gphen(&self, pin: Pin, value: u32) {
+    pub fn set_high_detect_enable(&mut self, pin: Pin, value: u32) {
         let bank;
-        if(pin.number < 32) {
+        if pin.number < 32  {
             bank = 0;
         } else {
             bank = 1
         }
 
         let offset_in_bank = pin.number - 32 * bank;
-        self.mmio.write_at_offset(value | (1 << offset_in_bank), (bank * 4 + GPHEN_BASE_OFFSET) as usize);
+
+        self.registers.high_detect_enable[bank as usize].map_closure(&|detect_enable|
+            detect_enable.set_bit(offset_in_bank as usize, value)
+        );
+    }
+}
+
+bitfield! {
+    FunctionSelectBlock(u32) {
+
+    } with {
+        const PIN_STATUS_BITS: u32 = 3;
+        // TODO: Derive from PIN_STATUS_BITS?
+        const PIN_STATUS_MASK: u32 = 0b111;
+
+        fn get_pin_mode(&self, pin_number_in_block: u32) -> u32 {
+            (self.value >> (pin_number_in_block * Self::PIN_STATUS_BITS)) & Self::PIN_STATUS_MASK
+        }
+
+        fn set_pin_mode(&self, pin_number_in_block: u32, mode: Mode) -> Self {
+            let shifted_inverted_mask = !(Self::PIN_STATUS_MASK <<
+                (pin_number_in_block * Self::PIN_STATUS_BITS));
+
+            let value = (self.value & shifted_inverted_mask) | 
+                ((mode as u32) << (pin_number_in_block * Self::PIN_STATUS_BITS));
+
+            Self { value }
+        }
+    }
+}
+
+
+bitfield! {
+    PullRegister(u32) {
+        pull_mode: 0-1
+    } with {
+        pub fn mode(mode: Pull) -> Self {
+            Self {
+                value: mode as u32
+            }
+        }
     }
 }
 
@@ -118,7 +180,7 @@ pub struct StatusLight<'a> {
     red_pin: Pin,
     green_pin: Pin,
     blue_pin: Pin,
-    gpio_controller: &'a GPIOController<'a>,
+    gpio_controller: &'a mut GPIOController<'a>,
 }
 
 impl<'a> StatusLight<'a> {
@@ -127,14 +189,10 @@ impl<'a> StatusLight<'a> {
     const BLUE_PIN: u32 = 22;
 
     /// Initializes a status light and sets the pins to output mode
-    pub fn init(gpio_controller: &'a GPIOController<'a>) -> Self {
-        let red_pin = Pin::new(StatusLight::RED_PIN).unwrap();
-        let green_pin = Pin::new(StatusLight::GREEN_PIN).unwrap();
-        let blue_pin = Pin::new(StatusLight::BLUE_PIN).unwrap();
-
-        gpio_controller.set_mode(red_pin, Mode::OUT);
-        gpio_controller.set_mode(green_pin, Mode::OUT);
-        gpio_controller.set_mode(blue_pin, Mode::OUT);
+    pub const fn new(gpio_controller: &'a mut GPIOController<'a>) -> Self {
+        let red_pin = Pin::new_unchecked(StatusLight::RED_PIN);
+        let green_pin = Pin::new_unchecked(StatusLight::GREEN_PIN);
+        let blue_pin = Pin::new_unchecked(StatusLight::BLUE_PIN);
 
         StatusLight {
             red_pin,
@@ -144,18 +202,24 @@ impl<'a> StatusLight<'a> {
         }
     }
 
+    pub fn init(&mut self) {
+        self.gpio_controller.set_mode(self.red_pin, Mode::OUT);
+        self.gpio_controller.set_mode(self.green_pin, Mode::OUT);
+        self.gpio_controller.set_mode(self.blue_pin, Mode::OUT);
+    }
+
     /// sets the right light
-    pub fn set_red(&self, level: OutputLevel) {
+    pub fn set_red(&mut self, level: OutputLevel) {
         self.gpio_controller.set_out(self.red_pin, level);
     }
 
     /// sets the green light
-    pub fn set_green(&self, level: OutputLevel) {
+    pub fn set_green(&mut self, level: OutputLevel) {
         self.gpio_controller.set_out(self.green_pin, level);
     }
 
     /// sets the blue light
-    pub fn set_blue(&self, level: OutputLevel) {
+    pub fn set_blue(&mut self, level: OutputLevel) {
         self.gpio_controller.set_out(self.blue_pin, level);
     }
 }
@@ -169,7 +233,7 @@ pub struct Pin {
 #[allow(dead_code)]
 impl Pin {
     /// Constructor that returns an error if an out of range number is supplied
-    pub fn new(number: u32) -> Result<Self, ()> {
+    pub const fn new(number: u32) -> Result<Self, ()> {
         if number > PINS {
             Err(())
         } else {
@@ -177,41 +241,45 @@ impl Pin {
         }
     }
 
-    fn gpfsel_block(&self) -> u32 {
-        self.number / GPFSEL_SIZE
+    pub const fn new_unchecked(number: u32) -> Self {
+        Self { number }
     }
 
-    fn gpfsel_offset(&self) -> u32 {
-        3 * (self.number % GPFSEL_SIZE)
+    fn function_select_bank_number(&self) -> usize {
+        (self.number / GPFSEL_SIZE) as usize
     }
 
-    fn gpset_block(&self) -> u32 {
-        self.number / GPSET_SIZE
+    fn number_in_function_select_bank(&self) -> u32 {
+        self.number % GPFSEL_SIZE
     }
 
-    fn gpset_offset(&self) -> u32 {
-        self.number % GPSET_SIZE
+    fn set_block(&self) -> usize {
+        (self.number / GPSET_SIZE) as usize
     }
 
-    fn gpclr_block(&self) -> u32 {
-        self.number / GPCLR_SIZE
+    fn set_offset(&self) -> usize {
+        (self.number % GPSET_SIZE) as usize
     }
 
-    fn gpclr_offset(&self) -> u32 {
-        self.number % GPCLR_SIZE
+    fn clear_block(&self) -> usize {
+        (self.number / GPCLR_SIZE) as usize
     }
 
-    fn gppudclk_block(&self) -> u32 {
-        self.number / GPPUDCLK_SIZE
+    fn clear_offset(&self) -> usize {
+        (self.number % GPCLR_SIZE) as usize
     }
 
-    fn gppudclk_offset(&self) -> u32 {
-        self.number % GPPUDCLK_SIZE
+    fn pull_enable_block(&self) -> usize {
+        (self.number / GPPUDCLK_SIZE) as usize
+    }
+
+    fn pull_enable_offset(&self) -> usize {
+        (self.number % GPPUDCLK_SIZE) as usize
     }
 }
 
 /// All possible pinmodes for a gpio pin
-#[derive(PartialEq, Debug)]
+#[derive(PartialEq, Debug, Copy, Clone)]
 #[allow(dead_code)]
 pub enum Mode {
     IN = 0b000,

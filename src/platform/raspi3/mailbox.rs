@@ -1,7 +1,7 @@
-use core::arch::asm;
-use super::mmio::MMIOController;
+use core::{arch::asm, cell::RefCell};
 use alloc::{vec, vec::Vec};
 use crate::volatile::{AlignedBuffer, Volatile};
+use alloc::rc::Rc;
 
 const MBOX_BASE_OFFSET: usize = 0xB880;
 const MBOX_READ: usize = MBOX_BASE_OFFSET + 0x0;
@@ -20,12 +20,12 @@ pub const MBOX_RESPONSE: u32 = 0x80000000;
 const MBOX_FULL: u32 = 0x80000000;
 const MBOX_EMPTY: u32 = 0x40000000;
 
-pub struct MailboxController<'a> {
-    mmio: &'a MMIOController,
+pub struct MailboxController {
+    mmio: Rc<RefCell<MMIOController>>
 }
 
-impl<'a> MailboxController<'a> {
-    pub fn new(mmio: &'a MMIOController) -> Self {
+impl MailboxController {
+    pub fn new(mmio: Rc<RefCell<MMIOController>>) -> Self {
         return Self { mmio };
     }
 
@@ -33,25 +33,25 @@ impl<'a> MailboxController<'a> {
     /// The lower 4 bits of the message must be 0, otherwise things won't be pretty
     pub fn call(&self, message: u32, channel: Channel) -> u32 {
         //wait there is space to write
-        while self.mmio.read_at_offset(MBOX_STATUS) & MBOX_FULL != 0 {
+        while self.mmio.borrow().read_at_offset(MBOX_STATUS) & MBOX_FULL != 0 {
             unsafe {
                 asm!("nop");
             }
         }
 
-        self.mmio
+        self.mmio.borrow_mut()
             .write_at_offset(message | channel as u32, MBOX_WRITE);
 
         //loop until the message has a response
         loop {
             //wait until the mailbox is not empty
-            while self.mmio.read_at_offset(MBOX_STATUS) & MBOX_EMPTY != 0 {
+            while self.mmio.borrow().read_at_offset(MBOX_STATUS) & MBOX_EMPTY != 0 {
                 unsafe {
                     asm!("nop");
                 }
             }
 
-            let response = self.mmio.read_at_offset(MBOX_READ as usize);
+            let response = self.mmio.borrow().read_at_offset(MBOX_READ as usize);
 
             if response & 0b1111 == channel as u32 {
                 return response;

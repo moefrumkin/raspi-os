@@ -1,6 +1,5 @@
 //! Contains all necessary functions to interact with the system timer
 use crate::bitfield;
-use super::mmio::MMIOController;
 use crate::volatile::Volatile;
 
 const TIMER_BASE_OFFSET: usize = 0x3000;
@@ -8,7 +7,7 @@ const CLO_OFFSET: usize = 4;
 const CHI_OFFSET: usize = 8;
 
 #[repr(C)]
-struct TimerRegisters {
+pub struct TimerRegisters {
     control_status: Volatile<Status>,
     // TODO: can we treat this as a single u64?
     counter_low_bits: Volatile<u32>,
@@ -40,6 +39,12 @@ pub struct Timer<'a> {
 impl<'a> Timer<'a> {
     pub fn new() -> Self {
         Timer { registers: TimerRegisters::get_timer_registers() }
+    }
+
+    pub const fn with_registers(registers: &'a mut TimerRegisters) -> Self {
+        Self {
+            registers
+        }
     }
 
     /// Gets the system time in microseconds.
