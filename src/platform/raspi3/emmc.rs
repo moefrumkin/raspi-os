@@ -76,45 +76,6 @@ impl<'a> EMMCController<'a> {
         }
     }
 
-    const STATUS_TRIES: u32 = 500_000;
-
-    fn wait_for_status(&mut self, status: StatusSetting) -> Result<(), &str> {
-        for _ in 0..Self::STATUS_TRIES {
-            if self.registers.interrupt.get().is_err() {
-                return Err("Interrupt error");
-            }
-
-            if !self.registers.status.get().get_status(status) {
-                return Ok(());
-            }
-        }
-
-        Err("Timed out while waiting for status")
-    }
-
-    const INTERRUPT_WAIT_TIMEOUT: u32 = 1_000_000;
-
-    fn wait_for_interrupt(&mut self, interrupt_type: InterruptType) -> Result<(), &str> {
-        for _ in 0..Self::INTERRUPT_WAIT_TIMEOUT {
-            let interrupt = self.registers.interrupt.get();
-            if interrupt.is_interrupt_triggered(interrupt_type) {
-                // TODO: check error handling
-                if interrupt.is_command_timeout_error()
-                    || interrupt.is_data_timeout_error()
-                    || interrupt.is_err()
-                {
-                    self.registers.interrupt.set(interrupt);
-                    return Err("Error in interrupt");
-                } else {
-                    self.registers.interrupt.set(Interrupt::new().set_interrupt_mask(interrupt_type));
-                    return Ok(());
-                }
-            }
-        }
-
-        return Err("Timed out waiting for interrupt");
-    }
-
     fn send_command(&mut self, mut command: SDCommand, argument: u32) -> Result<u32, &str> {
 
         if command.get_is_application_specific() == 1 {
@@ -516,18 +477,49 @@ pub struct EMMCRegisters {
 }
 
 impl EMMCRegisters {
-    const EMMC_CONTROLLER_BASE: usize = 0x3F30_0000;
-
     const SCR_SUPP_CCS: u32 = 0x1;
 
     const ACMD41_ARG_HC: u32 = 0x51ff8000;
 
     const HOST_SPEC_V2: u32 = 1;
 
-    pub fn get() -> &'static mut Self {
-        unsafe {
-            &mut *(Self::EMMC_CONTROLLER_BASE as *mut Self)
-        } 
+    const STATUS_TRIES: u32 = 500_000;
+
+    fn wait_for_status(&mut self, status: StatusSetting) -> Result<(), &str> {
+        for _ in 0..Self::STATUS_TRIES {
+            if self.interrupt.get().is_err() {
+                return Err("Interrupt error");
+            }
+
+            if !self.status.get().get_status(status) {
+                return Ok(());
+            }
+        }
+
+        Err("Timed out while waiting for status")
+    }
+    
+    const INTERRUPT_WAIT_TIMEOUT: u32 = 1_000_000;
+
+    fn wait_for_interrupt(&mut self, interrupt_type: InterruptType) -> Result<(), &str> {
+        for _ in 0..Self::INTERRUPT_WAIT_TIMEOUT {
+            let interrupt = self.interrupt.get();
+            if interrupt.is_interrupt_triggered(interrupt_type) {
+                // TODO: check error handling
+                if interrupt.is_command_timeout_error()
+                    || interrupt.is_data_timeout_error()
+                    || interrupt.is_err()
+                {
+                    self.interrupt.set(interrupt);
+                    return Err("Error in interrupt");
+                } else {
+                    self.interrupt.set(Interrupt::new().set_interrupt_mask(interrupt_type));
+                    return Ok(());
+                }
+            }
+        }
+
+        return Err("Timed out waiting for interrupt");
     }
 }
 

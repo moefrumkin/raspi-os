@@ -10,7 +10,7 @@ use core::{
 use alloc::rc::Rc;
 
 #[repr(C)]
-struct MiniUARTRegisters {
+pub struct MiniUARTRegisters {
     interrupt: Volatile<InterruptSource>,
     enables: Volatile<InterruptEnable>,
     res: [u8; 56],
@@ -25,35 +25,6 @@ struct MiniUARTRegisters {
     extra_control: Volatile<ExtraControl>,
     extra_status: Volatile<ExtraStatus>,
     baud_rate: Volatile<BaudRate>
-}
-
-impl MiniUARTRegisters {
-    const MINI_UART_REGISTER_BASE: usize = 0x3F21_5000;
-    pub const fn get() -> &'static mut Self {
-        unsafe {
-            &mut *{Self::MINI_UART_REGISTER_BASE as *mut Self}
-        }
-    }
-}
-
-const UART_BASE_OFFSET: u32 = 0x215000;
-
-const AUX_ENABLE: u32 = UART_BASE_OFFSET + 0x4;
-
-const AUX_MU_IO: u32 = UART_BASE_OFFSET + 0x40;
-const AUX_MU_IER: u32 = UART_BASE_OFFSET + 0x44;
-const AUX_MU_IIR: u32 = UART_BASE_OFFSET + 0x48;
-const AUX_MU_LCR: u32 = UART_BASE_OFFSET + 0x4c;
-const AUX_MU_MCR: u32 = UART_BASE_OFFSET + 0x50;
-const AUX_MU_LSR: u32 = UART_BASE_OFFSET + 0x54;
-const AUX_MU_CNTL: u32 = UART_BASE_OFFSET + 0x60;
-const AUX_MU_BAUD: u32 = UART_BASE_OFFSET + 0x68;
-
-#[allow(dead_code)]
-pub struct MiniUARTController<'a> {
-    gpio: Rc<RefCell<GPIOController>>,
-    registers: &'a mut MiniUARTRegisters,
-    config: UARTConfig,
 }
 
 pub struct UARTConfig {
@@ -76,67 +47,59 @@ pub enum LogLevel {
     Debug,
 }
 
-impl<'a> Write for MiniUARTController<'a> {
+impl Write for MiniUARTRegisters {
     fn write_str(&mut self, s: &str) -> Result<(), Error> {
         self.write(s);
         Ok(())
     }
 }
 
-impl<'a> MiniUARTController<'a> {
-    pub const fn new(gpio: Rc<RefCell<GPIOController>>) -> Self {
-        Self {
-            gpio,
-            registers: MiniUARTRegisters::get(),
-            config: UARTConfig::new(),
-        }
-    }
-
-    pub fn init(&mut self) {
-        self.registers.enables.map(|enables|
+impl MiniUARTRegisters {
+    pub fn init(&mut self, gpio: &dyn GPIOController) {
+        self.enables.map(|enables|
             enables.set_mini_uart(1)
         );
 
-        self.registers.extra_control.set(ExtraControl::empty());
+        self.extra_control.set(ExtraControl::empty());
 
         // TODO: fix
         // Data is 8 bit
-        self.registers.line_control.set(LineControl{value: 0b11});
+        self.line_control.set(LineControl{value: 0b11});
 
-        self.registers.modem_control.map(|modem_control|
+        self.modem_control.map(|modem_control|
             modem_control.set_request_to_send(0)
         );
 
         // Disable Interrupts
-        self.registers.interrupt_enable.set(MiniUARTInterruptEnable::enabled());
+        self.interrupt_enable.set(MiniUARTInterruptEnable::enabled());
 
         // Clear fifo bits
-        self.registers.interrupt_identify.map(|line_control|
+        self.interrupt_identify.map(|line_control|
             line_control.set_interrupt_id(0b11)
                 .set_fifo_enables(0b11)
         );
 
-        self.registers.baud_rate.set(BaudRate::with_baud_rate(270));
+        self.baud_rate.set(BaudRate::with_baud_rate(270));
 
         let tx = Pin::new(14).unwrap();
         let rx = Pin::new(15).unwrap();
 
 
-        self.gpio.borrow_mut().set_mode(tx, Mode::AF5);
-        self.gpio.borrow_mut().set_mode(rx, Mode::AF5);
+        gpio.set_pin_mode(tx, Mode::AF5);
+        gpio.set_pin_mode(rx, Mode::AF5);
 
-        self.registers.extra_control.set(ExtraControl::enabled());
+        self.extra_control.set(ExtraControl::enabled());
     }
 
     pub fn putc(&mut self, c: char) {
-        while self.registers.line_status.get().get_transmitter_empty() == 0 {
+        while self.line_status.get().get_transmitter_empty() == 0 {
             unsafe {
                 asm!("nop");
             }
         }
 
         // TODO: update to use registers
-        self.registers.io_data.set(MiniUARTIO::with_data(c));
+        self.io_data.set(MiniUARTIO::with_data(c));
     }
 
     pub fn newline(&mut self) {
@@ -181,15 +144,16 @@ impl<'a> MiniUARTController<'a> {
         }
         */
 
-        core::char::from_u32(self.registers.io_data.get().get_data()).ok_or(())
+        core::char::from_u32(self.io_data.get().get_data()).ok_or(())
     }
 
-    pub fn set_log_level(&mut self, level: LogLevel) {
+    /*pub fn set_log_level(&mut self, level: LogLevel) {
         self.config.level = level;
-    }
+    }*/
 
     fn update_debug(&mut self) {
-        self.config.lines += 1;
+        //TODO: update
+        /*self.config.lines += 1;
         if self.config.level == LogLevel::Debug {
             let lines = self.config.lines;
             self.writef(format_args!(
@@ -198,7 +162,7 @@ impl<'a> MiniUARTController<'a> {
                 cpu::el(),
                 cpu::core_id()
             ));
-        }
+        }*/
     }
 }
 

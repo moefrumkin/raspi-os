@@ -1,6 +1,5 @@
 use core::arch::global_asm;
-use super::{gpio::{GPIOController, StatusLight, OutputLevel}, timer::Timer,
-    mini_uart::MiniUARTController
+use super::{gpio::{GPIOController, StatusLight, OutputLevel}
 };
 
 use crate::println;
@@ -18,7 +17,7 @@ pub extern "C" fn handle_exception(exception_source: usize, exception_type: usiz
     loop {} 
 }
 
-fn blink_out(n: usize, timer: &Timer, status_light: &StatusLight, wait: u64) {
+/*fn blink_out(n: usize, timer: &Timer, status_light: &StatusLight, wait: u64) {
     for i in 0..64 {
         if (n >> (64 - i)) & 1 == 1 {
             status_light.set_green(OutputLevel::High);
@@ -31,4 +30,4 @@ fn blink_out(n: usize, timer: &Timer, status_light: &StatusLight, wait: u64) {
         }
         timer.delay(wait);
     }
-}
+}*/

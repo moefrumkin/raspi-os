@@ -16,41 +16,17 @@ pub struct TimerRegisters {
 }
 
 impl TimerRegisters {
-    const TIMER_ADDRESS: usize = 0x3F00_3000;
-
-    fn get_timer_registers() -> &'static mut Self {
-        unsafe {
-            &mut *(Self::TIMER_ADDRESS as *mut Self)
-        }
-    }
-
     fn get_count(&self) -> u64 {
         let low_bits = self.counter_low_bits.get() as u64;
         let high_bits = self.counter_high_bits.get() as u64;
 
         (high_bits << 32) | low_bits
     }
-}
-
-pub struct Timer<'a> {
-    registers: &'a mut TimerRegisters
-}
-
-impl<'a> Timer<'a> {
-    pub fn new() -> Self {
-        Timer { registers: TimerRegisters::get_timer_registers() }
-    }
-
-    pub const fn with_registers(registers: &'a mut TimerRegisters) -> Self {
-        Self {
-            registers
-        }
-    }
 
     /// Gets the system time in microseconds.
     /// Because the [mmio](super::mmio) module currently only supports 32 bit reads, this is done as two 32 bit reads which are concatenated.
     pub fn time(&self) -> u64 {
-        self.registers.get_count()
+        self.get_count()
     }
 
     /// Pauses execution of the thread for the amount of time specified in milliseconds
@@ -65,8 +41,8 @@ impl<'a> Timer<'a> {
     }
 
     pub fn set_timeout(&mut self, micros: u32) {
-        self.registers.compare_values[3].set(
-            self.registers.counter_low_bits.get() + micros
+        self.compare_values[3].set(
+            self.counter_low_bits.get() + micros
         )
     }
 }

@@ -7,7 +7,6 @@ pub mod mmio;
 pub mod start;
 pub mod timer;
 pub mod mini_uart;
-pub mod lcd;
 pub mod mailbox_property;
 pub mod framebuffer;
 pub mod clock;

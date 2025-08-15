@@ -303,32 +303,30 @@ mod tests {
         memory: [0; 4096]
     };
 
-    fn initialize_allocator(HEAP: Heap) -> SpinMutex<LinkedListAllocator> {
+    fn initialize_allocator(heap: Heap) -> SpinMutex<LinkedListAllocator> {
         let alloc = SpinMutex::new(LinkedListAllocator::new());
-        unsafe {
-            let ptr = HEAP.memory.as_ptr() as usize;
-            assert_eq!(super::super::align(ptr, mem::align_of::<FreeBlock>()), ptr, "The heap pointer is misaligned");
-            alloc.lock().init(ptr, 8 * HEAP.memory.len());
-        }
+        let ptr = heap.memory.as_ptr() as usize;
+        assert_eq!(super::super::align(ptr, mem::align_of::<FreeBlock>()), ptr, "The heap pointer is misaligned");
+        alloc.lock().init(ptr, 8 * heap.memory.len());
         return alloc
     }
 
     #[test]
     fn test_initialize_allocator() {
-        let HEAP = Heap {
+        let heap = Heap {
             memory: [0; 4096]
         };
 
-        initialize_allocator(HEAP);
+        initialize_allocator(heap);
     }
 
     #[test]
     fn test_allocate_small() {
-        let HEAP = Heap {
+        let heap = Heap {
             memory: [0; 4096]
         };
 
-        let alloc = initialize_allocator(HEAP);
+        let alloc = initialize_allocator(heap);
 
         let layout = Layout::from_size_align(128, 128).unwrap();
 
@@ -345,11 +343,11 @@ mod tests {
     fn test_allocate_large() {
         unsafe {
 
-            let HEAP = Heap {
+            let heap = Heap {
                 memory: [0; 4096]
             };
 
-            let alloc = initialize_allocator(HEAP);
+            let alloc = initialize_allocator(heap);
 
             let layout = Layout::from_size_align(4096, 1024).unwrap();
 
@@ -365,12 +363,12 @@ mod tests {
     fn test_allocate_many() {
         const ITERATIONS: usize = 64;
 
-        let HEAP = Heap {
+        let heap = Heap {
             memory: [0; 4096]
         };
 
         unsafe {
-            let alloc = initialize_allocator(HEAP);
+            let alloc = initialize_allocator(heap);
 
             let layout = Layout::from_size_align(64, 64).unwrap();
 
@@ -397,12 +395,12 @@ mod tests {
     #[test]
     fn test_allocate_and_free() {
         const ITERATIONS: usize = 64;
-        let HEAP = Heap {
+        let heap = Heap {
             memory: [0; 4096]
         };
 
         unsafe {
-            let alloc = initialize_allocator(HEAP);
+            let alloc = initialize_allocator(heap);
 
             let layout = Layout::from_size_align(64, 64).unwrap();
 
@@ -439,12 +437,12 @@ mod tests {
         const ITERATIONS: usize = 16;
         const ALLOCS_PER_ITER: usize = 3;
 
-        let HEAP = Heap {
+        let heap = Heap {
             memory: [0; 4096]
         };
 
         unsafe {
-            let alloc = initialize_allocator(HEAP);
+            let alloc = initialize_allocator(heap);
 
             let layout = Layout::from_size_align(64, 64).unwrap();
 

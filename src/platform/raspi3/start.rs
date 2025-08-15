@@ -17,8 +17,6 @@ use crate::{
 use super::{
     gpio::{GPIOController, OutputLevel, Pin, StatusLight},
     mailbox::{Channel, MailboxController},
-    timer::Timer,
-    mini_uart::{LogLevel, MiniUARTController},
     framebuffer::{
         FrameBuffer, PixelOrder, Overscan, FrameBufferConfig,
         Offset,
@@ -44,7 +42,7 @@ use super::{
     interrupt::{
         InterruptController
     },
-    hardware_devices::{
+    platform_devices::{
         PLATFORM
     }
 };
@@ -63,8 +61,6 @@ pub extern "C" fn main(heap_start: usize, heap_size: usize, table_start: usize) 
     //blink_sequence(&status_light.borrow(), &timer.borrow(), 100);
 
     println!("Starting");
-
-    console.borrow_mut().set_log_level(LogLevel::Debug);
 
     println!("Entering Boot Sequence (with new build system?)");
     println!("Initializing Memory Virtualization");
@@ -170,7 +166,7 @@ pub extern "C" fn main(heap_start: usize, heap_size: usize, table_start: usize) 
     loop{}
 }
 
-pub fn blink_sequence(status_light: &StatusLight, timer: &Timer, interval: u64) {
+pub fn blink_sequence(status_light: &StatusLight, timer: &dyn Timer, interval: u64) {
     status_light.set_green(OutputLevel::High);
 
     timer.delay(interval);

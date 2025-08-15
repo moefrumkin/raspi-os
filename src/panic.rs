@@ -5,8 +5,7 @@
 #[cfg(feature = "raspi3")]
 use super::platform::{
     gpio::{GPIOController, OutputLevel, StatusLight},
-    mini_uart::MiniUARTController,
-    hardware_devices::PLATFORM
+    platform_devices::PLATFORM
 };
 
 #[cfg(feature = "raspi3")]
@@ -19,13 +18,13 @@ use crate::ALLOCATOR;
 #[cfg(feature = "raspi3")]
 #[panic_handler]
 fn on_panic(info: &PanicInfo) -> ! {
-    let status_light = PLATFORM.get_status_light().unwrap();
+    /*let status_light = PLATFORM.get_status_light().unwrap();
     let status_light = status_light.borrow_mut();
 
     status_light.set_green(OutputLevel::Low);
     status_light.set_blue(OutputLevel::Low);
 
-    status_light.set_red(OutputLevel::High);
+    status_light.set_red(OutputLevel::High);*/
 
     println!("");
     println!("A Fatal Kernel Panic Occured");
@@ -52,12 +51,12 @@ fn on_panic(info: &PanicInfo) -> ! {
 #[cfg(feature = "raspi3")]
 #[alloc_error_handler]
 fn on_alloc_error(layout: Layout) -> ! {
-    let status_light = PLATFORM.get_status_light().unwrap();
+    /*let status_light = PLATFORM.get_status_light().unwrap();
     let status_light = status_light.borrow_mut();
 
     status_light.set_green(OutputLevel::Low);
     status_light.set_blue(OutputLevel::Low);
-    status_light.set_red(OutputLevel::High);
+    status_light.set_red(OutputLevel::High);*/
 
     println!("A Fatal Allocation Error Occured");
     println!("Unable to allocate: {:?} using allocator: {:?}", layout, ALLOCATOR);

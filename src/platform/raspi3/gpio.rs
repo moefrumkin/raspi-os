@@ -5,6 +5,12 @@ use alloc::rc::Rc;
 
 use crate::{aarch64::cpu, bitfield, utils::bit_array::BitArray, volatile::Volatile};
 
+pub trait GPIOController {
+    fn set_pin_mode(&self, pin: Pin, mode: Mode);
+    fn set_pin_output(&self, pin: Pin, output: OutputLevel);
+    fn set_pin_pull(&self, pin: Pin, pull_mode: Pull);
+}
+
 const PINS: u32 = 53;
 
 const GPIO_BASE_OFFSET: u32 = 0x00200000;
@@ -55,20 +61,10 @@ pub struct GPIORegisters {
     pull_enable: [Volatile<BitArray<u32>>; 2]
 }
 
-pub struct GPIOController<'a> {
-    registers: &'a mut GPIORegisters
-}
-
 #[allow(dead_code)]
-impl<'a> GPIOController<'a> {
-    pub const fn with_registers(registers: &'a mut GPIORegisters) -> Self {
-        Self {
-            registers
-        }
-    }
-
-    pub fn set_mode(&mut self, pin: Pin, mode: Mode) {
-        self.registers.function_select_banks[
+impl GPIORegisters {
+    pub fn set_pin_mode(&mut self, pin: Pin, mode: Mode) {
+        self.function_select_banks[
             pin.function_select_bank_number()
         ].map_closure(&|bank: FunctionSelectBlock|
             bank.set_pin_mode(pin.number_in_function_select_bank(), mode)
@@ -80,12 +76,12 @@ impl<'a> GPIOController<'a> {
     pub fn set_out(&mut self, pin: Pin, output: OutputLevel) {
         match output {
             OutputLevel::High => {
-                self.registers.set_output[pin.set_block()].map_closure(&move |output_block: BitArray<u32>|
+                self.set_output[pin.set_block()].map_closure(&move |output_block: BitArray<u32>|
                     output_block.set_bit(pin.set_offset(), 1)
                 );
             }
             OutputLevel::Low => {
-                self.registers.clear_output[pin.clear_block()].map_closure(&move |clear_block: BitArray<u32>|
+                self.clear_output[pin.clear_block()].map_closure(&move |clear_block: BitArray<u32>|
                     clear_block.set_bit(pin.clear_offset(), 1)
                 );
             }
@@ -100,23 +96,23 @@ impl<'a> GPIOController<'a> {
         let pull_enable_block = pin.pull_enable_block();
         let pull_enable_offset = pin.pull_enable_offset();
 
-        self.registers.pull_register.set(PullRegister::mode(mode));
+        self.pull_register.set(PullRegister::mode(mode));
 
         cpu::wait_for_cycles(150);
 
-        self.registers.pull_enable[pull_enable_block].map_closure(&|pull_enable|
+        self.pull_enable[pull_enable_block].map_closure(&|pull_enable|
             pull_enable.set_bit(pull_enable_offset, 1)
         );
 
         cpu::wait_for_cycles(150);
 
-        self.registers.pull_enable[pull_enable_block].map_closure(&|pull_enable|
+        self.pull_enable[pull_enable_block].map_closure(&|pull_enable|
             pull_enable.set_bit(pull_enable_offset, 0)
         );
     }
 
     fn get_pin_mode(&self, pin: Pin) -> u32 {
-        self.registers.function_select_banks[pin.function_select_bank_number()].get()
+        self.function_select_banks[pin.function_select_bank_number()].get()
             .get_pin_mode(pin.number_in_function_select_bank())
     }
 
@@ -131,7 +127,7 @@ impl<'a> GPIOController<'a> {
 
         let offset_in_bank = pin.number - 32 * bank;
 
-        self.registers.high_detect_enable[bank as usize].map_closure(&|detect_enable|
+        self.high_detect_enable[bank as usize].map_closure(&|detect_enable|
             detect_enable.set_bit(offset_in_bank as usize, value)
         );
     }
@@ -180,7 +176,7 @@ pub struct StatusLight<'a> {
     red_pin: Pin,
     green_pin: Pin,
     blue_pin: Pin,
-    gpio_controller: &'a mut GPIOController<'a>,
+    gpio_controller: &'a dyn GPIOController,
 }
 
 impl<'a> StatusLight<'a> {
@@ -189,7 +185,7 @@ impl<'a> StatusLight<'a> {
     const BLUE_PIN: u32 = 22;
 
     /// Initializes a status light and sets the pins to output mode
-    pub const fn new(gpio_controller: &'a mut GPIOController<'a>) -> Self {
+    pub const fn new(gpio_controller: &'a dyn GPIOController) -> Self {
         let red_pin = Pin::new_unchecked(StatusLight::RED_PIN);
         let green_pin = Pin::new_unchecked(StatusLight::GREEN_PIN);
         let blue_pin = Pin::new_unchecked(StatusLight::BLUE_PIN);
@@ -203,24 +199,24 @@ impl<'a> StatusLight<'a> {
     }
 
     pub fn init(&mut self) {
-        self.gpio_controller.set_mode(self.red_pin, Mode::OUT);
-        self.gpio_controller.set_mode(self.green_pin, Mode::OUT);
-        self.gpio_controller.set_mode(self.blue_pin, Mode::OUT);
+        self.gpio_controller.set_pin_mode(self.red_pin, Mode::OUT);
+        self.gpio_controller.set_pin_mode(self.green_pin, Mode::OUT);
+        self.gpio_controller.set_pin_mode(self.blue_pin, Mode::OUT);
     }
 
     /// sets the right light
     pub fn set_red(&mut self, level: OutputLevel) {
-        self.gpio_controller.set_out(self.red_pin, level);
+        self.gpio_controller.set_pin_output(self.red_pin, level);
     }
 
     /// sets the green light
     pub fn set_green(&mut self, level: OutputLevel) {
-        self.gpio_controller.set_out(self.green_pin, level);
+        self.gpio_controller.set_pin_output(self.green_pin, level);
     }
 
     /// sets the blue light
     pub fn set_blue(&mut self, level: OutputLevel) {
-        self.gpio_controller.set_out(self.blue_pin, level);
+        self.gpio_controller.set_pin_output(self.blue_pin, level);
     }
 }
 
