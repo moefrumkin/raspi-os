@@ -6,6 +6,8 @@ use crate::{print, println, read, write};
 use alloc::vec::Vec;
 use alloc::slice;
 
+use crate::device::timer::Timer;
+
 use crate::{
     device::sector_device::SectorDevice,
     filesystem::{

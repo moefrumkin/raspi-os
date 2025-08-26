@@ -1,7 +1,7 @@
 use core::cell::RefCell;
 use alloc::rc::Rc;
 
-use crate::platform::raspi3::mailbox::{MailboxController, Channel, MBOX_REQUEST, MailboxBuffer, AlignedWord};
+use crate::platform::raspi3::mailbox::{MailboxController, Channel, MailboxBuffer, AlignedWord};
 use alloc::vec::Vec;
 use alloc::vec;
 use alloc::boxed::Box;
@@ -12,6 +12,8 @@ pub struct MessageBuilder<'a> {
     pub instructions: Vec<(&'a mut dyn MailboxInstruction, usize)>,
     pub word_length: usize
 }
+
+const MBOX_REQUEST: u32 = 0x0;
 
 impl<'a> MessageBuilder<'a> {
     pub fn new() -> Self {
@@ -32,10 +34,10 @@ impl<'a> MessageBuilder<'a> {
        self
     }
 
-    pub fn send(&mut self, mailbox: Rc<RefCell<MailboxController>>) {
+    pub fn send(&mut self, mailbox: & dyn MailboxController) {
         let buffer = self.to_buffer(); 
 
-        mailbox.borrow_mut().property_message(&buffer);
+        mailbox.send_property_message(&buffer);
 
         for i in 0..self.instructions.len() {
             let (req, offset) = &mut self.instructions[i];

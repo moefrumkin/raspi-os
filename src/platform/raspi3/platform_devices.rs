@@ -1,7 +1,7 @@
 use crate::platform::{self,
     emmc::{self, EMMCController, EMMCRegisters},
     gpio::{GPIOController, GPIORegisters, StatusLight},
-    mailbox::MailboxController, timer::TimerRegisters
+    mailbox::{MailboxBuffer, MailboxController, MailboxRegisters}, timer::TimerRegisters
 };
 
 use super::{
@@ -69,7 +69,7 @@ pub struct Devices<'a> {
     gpio: RefCell<&'a mut GPIORegisters>,
     timer: RefCell<&'a mut TimerRegisters>,
     mini_uart: RefCell<&'a mut MiniUARTRegisters>,
-    mailbox_controller: BoxedDevice<MailboxController>,
+    mailbox: RefCell<&'a mut MailboxRegisters>,
     emmc_controller: BoxedDevice<EMMCController<'a>>
 }
 
@@ -83,8 +83,8 @@ impl<'a> Devices<'a> {
             timer: RefCell::new(mmio::get_timer_registers()),
             mini_uart: RefCell::new(mmio::get_miniuart_registers()),
             gpio: RefCell::new(mmio::get_gpio_registers()),
-            mailbox_controller: None,
-            emmc_controller: None
+            mailbox: RefCell::new(mmio::get_mailbox_registers()),
+            emmc_controller: None,
         }
     }
 
@@ -126,5 +126,11 @@ impl Console for Devices<'_> {
 
     fn writefln(&self, args: Arguments) {
         self.mini_uart.borrow_mut().writefln(args);
+    }
+}
+
+impl MailboxController for Devices<'_> {
+    fn send_message_on_channel(&self, buffer: &MailboxBuffer, channel: super::mailbox::Channel) -> u32 {
+        self.mailbox.borrow_mut().send_message(buffer as *const MailboxBuffer as u32, channel)
     }
 }

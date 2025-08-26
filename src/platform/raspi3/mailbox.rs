@@ -1,24 +1,16 @@
 use core::{arch::asm, cell::RefCell};
 use alloc::{vec, vec::Vec};
-use crate::{bitfield, volatile::{AlignedBuffer, Volatile}};
+use crate::{aarch64::{self, cpu}, bitfield, volatile::{AlignedBuffer, Volatile}};
 use alloc::rc::Rc;
 
-const MBOX_BASE_OFFSET: usize = 0xB880;
-const MBOX_READ: usize = MBOX_BASE_OFFSET + 0x0;
-#[allow(dead_code)]
-const MBOX_POLL: usize = MBOX_BASE_OFFSET + 0x10;
-#[allow(dead_code)]
-const MBOX_SENDER: usize = MBOX_BASE_OFFSET + 0x14;
-const MBOX_STATUS: usize = MBOX_BASE_OFFSET + 0x18;
-#[allow(dead_code)]
-const MBOX_CONFIG: usize = MBOX_BASE_OFFSET + 0x1c;
-const MBOX_WRITE: usize = MBOX_BASE_OFFSET + 0x20;
+pub trait MailboxController {
+    // TODO: Should buffer be mutable since it is modified by the call?
+    fn send_message_on_channel(&self, buffer: &MailboxBuffer, channel: Channel) -> u32;
 
-pub const MBOX_REQUEST: u32 = 0x0;
-#[allow(dead_code)]
-pub const MBOX_RESPONSE: u32 = 0x80000000;
-const MBOX_FULL: u32 = 0x80000000;
-const MBOX_EMPTY: u32 = 0x40000000;
+    fn send_property_message(&self, buffer: &MailboxBuffer) {
+        self.send_message_on_channel(buffer, Channel::Prop);
+    }
+}
 
 #[repr(C)]
 pub struct MailboxRegisters {
@@ -43,51 +35,36 @@ bitfield! {
     }
 }
 
-pub struct MailboxController<'a> {
-    registers: &'a mut MailboxRegisters
-}
+impl MailboxRegisters {
+    pub fn send_message(&mut self, message: u32, channel: Channel) -> u32 {
+        self.wait_until_not_full();
 
-impl<'a> MailboxController<'a> {
-    pub fn with_registers(registers: &'a mut MailboxRegisters) -> Self {
-        return Self { registers };
-    }
-
-    /// Send the message to the channel and wait for the response.
-    /// The lower 4 bits of the message must be 0, otherwise things won't be pretty
-    pub fn call(&mut self, message: u32, channel: Channel) -> u32 {
-        //wait there is space to write
-        while self.registers.status.get().get_is_full() == 1 {
-            unsafe {
-                asm!("nop");
-            }
-        }
-
-        self.registers.write.map_closure(&|write|
+        self.write.map_closure(&|write|
             write.set_channel(channel as u32).set_data(message)
         );
 
-        //loop until the message has a response
         loop {
-            //wait until the mailbox is not empty
-            while self.registers.status.get().get_is_empty() == 1 {
-                unsafe {
-                    asm!("nop");
-                }
-            }
+            self.wait_until_not_empty();
 
-            let response = self.registers.read.get();
+            let response = self.read.get();
 
-            // TODO get rid of magic number
             if response & 0b1111 == channel as u32 {
                 return response;
             }
         }
     }
 
-    pub fn property_message(&mut self, buffer: &MailboxBuffer) {
-        let addr = buffer.as_ptr();
+    fn wait_until_not_empty(&self) {
+        while self.status.get().get_is_empty() == 1 {
+            //Why do we need a no op?
+            cpu::nop();
+        }
+    }
 
-        self.call(addr as u32, Channel::Prop);
+    fn wait_until_not_full(&self) {
+        while self.status.get().get_is_full() == 1 {
+            cpu::nop();
+        }
     }
 }
 

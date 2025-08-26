@@ -54,7 +54,7 @@ impl Device {
         }
     }
 
-    pub fn get_power_state(self, mailbox: Rc<RefCell<MailboxController>>) -> PowerState {
+    pub fn get_power_state(self, mailbox: &dyn MailboxController) -> PowerState {
         let mut request = SimpleRequest::<Device, PowerStateResponse, { Self::GET_POWER_STATE } >::with_request(self);
 
         let mut message = MessageBuilder::new().request(&mut request);
@@ -65,7 +65,7 @@ impl Device {
  
     }
 
-    pub fn get_timing(self, mailbox: Rc<RefCell<MailboxController>>) -> u32 {
+    pub fn get_timing(self, mailbox: &dyn MailboxController) -> u32 {
         let mut request = SimpleRequest::<Device, TimingResponse, { Self::GET_TIMING } >::with_request(self);
 
         let mut message = MessageBuilder::new().request(&mut request);

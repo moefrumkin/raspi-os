@@ -50,7 +50,7 @@ impl fmt::Display for MACAddress {
 
 
 impl HardwareConfig {
-    pub fn from_mailbox(mailbox: Rc<RefCell<MailboxController>>) -> Self {
+    pub fn from_mailbox(mailbox: &dyn MailboxController) -> Self {
         let mut firmware_revision = GetFirmwareRevision::new();
         let mut board_model = GetBoardModel::new();
         let mut board_revision = GetBoardRevision::new();

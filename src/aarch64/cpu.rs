@@ -14,6 +14,12 @@ pub fn el() -> usize {
     (read!("CurrentEL") & 0b1100) >> 2
 }
 
+pub fn nop() {
+    unsafe {
+        asm!("nop");
+    }
+}
+
 #[allow(dead_code)]
 pub fn wait_for_cycles(cycles: u64) {
     for _ in 0..cycles {

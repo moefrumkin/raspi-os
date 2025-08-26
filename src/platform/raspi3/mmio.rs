@@ -1,4 +1,4 @@
-use crate::{platform::{emmc::EMMCRegisters, gpio::GPIORegisters, mini_uart::MiniUARTRegisters}, sync::SpinMutex};
+use crate::{platform::{emmc::EMMCRegisters, gpio::GPIORegisters, mailbox::MailboxRegisters, mini_uart::MiniUARTRegisters}, sync::SpinMutex};
 
 use super::{
     timer::TimerRegisters
@@ -40,6 +40,10 @@ pub const fn get_miniuart_registers() -> &'static mut MiniUARTRegisters {
     unsafe {
         to_mut_mmio_registers(MINI_UART_REGISTER_OFFSET)
     }
+}
+
+pub const fn get_mailbox_registers() -> &'static mut MailboxRegisters {
+    unimplemented!()
 }
 
 /*pub struct MMIOController {

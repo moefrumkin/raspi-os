@@ -88,7 +88,7 @@ impl Clock {
     }
 
     // TODO: find some abstraction for these functions
-    pub fn get_clock_rate(self, mailbox: Rc<RefCell<MailboxController>>) -> u32 {
+    pub fn get_clock_rate(self, mailbox: &dyn MailboxController) -> u32 {
         let mut request = SimpleRequest::<Clock, ClockRateResponse, { Self::GET_CLOCK_RATE} >::with_request(self);
 
         let mut message = MessageBuilder::new().request(&mut request);
@@ -98,7 +98,7 @@ impl Clock {
         return request.get_response().1;
     }
 
-    pub fn get_clock_rate_measured(self, mailbox: Rc<RefCell<MailboxController>>) -> u32 {
+    pub fn get_clock_rate_measured(self, mailbox: & dyn MailboxController) -> u32 {
         let mut request = SimpleRequest::<Clock, ClockRateResponse, { Self::GET_CLOCK_RATE_MEASURED} >::with_request(self);
 
         let mut message = MessageBuilder::new().request(&mut request);
@@ -108,7 +108,7 @@ impl Clock {
         return request.get_response().1;
     }    
 
-    pub fn get_max_clock_rate(self, mailbox: Rc<RefCell<MailboxController>>) -> u32 {
+    pub fn get_max_clock_rate(self, mailbox: &dyn MailboxController) -> u32 {
         let mut request = SimpleRequest::<Clock, ClockRateResponse, { Self::GET_MAX_CLOCK_RATE} >::with_request(self);
 
         let mut message = MessageBuilder::new().request(&mut request);
@@ -118,7 +118,7 @@ impl Clock {
         return request.get_response().1;
     }
 
-    pub fn get_min_clock_rate(self, mailbox: Rc<RefCell<MailboxController>>) -> u32 {
+    pub fn get_min_clock_rate(self, mailbox: &dyn MailboxController) -> u32 {
         let mut request = SimpleRequest::<Clock, ClockRateResponse, { Self::GET_MIN_CLOCK_RATE} >::with_request(self);
 
         let mut message = MessageBuilder::new().request(&mut request);
@@ -128,7 +128,7 @@ impl Clock {
         return request.get_response().1;
     }
 
-    pub fn get_clock_state(self, mailbox: Rc<RefCell<MailboxController>>) -> ClockState {
+    pub fn get_clock_state(self, mailbox: &dyn MailboxController) -> ClockState {
         let mut request = SimpleRequest::<Clock, ClockStateResponse, { Self::GET_CLOCK_STATE } >::with_request(self);
 
         let mut message = MessageBuilder::new().request(&mut request);
