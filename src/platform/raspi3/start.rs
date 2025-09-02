@@ -45,7 +45,7 @@ use super::{
         InterruptController
     },
     platform_devices::{
-        PLATFORM
+        //PLATFORM
     }
 };
 
@@ -54,11 +54,11 @@ global_asm!(include_str!("start.s"));
 #[no_mangle]
 pub extern "C" fn main(heap_start: usize, heap_size: usize, table_start: usize) {
     ALLOCATOR.lock().init(heap_start, heap_size);
-    PLATFORM.init();
+    //PLATFORM.init();
 
     //let status_light = PLATFORM.get_status_light().unwrap();
-    let timer = PLATFORM.get_timer().unwrap();
-    let console = PLATFORM.get_console().unwrap();
+    //let timer = PLATFORM.get_timer();
+    //let console = PLATFORM.get_console();
 
     //blink_sequence(&status_light.borrow(), &timer.borrow(), 100);
 
@@ -76,9 +76,10 @@ pub extern "C" fn main(heap_start: usize, heap_size: usize, table_start: usize) 
     println!("Initializing Heap Allocator");
     println!("Heap Allocator initialized at {:#x} with size {}", heap_start, heap_size);
 
-    let mut mailbox = PLATFORM.get_mailbox_controller().unwrap();
+    //let binding = PLATFORM;
+    //let mailbox = binding.get_mailbox_controller();
 
-    let hardware_config = HardwareConfig::from_mailbox(mailbox.clone());
+    //let hardware_config = HardwareConfig::from_mailbox(mailbox.clone());
 
     println!("Hardware Configuration Detected: {}\n", hardware_config);
 
@@ -103,7 +104,7 @@ pub extern "C" fn main(heap_start: usize, heap_size: usize, table_start: usize) 
         );
     }
 
-    let mut emmc_controller = PLATFORM.get_emmc_controller().unwrap();
+    /*let mut emmc_controller = PLATFORM.get_emmc_controller();
 
     let (mbr_sector_number, master_boot_record) = MasterBootRecord::scan_device_for_mbr(
         emmc_controller.clone(),
@@ -132,7 +133,7 @@ pub extern "C" fn main(heap_start: usize, heap_size: usize, table_start: usize) 
     interrupt_controller.enable_timer_interrupt_3();
     interrupt_controller.enable_mini_uart_interrupt();
 
-    println!("Timer interrupt enabled!");
+    println!("Timer interrupt enabled!");*/
 
     let resolution = Dimensions::new(1920, 1080);
 
@@ -147,7 +148,7 @@ pub extern "C" fn main(heap_start: usize, heap_size: usize, table_start: usize) 
 
     println!("Initializing Frame Buffer with config {}", fb_config);
 
-    let mut fb = FrameBuffer::from_config(fb_config, mailbox);
+    /* let mut fb = FrameBuffer::from_config(fb_config, mailbox);
 
     println!("Actual config is {}", fb.get_config());
 
@@ -165,23 +166,23 @@ pub extern "C" fn main(heap_start: usize, heap_size: usize, table_start: usize) 
    
     //status_light.borrow_mut().set_green(OutputLevel::High);
 
-    loop{}
+    loop{} */
 }
 
-pub fn blink_sequence(status_light: &StatusLight, timer: &dyn Timer, interval: u64) {
+pub fn blink_sequence(status_light: &mut StatusLight, timer: &dyn Timer, interval: u64) {
     status_light.set_green(OutputLevel::High);
 
-    timer.delay(interval);
+    timer.delay_micros(interval);
 
     status_light.set_green(OutputLevel::Low);
     status_light.set_blue(OutputLevel::High);
 
-    timer.delay(interval);
+    timer.delay_micros(interval);
 
     status_light.set_blue(OutputLevel::Low);
     status_light.set_red(OutputLevel::High);
 
-    timer.delay(interval);
+    timer.delay_micros(interval);
 
     status_light.set_red(OutputLevel::Low);
 }

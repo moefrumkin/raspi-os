@@ -23,6 +23,10 @@ SECTIONS
     HEAP_START = .;
     . = . + HEAP_SIZE;
 
+    MMIO_START = 0x3F000000;
+
+    GPIO_START = 0x3F200000;
+
    /DISCARD/ : { *(.comment) *(.gnu*) *(.note*) *(.eh_frame*) }
 }
 HEAP_SIZE = 1048576;

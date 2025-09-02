@@ -5,7 +5,7 @@
 #[cfg(feature = "raspi3")]
 use super::platform::{
     gpio::{GPIOController, OutputLevel, StatusLight},
-    platform_devices::PLATFORM
+    //platform_devices::PLATFORM
 };
 
 #[cfg(feature = "raspi3")]

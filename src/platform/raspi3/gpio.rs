@@ -9,6 +9,8 @@ pub trait GPIOController {
     fn set_pin_mode(&self, pin: Pin, mode: Mode);
     fn set_pin_output(&self, pin: Pin, output: OutputLevel);
     fn set_pin_pull(&self, pin: Pin, pull_mode: Pull);
+
+    fn set_pin_high_detect_enable(&self, pin: Pin);
 }
 
 const PINS: u32 = 53;

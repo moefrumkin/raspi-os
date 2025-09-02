@@ -1,3 +1,5 @@
+use core::ptr;
+
 use crate::{platform::{emmc::EMMCRegisters, gpio::GPIORegisters, mailbox::MailboxRegisters, mini_uart::MiniUARTRegisters}, sync::SpinMutex};
 
 use super::{
@@ -5,17 +7,23 @@ use super::{
 };
 
 
-const START: usize = 0x3F000000;
+/*unsafe extern "C" {
+    unsafe static MMIO_START: usize;
+}*/
+
+const MMIO_START: usize = 0x3F00_0000;
+
 const LENGTH: usize = 0x00FFFFFF;
 
 const TIMER_REGISTER_OFFSET: usize = 0x3000;
+const MAILBOX_REIGSTER_OFFSET: usize = 0xB880;
 const GPIO_REGISTER_OFFSET: usize = 0x20_0000;
 const EMMC_REGISTER_OFFSET: usize = 0x30_0000;
 const MINI_UART_REGISTER_OFFSET: usize = 0x21_5000;
 
 const unsafe fn to_mut_mmio_registers<T>(offset: usize) -> &'static mut T
 {
-    &mut *((START + offset) as *mut T)
+    &mut *((MMIO_START + offset) as *mut T)
 }
 
 pub const fn get_timer_registers() -> &'static mut TimerRegisters {
@@ -43,7 +51,9 @@ pub const fn get_miniuart_registers() -> &'static mut MiniUARTRegisters {
 }
 
 pub const fn get_mailbox_registers() -> &'static mut MailboxRegisters {
-    unimplemented!()
+    unsafe {
+        to_mut_mmio_registers(MAILBOX_REIGSTER_OFFSET)
+    }
 }
 
 /*pub struct MMIOController {
