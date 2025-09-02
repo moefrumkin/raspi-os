@@ -7,11 +7,16 @@ use super::{
 };
 
 
-/*unsafe extern "C" {
+unsafe extern "C" {
     unsafe static MMIO_START: usize;
-}*/
+    unsafe static mut TIMER_REGISTERS: TimerRegisters;
+    unsafe static mut GPIO_REGISTERS: GPIORegisters;
+    unsafe static mut MAILBOX_REGISTERS: MailboxRegisters;
+    unsafe static mut EMMC_REGISTERS: EMMCRegisters;
+    unsafe static mut MINI_UART_REGISTERS: MiniUARTRegisters;
+}
 
-const MMIO_START: usize = 0x3F00_0000;
+//const MMIO_START: usize = 0x3F00_0000;
 
 const LENGTH: usize = 0x00FFFFFF;
 
@@ -23,36 +28,36 @@ const MINI_UART_REGISTER_OFFSET: usize = 0x21_5000;
 
 const unsafe fn to_mut_mmio_registers<T>(offset: usize) -> &'static mut T
 {
-    &mut *((MMIO_START + offset) as *mut T)
+    &mut *(((MMIO_START) + offset) as *mut T)
 }
 
 pub const fn get_timer_registers() -> &'static mut TimerRegisters {
     unsafe {
-        to_mut_mmio_registers(TIMER_REGISTER_OFFSET)
+        &mut TIMER_REGISTERS
     }
 }
 
 pub const fn get_emmc_registers() -> &'static mut EMMCRegisters {
     unsafe {
-        to_mut_mmio_registers(EMMC_REGISTER_OFFSET)
+        &mut EMMC_REGISTERS
     }
 }
 
 pub const fn get_gpio_registers() -> &'static mut GPIORegisters {
     unsafe {
-        to_mut_mmio_registers(GPIO_REGISTER_OFFSET)
+        &mut GPIO_REGISTERS
     }
 }
 
 pub const fn get_miniuart_registers() -> &'static mut MiniUARTRegisters {
     unsafe {
-        to_mut_mmio_registers(MINI_UART_REGISTER_OFFSET)
+        &mut MINI_UART_REGISTERS
     }
 }
 
 pub const fn get_mailbox_registers() -> &'static mut MailboxRegisters {
     unsafe {
-        to_mut_mmio_registers(MAILBOX_REIGSTER_OFFSET)
+        &mut MAILBOX_REGISTERS
     }
 }
 

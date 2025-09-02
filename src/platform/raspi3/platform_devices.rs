@@ -37,9 +37,9 @@ macro_rules! println {
     }
 }
 
-//pub const PLATFORM: Platform = Platform::uninitialized();
-
 pub type BoxedDevice<T> = Option<Rc<RefCell<T>>>;
+
+static PLATFORM: Platform = Platform::uninitialized();
 
 pub struct Platform<'a> {
     devices: Devices<'a>
@@ -131,6 +131,10 @@ impl<'a> Devices<'a> {
     pub fn get_emmc_controller(&self) -> &dyn SectorDevice {
         self
     }
+}
+
+unsafe impl<'a> Sync for Platform<'a> {
+
 }
 
 impl GPIOController for Devices<'_> {
