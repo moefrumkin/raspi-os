@@ -140,7 +140,7 @@ impl FAT32Filesystem {
         }
     }
     
-    pub fn read_directory(&mut self, cluster_number: u32) -> FAT32Directory {
+    pub fn read_directory(&mut self, cluster_number: u32) -> FAT32Directory<'_> {
         let mut entries = Vec::new();
 
         let mut current_cluster = cluster_number;
@@ -167,7 +167,7 @@ impl FAT32Filesystem {
         } 
     }
 
-    pub fn get_root_directory(&mut self) -> FAT32Directory {
+    pub fn get_root_directory(&mut self) -> FAT32Directory<'_> {
         self.read_directory(self.config.root_cluster)
     }
     

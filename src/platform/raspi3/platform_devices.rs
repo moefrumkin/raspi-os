@@ -31,15 +31,19 @@ macro_rules! println {
        PLATFORM.get_console().newline();
     };
     ($($args:tt)*) => {
-        /*crate::platform::raspi3::platform_devices::PLATFORM
+        crate::platform::raspi3::platform_devices::PLATFORM
             .get_console()
-            .writefln(format_args!($($args)*));*/
+            .writefln(format_args!($($args)*));
     }
 }
 
 pub type BoxedDevice<T> = Option<Rc<RefCell<T>>>;
 
-static PLATFORM: Platform = Platform::uninitialized();
+pub static PLATFORM: Platform = Platform::uninitialized();
+
+pub fn get_platform() -> &'static Platform<'static> {
+    &PLATFORM
+}
 
 pub struct Platform<'a> {
     devices: Devices<'a>

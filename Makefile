@@ -51,6 +51,9 @@ image:
 run: $(KERNEL_ELF)
 	$(QEMU_CMD)
 
+run-nogui: $(KERNEL_ELF)
+	$(QEMU_CMD) -nographic
+
 dump:
 	$(OBJDUMP_CMD)
 

@@ -45,7 +45,8 @@ use super::{
         InterruptController
     },
     platform_devices::{
-        //PLATFORM
+        PLATFORM,
+        get_platform
     }
 };
 
@@ -53,14 +54,14 @@ global_asm!(include_str!("start.s"));
 
 #[no_mangle]
 pub extern "C" fn main(heap_start: usize, heap_size: usize, table_start: usize) {
-    ALLOCATOR.lock().init(heap_start, heap_size);
-    //PLATFORM.init();
 
-    //let status_light = PLATFORM.get_status_light().unwrap();
-    //let timer = PLATFORM.get_timer();
-    //let console = PLATFORM.get_console();
+    let platform = get_platform();
 
-    //blink_sequence(&status_light.borrow(), &timer.borrow(), 100);
+    // let status_light = PLATFORM.get_status_light().unwrap();
+    let timer = platform.get_timer();
+    let console = platform.get_console();
+
+    // blink_sequence(&status_light.borrow(), timer, 100);
 
     println!("Starting");
 
@@ -74,12 +75,12 @@ pub extern "C" fn main(heap_start: usize, heap_size: usize, table_start: usize) 
     println!("Memory Virtualization Initialized");
 
     println!("Initializing Heap Allocator");
+    ALLOCATOR.lock().init(heap_start, heap_size);
     println!("Heap Allocator initialized at {:#x} with size {}", heap_start, heap_size);
 
-    //let binding = PLATFORM;
-    //let mailbox = binding.get_mailbox_controller();
+    let mailbox = platform.get_mailbox_controller();
 
-    //let hardware_config = HardwareConfig::from_mailbox(mailbox.clone());
+    let hardware_config = HardwareConfig::from_mailbox(mailbox);
 
     println!("Hardware Configuration Detected: {}\n", hardware_config);
 
@@ -88,8 +89,8 @@ pub extern "C" fn main(heap_start: usize, heap_size: usize, table_start: usize) 
     for device in &DEVICES {
         println!("\t-{}: Powered: {}, Timing: {}",
             device,
-            device.get_power_state(mailbox.clone()).is_on(),
-            device.get_timing(mailbox.clone()));
+            device.get_power_state(mailbox).is_on(),
+            device.get_timing(mailbox));
     }
 
     println!("Clocks:");
@@ -97,10 +98,10 @@ pub extern "C" fn main(heap_start: usize, heap_size: usize, table_start: usize) 
     for clock in &CLOCKS {
         println!("\t-{}: On: {}, Set Rate: {}, Min Rate: {}, Max Rate: {}",
             clock,
-            clock.get_clock_state(mailbox.clone()).is_on(),
-            clock.get_clock_rate(mailbox.clone()),
-            clock.get_min_clock_rate(mailbox.clone()),
-            clock.get_max_clock_rate(mailbox.clone())
+            clock.get_clock_state(mailbox).is_on(),
+            clock.get_clock_rate(mailbox),
+            clock.get_min_clock_rate(mailbox),
+            clock.get_max_clock_rate(mailbox)
         );
     }
 
