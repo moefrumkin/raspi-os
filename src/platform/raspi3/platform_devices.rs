@@ -1,5 +1,5 @@
 use crate::{device::sector_device::SectorDevice, platform::{self,
-    emmc::{self, EMMCConfiguration, EMMCController, EMMCRegisters},
+    emmc::{self, EMMCConfiguration, EMMCController, EMMCRegisters, EMMCSlot},
     gpio::{GPIOController, GPIORegisters, StatusLight},
     mailbox::{MailboxBuffer, MailboxController, MailboxRegisters}, timer::TimerRegisters
 }};
@@ -109,11 +109,11 @@ impl<'a> Devices<'a> {
     pub fn init(&self) {
         self.mini_uart.borrow_mut().init(self.get_gpio_controller());
 
-        /*let emmc_configuration = EMMCController::initialize(
+        let emmc_configuration = EMMCController::initialize(
             self.emmc.borrow_mut(),
             self.get_timer(),
             self.get_gpio_controller()
-        );*/
+        );
     }
 
     pub fn get_gpio_controller(&self) -> &dyn GPIOController {
