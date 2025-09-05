@@ -80,7 +80,7 @@ pub extern "C" fn main(heap_start: usize, heap_size: usize, table_start: usize) 
 
     let mailbox = platform.get_mailbox_controller();
 
-    let hardware_config = HardwareConfig::from_mailbox(mailbox);
+    let hardware_config = platform.get_hardware_config();
 
     println!("Hardware Configuration Detected: {}\n", hardware_config);
 

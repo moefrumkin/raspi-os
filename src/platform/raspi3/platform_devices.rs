@@ -1,7 +1,4 @@
-use crate::{device::sector_device::{Sector, SectorDevice}, platform::{self,
-    emmc::{self, EMMCConfiguration, EMMCController, EMMCRegisters, EMMCSlot},
-    gpio::{GPIOController, GPIORegisters, StatusLight},
-    mailbox::{MailboxBuffer, MailboxController, MailboxRegisters}, timer::TimerRegisters
+use crate::{device::sector_device::{Sector, SectorDevice}, platform::{self, emmc::{self, EMMCConfiguration, EMMCController, EMMCRegisters, EMMCSlot}, gpio::{GPIOController, GPIORegisters, StatusLight}, hardware_config::HardwareConfig, mailbox::{MailboxBuffer, MailboxController, MailboxRegisters}, timer::TimerRegisters
 }};
 
 use super::{
@@ -72,12 +69,16 @@ impl<'a> Platform<'a> {
         self.devices.get_timer()
     }
 
-    pub fn get_emmc_controller(&'a self) -> &dyn SectorDevice {
+    pub fn get_emmc_controller(&'a self) -> &'a dyn SectorDevice<'a> {
         self.devices.get_emmc_controller()
     }
 
     pub fn get_mailbox_controller(&self) -> &dyn MailboxController {
         self.devices.get_mailbox_controller()
+    }
+
+    pub fn get_hardware_config(&self) -> HardwareConfig {
+        HardwareConfig::from_mailbox(self.get_mailbox_controller())
     }
 }
 
@@ -134,7 +135,7 @@ impl<'a> Devices<'a> {
         self
     }
 
-    pub fn get_emmc_controller(&'a self) -> &dyn SectorDevice {
+    pub fn get_emmc_controller(&'a self) -> &'a dyn SectorDevice<'a> {
         self
     }
 }
