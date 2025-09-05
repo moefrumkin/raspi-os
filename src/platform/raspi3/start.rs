@@ -113,7 +113,11 @@ pub extern "C" fn main(heap_start: usize, heap_size: usize, table_start: usize) 
         20)
         .expect("Unable to read Master Boot Record");
 
+    println!("mbr found: {:?}", master_boot_record);
+
     let partition = master_boot_record.partition_entries[0];
+
+    println!("Partition: {:?}", partition);
     
     let mut filesystem = FAT32Filesystem::load_in_partition(
         emmc_controller,

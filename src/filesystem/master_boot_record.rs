@@ -4,7 +4,7 @@ use alloc::rc::Rc;
 use crate::{device::sector_device::{Sector, SectorAddress, SectorDevice}, filesystem::master_boot_record};
 
 #[repr(C)]
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct MasterBootRecord {
     bootstrap_code_area: [u8; 446],
     pub partition_entries: [MastBootRecordPartitionEntry; 4],
