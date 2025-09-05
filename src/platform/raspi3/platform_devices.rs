@@ -1,4 +1,4 @@
-use crate::{device::sector_device::SectorDevice, platform::{self,
+use crate::{device::sector_device::{Sector, SectorDevice}, platform::{self,
     emmc::{self, EMMCConfiguration, EMMCController, EMMCRegisters, EMMCSlot},
     gpio::{GPIOController, GPIORegisters, StatusLight},
     mailbox::{MailboxBuffer, MailboxController, MailboxRegisters}, timer::TimerRegisters
@@ -56,7 +56,7 @@ impl<'a> Platform<'a> {
         }
     }
 
-    pub fn init(&self) {
+    pub fn init(&'a self) {
        self.devices.init();
     }
 
@@ -72,7 +72,7 @@ impl<'a> Platform<'a> {
         self.devices.get_timer()
     }
 
-    pub fn get_emmc_controller(&self) -> &dyn SectorDevice {
+    pub fn get_emmc_controller(&'a self) -> &dyn SectorDevice {
         self.devices.get_emmc_controller()
     }
 
@@ -106,14 +106,16 @@ impl<'a> Devices<'a> {
         }
     }
 
-    pub fn init(&self) {
+    pub fn init(&'a self) {
         self.mini_uart.borrow_mut().init(self.get_gpio_controller());
 
         let emmc_configuration = EMMCController::initialize(
-            self.emmc.borrow_mut(),
+            &self.emmc,
             self.get_timer(),
             self.get_gpio_controller()
         );
+
+        self.emmc_configuration.replace(emmc_configuration);
     }
 
     pub fn get_gpio_controller(&self) -> &dyn GPIOController {
@@ -132,7 +134,7 @@ impl<'a> Devices<'a> {
         self
     }
 
-    pub fn get_emmc_controller(&self) -> &dyn SectorDevice {
+    pub fn get_emmc_controller(&'a self) -> &dyn SectorDevice {
         self
     }
 }
@@ -189,8 +191,19 @@ impl Timer for Devices<'_> {
     }
 }
 
-impl SectorDevice for Devices<'_> {
-    fn read_sector(&mut self, address: crate::device::sector_device::SectorAddress) -> crate::device::sector_device::Sector {
-        todo!()
+impl<'a> SectorDevice<'a> for Devices<'a> {
+    fn read_sector(&'a self, address: crate::device::sector_device::SectorAddress) -> Sector {
+        let mut emmc_controller = EMMCController::with_configuration(
+            &self.emmc, 
+            self.get_gpio_controller(), 
+            self.get_timer(),
+            self.emmc_configuration.borrow().clone()
+        );
+
+        let mut buffer: [u8; 512] = [0; 512];
+
+        emmc_controller.read_blocks(address, &mut buffer, 1);
+
+        Sector::from(buffer)
     }
 }

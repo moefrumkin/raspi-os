@@ -6,8 +6,8 @@ pub struct Sector {
 
 pub type SectorAddress = u32;
 
-pub trait SectorDevice {
-    fn read_sector(&mut self, address: SectorAddress) -> Sector;
+pub trait SectorDevice<'a> {
+    fn read_sector(&'a self, address: SectorAddress) -> Sector;
 }
 
 impl Sector {

@@ -54,8 +54,10 @@ global_asm!(include_str!("start.s"));
 
 #[no_mangle]
 pub extern "C" fn main(heap_start: usize, heap_size: usize, table_start: usize) {
-
+    ALLOCATOR.lock().init(heap_start, heap_size);
     let platform = get_platform();
+
+    platform.init();
 
     // let status_light = PLATFORM.get_status_light().unwrap();
     let timer = platform.get_timer();
@@ -74,8 +76,6 @@ pub extern "C" fn main(heap_start: usize, heap_size: usize, table_start: usize) 
 
     println!("Memory Virtualization Initialized");
 
-    println!("Initializing Heap Allocator");
-    ALLOCATOR.lock().init(heap_start, heap_size);
     println!("Heap Allocator initialized at {:#x} with size {}", heap_start, heap_size);
 
     let mailbox = platform.get_mailbox_controller();
@@ -105,10 +105,10 @@ pub extern "C" fn main(heap_start: usize, heap_size: usize, table_start: usize) 
         );
     }
 
-    /*let mut emmc_controller = PLATFORM.get_emmc_controller();
+    let emmc_controller = PLATFORM.get_emmc_controller();
 
     let (mbr_sector_number, master_boot_record) = MasterBootRecord::scan_device_for_mbr(
-        emmc_controller.clone(),
+        emmc_controller,
         0,
         20)
         .expect("Unable to read Master Boot Record");
@@ -116,7 +116,7 @@ pub extern "C" fn main(heap_start: usize, heap_size: usize, table_start: usize) 
     let partition = master_boot_record.partition_entries[0];
     
     let mut filesystem = FAT32Filesystem::load_in_partition(
-        emmc_controller.clone(),
+        emmc_controller,
         mbr_sector_number + partition.first_sector_address(),
         mbr_sector_number + partition.last_sector_address())
         .expect("Unable to initialize a FAT32 filesystem in partition");
@@ -134,7 +134,7 @@ pub extern "C" fn main(heap_start: usize, heap_size: usize, table_start: usize) 
     interrupt_controller.enable_timer_interrupt_3();
     interrupt_controller.enable_mini_uart_interrupt();
 
-    println!("Timer interrupt enabled!");*/
+    println!("Timer interrupt enabled!");
 
     let resolution = Dimensions::new(1920, 1080);
 

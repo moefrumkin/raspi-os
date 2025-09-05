@@ -3,8 +3,8 @@ use core::{cell::RefCell, fmt::{self, Display, Formatter}};
 use alloc::vec::Vec;
 use alloc::rc::Rc;
 
-pub struct FAT32Filesystem {
-    sector_device: Rc<RefCell<dyn SectorDevice>>,
+pub struct FAT32Filesystem<'a> {
+    sector_device: &'a dyn SectorDevice<'a>,
 
     config: FAT32Config,
 
@@ -115,12 +115,12 @@ bitfield! {
     }
 }
 
-impl FAT32Filesystem {
-    pub fn load_in_partition(sector_device: Rc<RefCell<dyn SectorDevice>>, start: SectorAddress, end: SectorAddress) ->
+impl<'a> FAT32Filesystem<'a> {
+    pub fn load_in_partition(sector_device: &'a dyn SectorDevice<'a>, start: SectorAddress, end: SectorAddress) ->
         Result<Self, ()>
     {
         if let Ok((boot_sector_number, boot_sector)) = 
-            FAT32BootSector::scan_for_boot_sector(sector_device.clone(), start, end) {
+            FAT32BootSector::scan_for_boot_sector(sector_device, start, end) {
             let config = FAT32Config::from(boot_sector);
             let fat_start = boot_sector_number + config.reserved_sectors as u32;
             let data_start = fat_start + config.number_of_fats as u32 * config.sectors_per_fat;
@@ -175,7 +175,7 @@ impl FAT32Filesystem {
         let first_sector = self.cluster_number_to_sector_number(cluster);
 
         for sector_number in first_sector..first_sector + self.config.sectors_per_cluster as u32{
-            let sector = FAT32DirectorySector::from(self.sector_device.borrow_mut().read_sector(sector_number));
+            let sector = FAT32DirectorySector::from(self.sector_device.read_sector(sector_number));
 
             for entry_number in 0..16 {
                 let entry = sector.directory_entries[entry_number];
@@ -202,7 +202,7 @@ impl FAT32Filesystem {
         let fat_sector_number = self.fat_start + (fat_offset / self.config.bytes_per_sector as u32);
         let fat_sector_offset = cluster_number % self.config.bytes_per_sector as u32;
 
-        let fat_sector = FAT32FATSector::from(self.sector_device.borrow_mut().read_sector(fat_sector_number));
+        let fat_sector = FAT32FATSector::from(self.sector_device.read_sector(fat_sector_number));
 
         fat_sector.get_fat32_entry(fat_sector_offset)
     }
@@ -305,15 +305,15 @@ impl TryFrom<Sector> for FAT32BootSector {
     }
 }
 
-impl FAT32BootSector {
+impl<'a> FAT32BootSector {
     pub fn scan_for_boot_sector(
-        sector_device: Rc<RefCell<dyn SectorDevice>>,
+        sector_device: &'a dyn SectorDevice<'a>,
         start: SectorAddress,
         end: SectorAddress
     ) -> Result<(SectorAddress, Self), ()> 
     {
         for address in start..end {
-            let sector = sector_device.borrow_mut().read_sector(address);
+            let sector = sector_device.read_sector(address);
 
             if let Ok(boot_sector) = Self::try_from(sector) {
                 return Ok((address, boot_sector));

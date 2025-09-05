@@ -42,6 +42,9 @@ all: build doc-noopen
 qemu:
 	$(QEMU_CMD) -S -s
 
+qemu-nogui:
+	$(QEMU_CMD) -S -s -nographic
+
 build:
 	$(BUILD_CMD)
 

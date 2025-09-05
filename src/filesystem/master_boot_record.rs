@@ -22,14 +22,14 @@ pub struct MastBootRecordPartitionEntry {
     sectors_in_partition: u32
 }
 
-impl MasterBootRecord {
+impl<'a> MasterBootRecord {
     const BOOT_SIGNATURE: u16 = 0xAA55;
 
-    pub fn scan_device_for_mbr(sector_device: Rc<RefCell<dyn SectorDevice>>, start: SectorAddress, end: SectorAddress) -> 
+    pub fn scan_device_for_mbr(sector_device: &'a dyn SectorDevice<'a>, start: SectorAddress, end: SectorAddress) -> 
         Result<(SectorAddress, MasterBootRecord), ()> 
     {
         for address in start..end {
-            let sector = sector_device.borrow_mut().read_sector(address);
+            let sector = sector_device.read_sector(address);
 
             if let Ok(master_boot_record) = MasterBootRecord::try_from(sector) {
                 return Ok((address, master_boot_record));
