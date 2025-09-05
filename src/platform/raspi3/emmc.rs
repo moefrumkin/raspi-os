@@ -349,7 +349,6 @@ impl<'a> EMMCController<'a> {
 
     pub fn initialize_card(&mut self) {
         self.configuration.hardware_version = self.slot.borrow().get_host_controller_specification_version();
-        crate::println!("Config: {:?}", self.configuration);
 
         self.reset_card();
 
@@ -362,8 +361,6 @@ impl<'a> EMMCController<'a> {
         self.set_clock_frequency(400_000);
 
         self.slot.borrow_mut().enable_interrupts();
-
-        crate::println!("Going idle");
 
         // TODO: this might not be the correct error checking
         if self.send_command(SDCommand::GO_IDLE, 0).unwrap() != 0 {
@@ -424,15 +421,12 @@ impl<'a> EMMCController<'a> {
             self.slot.borrow_mut().use_four_data_lines();
         }
 
-        crate::println!("Command support bits: {}", command_support_bits);
 
         self.configuration.configuration = self.configuration.configuration.set_command_support_bits(command_support_bits as u64);
 
     }
     
     pub fn read_blocks(&mut self, start: u32, buffer: &mut [u8], num: u32) -> u32 {
-        crate::println!("Reading {} sectors at {}", num, start);
-        crate::println!("Config: {:?}", self.configuration);
         let mut c = 0;
 
         let length = buffer.len() / 4;
@@ -449,8 +443,6 @@ impl<'a> EMMCController<'a> {
             self.slot.borrow_mut().set_block_size_and_count(512, 16);
 
             let command = if num == 1 { SDCommand::READ_SINGLE_BLOCK } else {SDCommand::READ_MULTIPLE_BLOCKS };
-
-            crate::println!("Hello");
 
             self.send_command(command, start).unwrap();
         } else {
