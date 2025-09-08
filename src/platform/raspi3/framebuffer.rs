@@ -45,9 +45,6 @@ impl<'a> FrameBuffer<'a> {
 
         frame_buffer_message.send(mailbox);
 
-        crate::println!("Start: {:?}", frame_buffer_request.start);
-        crate::println!("Response: {:?}", frame_buffer_request.response);
-
         // TODO remove magic number
         let start_addr = (frame_buffer_request.get_start() &0x3fffffff) as u64;
 
