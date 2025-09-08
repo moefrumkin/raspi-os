@@ -144,7 +144,7 @@ impl MiniUARTRegisters {
         }
         */
 
-        core::char::from_u32(self.io_data.get().get_data()).ok_or(())
+        //core::char::from_u32(self.io_data.get().get_data()).ok_or(())
     }
 
     /*pub fn set_log_level(&mut self, level: LogLevel) {
