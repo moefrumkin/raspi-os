@@ -2,7 +2,7 @@ use core::arch::global_asm;
 use super::{gpio::{GPIOController, StatusLight, OutputLevel}
 };
 
-use crate::println;
+use crate::{aarch64::cpu, platform::platform_devices::get_platform, println};
 
 global_asm!(include_str!("exception.s"));
 
@@ -15,7 +15,7 @@ pub enum ExceptionSource {
     LowerEL32 = 3
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 #[repr(u64)]
 pub enum ExceptionType {
     Synchronous = 0,
@@ -31,6 +31,11 @@ pub extern "C" fn handle_exception(exception_source: ExceptionSource, exception_
         exception_type,
         exception_source
     );
+
+    if exception_type == ExceptionType::Interrupt {
+        get_platform().handle_interrupt();
+        cpu::eret();
+    }
 
     println!("esr: {:#x}", esr);
     println!("elr: {:#x}", elr);

@@ -60,53 +60,7 @@ impl EMMCConfiguration {
     }
 }
 
-pub trait EMMCSlot {
-    fn wait_for_interrupt(&self, interrupt: InterruptType) -> Result<(), &str>;
 
-    fn wait_for_status(&self, status: StatusSetting) -> Result<(), &str>;
-
-    fn wait_for_command_response(&self) -> Result<u32, &str>;
-
-    fn parse_response(&self, response: u32, command: SDCommand, argument: u32) -> Result<u32, &str>;
-
-
-    fn send_command(&self, command: SDCommand, argument: u32);
-
-
-    fn is_clock_enabled(&self) -> bool;
-
-    fn enable_clock(&self);
-
-    fn disable_clock(&self);
-
-    fn configure_clock(&self, d: u32);
-
-    fn configure_internal_clocks(&self, data_timeout_exponent: u32);
-    
-    fn start_reset(&self);
-
-    fn is_reset_complete(&self) -> bool;
-
-    
-    fn enable_interrupts(&self);
-
-    
-    fn set_block_size_and_count(&self, size: u32, count: u32);
-
-    fn is_read_available(&self) -> bool;
-
-    fn read_data(&self) -> u32;
-
-
-    fn get_host_controller_specification_version(&self) -> u32;
-
-    
-    fn use_four_data_lines(&self);
-
-    fn is_inhibited(&self) -> bool;
-
-    fn rewrite_interrupt(&self);
-}
 
 pub struct EMMCController<'a> {
     slot: &'a RefCell<&'a mut EMMCRegisters>,

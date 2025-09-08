@@ -1,6 +1,6 @@
 use core::ptr;
 
-use crate::{platform::{emmc::EMMCRegisters, gpio::GPIORegisters, mailbox::MailboxRegisters, mini_uart::MiniUARTRegisters}, sync::SpinMutex};
+use crate::{platform::{emmc::EMMCRegisters, gpio::GPIORegisters, interrupt::InterruptRegisters, mailbox::MailboxRegisters, mini_uart::MiniUARTRegisters}, sync::SpinMutex};
 
 use super::{
     timer::TimerRegisters
@@ -10,6 +10,7 @@ use super::{
 unsafe extern "C" {
     unsafe static MMIO_START: usize;
     unsafe static mut TIMER_REGISTERS: TimerRegisters;
+    unsafe static mut INTERRUPT_REGISTERS: InterruptRegisters;
     unsafe static mut GPIO_REGISTERS: GPIORegisters;
     unsafe static mut MAILBOX_REGISTERS: MailboxRegisters;
     unsafe static mut EMMC_REGISTERS: EMMCRegisters;
@@ -58,6 +59,12 @@ pub const fn get_miniuart_registers() -> &'static mut MiniUARTRegisters {
 pub const fn get_mailbox_registers() -> &'static mut MailboxRegisters {
     unsafe {
         &mut MAILBOX_REGISTERS
+    }
+}
+
+pub const fn get_interrupt_registers() -> &'static mut InterruptRegisters {
+    unsafe {
+        &mut INTERRUPT_REGISTERS
     }
 }
 

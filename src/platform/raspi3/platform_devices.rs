@@ -1,4 +1,4 @@
-use crate::{device::sector_device::{Sector, SectorDevice}, platform::{self, emmc::{self, EMMCConfiguration, EMMCController, EMMCRegisters, EMMCSlot}, gpio::{GPIOController, GPIORegisters, StatusLight}, hardware_config::HardwareConfig, mailbox::{MailboxBuffer, MailboxController, MailboxRegisters}, timer::TimerRegisters
+use crate::{device::sector_device::{Sector, SectorDevice}, platform::{self, emmc::{self, EMMCConfiguration, EMMCController, EMMCRegisters}, gpio::{GPIOController, GPIORegisters, StatusLight}, hardware_config::HardwareConfig, interrupt::InterruptRegisters, mailbox::{MailboxBuffer, MailboxController, MailboxRegisters}, timer::TimerRegisters
 }};
 
 use super::{
@@ -80,6 +80,10 @@ impl<'a> Platform<'a> {
     pub fn get_hardware_config(&self) -> HardwareConfig {
         HardwareConfig::from_mailbox(self.get_mailbox_controller())
     }
+
+    pub fn handle_interrupt(&self) {
+        crate::println!("Handling Interrupt");
+    }
 }
 
 pub struct Devices<'a> {
@@ -88,7 +92,8 @@ pub struct Devices<'a> {
     mini_uart: RefCell<&'a mut MiniUARTRegisters>,
     mailbox: RefCell<&'a mut MailboxRegisters>,
     emmc: RefCell<&'a mut EMMCRegisters>,
-    emmc_configuration: RefCell<EMMCConfiguration>
+    emmc_configuration: RefCell<EMMCConfiguration>,
+    interrupts: RefCell<&'a mut InterruptRegisters>
 }
 
 impl<'a> Devices<'a> {
@@ -103,7 +108,8 @@ impl<'a> Devices<'a> {
             gpio: RefCell::new(mmio::get_gpio_registers()),
             mailbox: RefCell::new(mmio::get_mailbox_registers()),
             emmc: RefCell::new(mmio::get_emmc_registers()),
-            emmc_configuration: RefCell::new(EMMCConfiguration::new())
+            emmc_configuration: RefCell::new(EMMCConfiguration::new()),
+            interrupts: RefCell::new(mmio::get_interrupt_registers())
         }
     }
 
@@ -189,6 +195,10 @@ impl Timer for Devices<'_> {
 
     fn get_micros(&self) -> u64 {
         self.timer.borrow().time()
+    }
+
+    fn set_timeout(&self, micros: u32) {
+        self.timer.borrow_mut().set_timeout(micros);
     }
 }
 

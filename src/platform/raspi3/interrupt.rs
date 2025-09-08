@@ -1,8 +1,12 @@
 use crate::bitfield;
 use crate::volatile::Volatile;
 
+pub enum Interrupt {
+
+}
+
 #[repr(C)]
-struct InterruptRegisters {
+pub struct InterruptRegisters {
     irq_basic_pending: Volatile<u32>,
     irq_pending_1: Volatile<u32>,
     irq_pending_2: Volatile<u32>,

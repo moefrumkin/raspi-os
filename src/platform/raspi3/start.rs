@@ -129,12 +129,16 @@ pub extern "C" fn main(heap_start: usize, heap_size: usize, table_start: usize) 
 
     println!("Enabling IRQs");
 
-    /*interrupt::enable_irq();
+    interrupt::enable_irq();
 
-    let mut interrupt_controller = InterruptController::new();*/
+    let mut interrupt_controller = InterruptController::new();
 
-    //interrupt_controller.enable_timer_interrupt_3();
-    //interrupt_controller.enable_mini_uart_interrupt();
+    interrupt_controller.enable_timer_interrupt_3();
+    interrupt_controller.enable_mini_uart_interrupt();
+
+    let timer = platform.get_timer();
+
+    //timer.set_timeout(1000);
 
     println!("Timer interrupt enabled!");
 
