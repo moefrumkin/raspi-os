@@ -101,6 +101,7 @@ impl<T> DerefMut for AlignedBuffer<T> {
 }
 
 // TODO define ownership semantics
+#[derive(Debug)]
 #[repr(transparent)]
 pub struct Volatile<T> {
     value: T

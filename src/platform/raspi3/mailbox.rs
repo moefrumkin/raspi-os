@@ -40,7 +40,8 @@ impl MailboxRegisters {
         self.wait_until_not_full();
 
         self.write.map_closure(&|write|
-            write.set_channel(channel as u32).set_data(message)
+            // TODO: find better way instead of bit shifting data
+            write.set_channel(channel as u32).set_data(message >> 4)
         );
 
         loop {

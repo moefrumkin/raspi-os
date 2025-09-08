@@ -178,7 +178,10 @@ impl Console for Devices<'_> {
 
 impl MailboxController for Devices<'_> {
     fn send_message_on_channel(&self, buffer: &MailboxBuffer, channel: super::mailbox::Channel) -> u32 {
-        self.mailbox.borrow_mut().send_message(buffer as *const MailboxBuffer as u32, channel)
+        let addr = buffer.as_ptr() as u32;
+
+        println!("addr is: {:#x}", addr);
+        self.mailbox.borrow_mut().send_message(buffer.as_ptr() as u32, channel)
     }
 }
 

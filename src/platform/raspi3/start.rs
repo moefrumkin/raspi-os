@@ -60,8 +60,6 @@ pub extern "C" fn main(heap_start: usize, heap_size: usize, table_start: usize) 
     platform.init();
 
     // let status_light = PLATFORM.get_status_light().unwrap();
-    let timer = platform.get_timer();
-    let console = platform.get_console();
 
     // blink_sequence(&status_light.borrow(), timer, 100);
 
@@ -131,12 +129,12 @@ pub extern "C" fn main(heap_start: usize, heap_size: usize, table_start: usize) 
 
     println!("Enabling IRQs");
 
-    interrupt::enable_irq();
+    /*interrupt::enable_irq();
 
-    let mut interrupt_controller = InterruptController::new();
+    let mut interrupt_controller = InterruptController::new();*/
 
-    interrupt_controller.enable_timer_interrupt_3();
-    interrupt_controller.enable_mini_uart_interrupt();
+    //interrupt_controller.enable_timer_interrupt_3();
+    //interrupt_controller.enable_mini_uart_interrupt();
 
     println!("Timer interrupt enabled!");
 
@@ -153,10 +151,10 @@ pub extern "C" fn main(heap_start: usize, heap_size: usize, table_start: usize) 
 
     println!("Initializing Frame Buffer with config {}", fb_config);
 
-    /* let mut fb = FrameBuffer::from_config(fb_config, mailbox);
+    let mut fb = FrameBuffer::from_config(fb_config, mailbox);
 
     println!("Actual config is {}", fb.get_config());
-
+    
     for i in 0..(1920 * 1080) {
         fb.write_idx(i, 0xff00ffff);
     }
@@ -171,7 +169,7 @@ pub extern "C" fn main(heap_start: usize, heap_size: usize, table_start: usize) 
    
     //status_light.borrow_mut().set_green(OutputLevel::High);
 
-    loop{} */
+    loop{}
 }
 
 pub fn blink_sequence(status_light: &mut StatusLight, timer: &dyn Timer, interval: u64) {

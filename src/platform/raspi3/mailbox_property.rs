@@ -73,7 +73,7 @@ impl<'a> MessageBuilder<'a> {
     }
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct MailboxResponse {
     code: u32,
     size: u32
