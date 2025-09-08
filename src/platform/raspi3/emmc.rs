@@ -124,7 +124,7 @@ impl<'a> EMMCController<'a> {
     fn send_command(&mut self, mut command: SDCommand, argument: u32) -> Result<u32, &str> {
 
         if command.get_is_application_specific() == 1 {
-            self.send_application_specific_command();
+            self.send_application_specific_command().unwrap();
 
             command = command.set_is_application_specific(0);
         }
@@ -148,7 +148,7 @@ impl<'a> EMMCController<'a> {
             alloc::format!("Error while sending: command {:#x} with argument {}: {}", command.value, argument, err)
         ).unwrap();
 
-        return self.slot.borrow().parse_response(response, command, argument).map_err(|err| "op")
+        return self.slot.borrow().parse_response(response, command, argument).map_err(|_| "op")
     }
 
     const SET_CLOCK_FREQUENCY_TIMEOUT: u32 = 100_000;
@@ -184,7 +184,7 @@ impl<'a> EMMCController<'a> {
             if (x & 0xff000000) == 0 { x <<= 8;  s -= 8; }
             if (x & 0xf0000000) == 0 { x <<= 4;  s -= 4; }
             if (x & 0xc0000000) == 0 { x <<= 2;  s -= 2; }
-            if (x & 0x80000000) == 0 { x <<= 1;  s -= 1; }
+            if (x & 0x80000000) == 0 { /*x <<= 1;*/  s -= 1; }
             if s>0 {
                 s -= 1;
             }
@@ -201,7 +201,7 @@ impl<'a> EMMCController<'a> {
 
         if d <= 2  {
             d = 2;
-            s = 0;
+            //s = 0;
         }
 
         if self.configuration.hardware_version > EMMCRegisters::HOST_SPEC_V2  {
@@ -565,8 +565,8 @@ impl EMMCRegisters {
 
     fn wait_for_command_response(&mut self) -> Result<u32, &str> {
         match self.wait_for_interrupt(InterruptType::CommandDone) {
-            Err(err) => Err("ERROR: Error while waiting for command response."),
-            Ok(val) => Ok(self.resp0.get())
+            Err(_) => Err("ERROR: Error while waiting for command response."),
+            Ok(_) => Ok(self.resp0.get())
         }
     }
 

@@ -9,7 +9,7 @@ pub struct SpinMutex<T> {
     data: UnsafeCell<T>
 }
 
-impl<T> SpinMutex<T> {
+impl<'a, T> SpinMutex<T> {
     #[allow(dead_code)]
     pub const fn new(data: T) -> Self {
         Self {
@@ -18,7 +18,7 @@ impl<T> SpinMutex<T> {
         }
     }
 
-    pub fn lock(&self) -> SpinMutexGuard<T> {
+    pub fn lock(&'a self) -> SpinMutexGuard<'a, T> {
 
         //TODO: implement lock on rpi
         //while self.lock.compare_exchange_weak(false, true, Ordering::SeqCst, Ordering::SeqCst).is_err() {}
