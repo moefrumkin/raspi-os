@@ -25,7 +25,10 @@ pub enum ExceptionType {
 }
 
 #[no_mangle]
-pub extern "C" fn handle_exception(exception_source: ExceptionSource, exception_type: ExceptionType, esr: usize, elr: usize, _spsr: usize, far: usize, _sp: usize) {
+pub extern "C" fn handle_exception(
+        exception_source: ExceptionSource,
+        exception_type: ExceptionType
+    ) {
     println!(
         "Exception of type {:?} received with source {:?}",
         exception_type,
@@ -34,12 +37,8 @@ pub extern "C" fn handle_exception(exception_source: ExceptionSource, exception_
 
     if exception_type == ExceptionType::Interrupt {
         get_platform().handle_interrupt();
-        cpu::eret();
+        return;
     }
-
-    println!("esr: {:#x}", esr);
-    println!("elr: {:#x}", elr);
-    println!("far: {:#x}", far);
 
     loop {} 
 }

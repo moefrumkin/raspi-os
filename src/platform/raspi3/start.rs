@@ -114,8 +114,6 @@ pub extern "C" fn main(heap_start: usize, heap_size: usize, table_start: usize) 
     println!("mbr found: {:?}", master_boot_record);
 
     let partition = master_boot_record.partition_entries[0];
-
-    println!("Partition: {:?}", partition);
     
     let mut filesystem = FAT32Filesystem::load_in_partition(
         emmc_controller,
@@ -138,7 +136,7 @@ pub extern "C" fn main(heap_start: usize, heap_size: usize, table_start: usize) 
 
     let timer = platform.get_timer();
 
-    //timer.set_timeout(1000);
+    timer.set_timeout(1000);
 
     println!("Timer interrupt enabled!");
 
@@ -173,7 +171,8 @@ pub extern "C" fn main(heap_start: usize, heap_size: usize, table_start: usize) 
    
     //status_light.borrow_mut().set_green(OutputLevel::High);
 
-    loop{}
+    loop{
+    }
 }
 
 pub fn blink_sequence(status_light: &mut StatusLight, timer: &dyn Timer, interval: u64) {

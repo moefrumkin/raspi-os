@@ -3,11 +3,6 @@
 .macro call_handler handler source type
     mov     x0, \source
     mov     x1, \type
-    mrs     x2, esr_el1
-    mrs     x3, elr_el1
-    mrs     x4, spsr_el1
-    mrs     x5, far_el1
-    mov     x6, sp
     b       \handler
 .endm   
 
