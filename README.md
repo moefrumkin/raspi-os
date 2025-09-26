@@ -152,6 +152,13 @@ TranslationControlRegister::read_to_buffer()
     .write_to_register();
 ```
 
+### Platform Object
+
+```mermaid
+graph TB
+
+```
+
 ## Kernel
 
 ### Privilege and Exception Levels

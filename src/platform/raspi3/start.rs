@@ -5,6 +5,7 @@ use crate::ALLOCATOR;
 use crate::{print, println, read, write};
 use alloc::vec::Vec;
 use alloc::slice;
+use core::time::Duration;
 
 use crate::device::timer::Timer;
 
@@ -172,6 +173,8 @@ pub extern "C" fn main(heap_start: usize, heap_size: usize, table_start: usize) 
     //status_light.borrow_mut().set_green(OutputLevel::High);
 
     loop{
+        timer.delay_millis(5000);
+        println!("Timer: {:?}", Duration::from_micros(timer.get_micros()));
     }
 }
 

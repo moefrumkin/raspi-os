@@ -43,13 +43,15 @@ pub fn get_platform() -> &'static Platform<'static> {
 }
 
 pub struct Platform<'a> {
-    devices: Devices<'a>
+    devices: Devices<'a>,
+    interrupt_handlers: InterruptHandler
 }
 
 impl<'a> Platform<'a> {
     const fn uninitialized() -> Self {
         Self {
-            devices: Devices::uninitialized()
+            devices: Devices::uninitialized(),
+            interrupt_handlers: InterruptHandler::new()
         }
     }
 
@@ -216,5 +218,16 @@ impl<'a> SectorDevice<'a> for Devices<'a> {
         emmc_controller.read_blocks(address, &mut buffer, 1);
 
         Sector::from(buffer)
+    }
+}
+
+pub struct InterruptHandler {
+}
+
+impl InterruptHandler {
+    pub const fn new() -> Self {
+        Self {
+
+        }
     }
 }
