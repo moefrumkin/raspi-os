@@ -137,8 +137,6 @@ pub extern "C" fn main(heap_start: usize, heap_size: usize, table_start: usize) 
 
     let timer = platform.get_timer();
 
-    timer.set_timeout(1000);
-
     println!("Timer interrupt enabled!");
 
     let resolution = Dimensions::new(1920, 1080);
@@ -170,6 +168,7 @@ pub extern "C" fn main(heap_start: usize, heap_size: usize, table_start: usize) 
 
     println!("Done!");
    
+    timer.set_timeout(1000);
     //status_light.borrow_mut().set_green(OutputLevel::High);
 
     loop{

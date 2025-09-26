@@ -30,7 +30,7 @@ QEMU_CMD = $(QEMU_ARCH) \
 OBJDUMP = llvm-objdump
 OBJDUMP_CMD = $(OBJDUMP) --disassemble-all $(KERNEL_ELF)
 
-GDB = gdb-multiarch #rust-gdb
+GDB = gdb #rust-gdb
 #gdb-multiarch
 GDB_SCRIPT = debug.gdb
 GDB_CMD = $(GDB) -x $(GDB_SCRIPT)
