@@ -21,7 +21,7 @@ QEMU_CMD = $(QEMU_ARCH) \
 	-kernel $(KERNEL_ELF) \
 	-serial null \
 	-serial mon:stdio \
-	-drive file=image.img,if=sd,format=raw
+	-drive file=raspi.img,if=sd,format=raw
 
 #	-m 1024M -cpu $(CPU) \
 #	-smp $(CORES) \
@@ -71,7 +71,7 @@ gdb:
 
 clean:
 	cargo clean
-	rm -f *.img
+	rm -f kernel8.img
 
 doc:
 	cargo doc --features=$(PLATFORM) --open
