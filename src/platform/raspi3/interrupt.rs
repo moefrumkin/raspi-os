@@ -1,8 +1,10 @@
 use crate::bitfield;
 use crate::volatile::Volatile;
+use crate::println;
 
 pub enum InterruptType {
     TimerInterrupt,
+    MiniUARTInterrupt
 }
 
 #[repr(C)]
@@ -27,6 +29,21 @@ impl InterruptRegisters {
             &mut *{Self::INTERRUPT_REGISTERS_BASE as *mut Self}
         }
     }
+   
+    pub fn get_interrupt_type(&self) -> Option<InterruptType> {
+        if self.irq_basic_pending.get().get_block_1_irq() == 1 {
+            println!("Block 1 irq");
+            let block_1 = self.irq_pending_1.get();
+
+            if block_1.get_auxiliary_device_interrupt() == 1 {
+                println!("UART Interrrupt");
+            } else if block_1.get_system_timer_match_3() == 1 {
+                println!("Timer Interrupt");
+            }
+        }
+
+        None
+    }
 }
 
 pub struct InterruptController<'a> {
@@ -46,17 +63,12 @@ impl<'a> InterruptController<'a> {
         );
     }
 
-    pub fn enable_mini_uart_interrupt(&mut self) {
+    pub fn enable_auxiliary_device_interrupts(&mut self) {
         self.registers.enable_irq_1.map(|interrupt_block|
             interrupt_block.set_auxiliary_device_interrupt(1)
         );
     }
 
-    pub fn get_interrupt_type(&self) -> Option<InterruptType> {
-
-
-        None
-    }
 }
 
 bitfield! {

@@ -85,6 +85,7 @@ impl<'a> Platform<'a> {
 
     pub fn handle_interrupt(&self) {
         crate::println!("Handling Interrupt");
+        let interrupt_type = self.devices.interrupts.borrow().get_interrupt_type();
     }
 }
 
