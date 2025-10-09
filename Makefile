@@ -27,7 +27,7 @@ QEMU_CMD = $(QEMU_ARCH) \
 #	-smp $(CORES) \
 #	-d int,mmu,guest_errors,page \
 
-OBJDUMP = llvm-objdump
+OBJDUMP = objdump
 OBJDUMP_CMD = $(OBJDUMP) --disassemble-all $(KERNEL_ELF)
 
 GDB = gdb #rust-gdb

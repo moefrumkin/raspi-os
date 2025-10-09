@@ -1,55 +1,41 @@
-use core::arch::global_asm;
-use crate::aarch64::{cpu, mmu, interrupt};
+use super::kernel::Kernel;
+use crate::aarch64::{cpu, interrupt, mmu, syscall::Syscall};
+use crate::allocator::page_allocator::PageAllocator;
 use crate::canvas::{canvas2d::Canvas2D, line::Line, matrix::Matrix, vector::Vector};
 use crate::ALLOCATOR;
 use crate::{print, println, read, write};
-use alloc::vec::Vec;
 use alloc::slice;
+use alloc::vec::Vec;
+use core::arch::global_asm;
+use core::cell::RefCell;
 use core::time::Duration;
 
 use crate::device::timer::Timer;
 
 use crate::{
     device::sector_device::SectorDevice,
-    filesystem::{
-        master_boot_record::{MasterBootRecord},
-        fat32::{FAT32Filesystem}
-    }
+    filesystem::{fat32::FAT32Filesystem, master_boot_record::MasterBootRecord},
 };
 
 use super::{
-    gpio::{GPIOController, OutputLevel, Pin, StatusLight},
-    mailbox::{Channel, MailboxController},
+    clock::{self, Clock, ClockState, CLOCKS},
+    emmc::{EMMCController, EMMCRegisters},
     framebuffer::{
-        FrameBuffer, PixelOrder, Overscan, FrameBufferConfig,
-        Offset,
-        Dimensions,
-        FrameBufferConfigBuilder
+        Dimensions, FrameBuffer, FrameBufferConfig, FrameBufferConfigBuilder, Offset, Overscan,
+        PixelOrder,
     },
+    gpio::{GPIOController, OutputLevel, Pin, StatusLight},
     hardware_config::HardwareConfig,
-    clock::{
-        self,
-        Clock,
-        ClockState,
-        CLOCKS
-    },
-    power::{
-        Device,
-        PowerState,
-        DEVICES
-    },
-    emmc::{
-        EMMCRegisters,
-        EMMCController
-    },
-    interrupt::{
-        InterruptController
-    },
-    platform_devices::{
-        PLATFORM,
-        get_platform
-    }
+    interrupt::InterruptController,
+    mailbox::{Channel, MailboxController},
+    platform_devices::{get_platform, PLATFORM},
+    power::{Device, PowerState, DEVICES},
 };
+
+unsafe extern "C" {
+    unsafe static PAGE_SECTION_START: usize;
+    unsafe static PAGE_SECTION_SIZE: usize;
+}
 
 global_asm!(include_str!("start.s"));
 
@@ -59,7 +45,6 @@ pub extern "C" fn main(heap_start: usize, heap_size: usize, table_start: usize) 
     let platform = get_platform();
 
     platform.init();
-
     // let status_light = PLATFORM.get_status_light().unwrap();
 
     // blink_sequence(&status_light.borrow(), timer, 100);
@@ -69,13 +54,16 @@ pub extern "C" fn main(heap_start: usize, heap_size: usize, table_start: usize) 
     println!("Entering Boot Sequence (with new build system?)");
     println!("Initializing Memory Virtualization");
 
-    unsafe { 
+    unsafe {
         mmu::init(table_start as *mut usize);
     };
 
     println!("Memory Virtualization Initialized");
 
-    println!("Heap Allocator initialized at {:#x} with size {}", heap_start, heap_size);
+    println!(
+        "Heap Allocator initialized at {:#x} with size {}",
+        heap_start, heap_size
+    );
 
     let mailbox = platform.get_mailbox_controller();
 
@@ -86,16 +74,19 @@ pub extern "C" fn main(heap_start: usize, heap_size: usize, table_start: usize) 
     println!("Devices:");
 
     for device in &DEVICES {
-        println!("\t-{}: Powered: {}, Timing: {}",
+        println!(
+            "\t-{}: Powered: {}, Timing: {}",
             device,
             device.get_power_state(mailbox).is_on(),
-            device.get_timing(mailbox));
+            device.get_timing(mailbox)
+        );
     }
 
     println!("Clocks:");
 
     for clock in &CLOCKS {
-        println!("\t-{}: On: {}, Set Rate: {}, Min Rate: {}, Max Rate: {}",
+        println!(
+            "\t-{}: On: {}, Set Rate: {}, Min Rate: {}, Max Rate: {}",
             clock,
             clock.get_clock_state(mailbox).is_on(),
             clock.get_clock_rate(mailbox),
@@ -106,25 +97,44 @@ pub extern "C" fn main(heap_start: usize, heap_size: usize, table_start: usize) 
 
     let emmc_controller = PLATFORM.get_emmc_controller();
 
-    let (mbr_sector_number, master_boot_record) = MasterBootRecord::scan_device_for_mbr(
-        emmc_controller,
-        0,
-        20)
-        .expect("Unable to read Master Boot Record");
+    let (mbr_sector_number, master_boot_record) =
+        MasterBootRecord::scan_device_for_mbr(emmc_controller, 0, 20)
+            .expect("Unable to read Master Boot Record");
 
     println!("mbr found: {:?}", master_boot_record);
 
     let partition = master_boot_record.partition_entries[0];
-    
+
     let mut filesystem = FAT32Filesystem::load_in_partition(
         emmc_controller,
         mbr_sector_number + partition.first_sector_address(),
-        mbr_sector_number + partition.last_sector_address())
-        .expect("Unable to initialize a FAT32 filesystem in partition");
+        mbr_sector_number + partition.last_sector_address(),
+    )
+    .expect("Unable to initialize a FAT32 filesystem in partition");
 
     let root_dir = filesystem.get_root_directory();
 
     println!("Root directory: {}", root_dir);
+
+    let page_allocator: RefCell<PageAllocator>;
+
+    unsafe {
+        let page_start: usize =
+            &(PAGE_SECTION_START as *const usize) as *const *const usize as usize;
+        let page_size: usize = &PAGE_SECTION_SIZE as *const usize as usize;
+        println!(
+            "Initializing Page allocator at {:#x} with size {}",
+            page_start, page_size
+        );
+
+        page_allocator = RefCell::new(PageAllocator::with_start_and_length(page_start, page_size));
+    }
+
+    let kernel = Kernel::with_page_allocator(page_allocator);
+
+    PLATFORM.register_kernel(kernel);
+
+    cpu::start_thread(thread);
 
     println!("Enabling IRQs");
 
@@ -155,25 +165,37 @@ pub extern "C" fn main(heap_start: usize, heap_size: usize, table_start: usize) 
     let mut fb = FrameBuffer::from_config(fb_config, mailbox);
 
     println!("Actual config is {}", fb.get_config());
-    
+
     for i in 0..(1920 * 1080) {
         fb.write_idx(i, 0xff00ffff);
     }
 
     for j in 0..1920 {
         for i in 0..1080 {
-            fb.write_pixel(j, i, 0xff000000 + ((255 * i / 1080) << 16) + ((255 * j / 1920) << 8) + 0xff);
+            fb.write_pixel(
+                j,
+                i,
+                0xff000000 + ((255 * i / 1080) << 16) + ((255 * j / 1920) << 8) + 0xff,
+            );
         }
     }
 
     println!("Done!");
-   
-    timer.set_timeout(1000);
+
+    //timer.set_timeout(1000);
     //status_light.borrow_mut().set_green(OutputLevel::High);
 
-    loop{
+    loop {
         timer.delay_millis(5000);
         println!("Timer: {:?}", Duration::from_micros(timer.get_micros()));
+    }
+}
+
+pub fn thread() {
+    let platform = get_platform();
+    loop {
+        println!("Hello, World from thread 1");
+        platform.get_timer().delay_micros(1000);
     }
 }
 
@@ -195,20 +217,20 @@ pub fn blink_sequence(status_light: &mut StatusLight, timer: &dyn Timer, interva
     status_light.set_red(OutputLevel::Low);
 }
 
-pub fn test_allocator(limit: usize){
+pub fn test_allocator(limit: usize) {
     let mut vec_vec: Vec<Vec<usize>> = alloc::vec!();
 
     for n in 0..limit {
         let num_vec: Vec<usize> = alloc::vec!();
         vec_vec.push(num_vec);
         for m in 0..n {
-           vec_vec[n].push(m * n);
+            vec_vec[n].push(m * n);
         }
     }
 
-    for n in 1 .. limit {
+    for n in 1..limit {
         for m in 1..n {
-            if vec_vec[n][m] != m * n  {
+            if vec_vec[n][m] != m * n {
                 panic!("Expected {:?}, received {:?}", m * n, vec_vec[n][m]);
             }
         }

@@ -15,5 +15,7 @@ pub mod power;
 pub mod emmc;
 pub mod interrupt;
 pub mod platform_devices;
+pub mod thread;
+pub mod kernel;
 
 mod exception;

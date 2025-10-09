@@ -1,19 +1,30 @@
-use crate::{device::sector_device::{Sector, SectorDevice}, platform::{self, emmc::{self, EMMCConfiguration, EMMCController, EMMCRegisters}, gpio::{GPIOController, GPIORegisters, StatusLight}, hardware_config::HardwareConfig, interrupt::InterruptRegisters, mailbox::{MailboxBuffer, MailboxController, MailboxRegisters}, timer::TimerRegisters
-}};
-
-use super::{
-    mini_uart::MiniUARTRegisters,
-    mmio,
+use crate::{
+    aarch64::syscall::SyscallArgs,
+    allocator::page_allocator::{Page, PageAllocator, PageRef},
+    device::sector_device::{Sector, SectorDevice},
+    platform::{
+        self,
+        emmc::{self, EMMCConfiguration, EMMCController, EMMCRegisters},
+        gpio::{GPIOController, GPIORegisters, StatusLight},
+        hardware_config::HardwareConfig,
+        interrupt::InterruptRegisters,
+        kernel::Kernel,
+        mailbox::{MailboxBuffer, MailboxController, MailboxRegisters},
+        timer::TimerRegisters,
+    },
 };
 
-use core::{cell::{Cell, Ref, RefCell, RefMut, UnsafeCell}, fmt::Arguments, mem::MaybeUninit};
-use alloc::rc::Rc;
+use super::{mini_uart::MiniUARTRegisters, mmio};
+
 use alloc::boxed::Box;
-
-use crate::device::{
-    console::Console,
-    timer::Timer
+use alloc::rc::Rc;
+use core::{
+    cell::{Cell, Ref, RefCell, RefMut, UnsafeCell},
+    fmt::Arguments,
+    mem::MaybeUninit,
 };
+
+use crate::device::{console::Console, timer::Timer};
 
 #[macro_export]
 macro_rules! print {
@@ -42,21 +53,28 @@ pub fn get_platform() -> &'static Platform<'static> {
     &PLATFORM
 }
 
+unsafe extern "C" {
+    unsafe static PAGE_SECTION_START: usize;
+    unsafe static PAGE_SECTION_SIZE: usize;
+}
+
 pub struct Platform<'a> {
     devices: Devices<'a>,
-    interrupt_handlers: InterruptHandler
+    interrupt_handlers: InterruptHandler,
+    kernel: RefCell<Option<Kernel<'a>>>,
 }
 
 impl<'a> Platform<'a> {
     const fn uninitialized() -> Self {
         Self {
             devices: Devices::uninitialized(),
-            interrupt_handlers: InterruptHandler::new()
+            interrupt_handlers: InterruptHandler::new(),
+            kernel: RefCell::new(None),
         }
     }
 
     pub fn init(&'a self) {
-       self.devices.init();
+        self.devices.init();
     }
 
     pub fn get_gpio_controller(&self) -> &dyn GPIOController {
@@ -87,6 +105,16 @@ impl<'a> Platform<'a> {
         crate::println!("Handling Interrupt");
         let interrupt_type = self.devices.interrupts.borrow().get_interrupt_type();
     }
+
+    pub fn handle_syscall(&self, syscall_number: usize, args: SyscallArgs) {
+        if let Some(ref mut kernel) = *self.kernel.borrow_mut() {
+            kernel.handle_syscall(syscall_number, args);
+        }
+    }
+
+    pub fn register_kernel(&self, kernel: Kernel<'a>) {
+        self.kernel.replace(Some(kernel));
+    }
 }
 
 pub struct Devices<'a> {
@@ -96,7 +124,7 @@ pub struct Devices<'a> {
     mailbox: RefCell<&'a mut MailboxRegisters>,
     emmc: RefCell<&'a mut EMMCRegisters>,
     emmc_configuration: RefCell<EMMCConfiguration>,
-    interrupts: RefCell<&'a mut InterruptRegisters>
+    interrupts: RefCell<&'a mut InterruptRegisters>,
 }
 
 impl<'a> Devices<'a> {
@@ -112,18 +140,15 @@ impl<'a> Devices<'a> {
             mailbox: RefCell::new(mmio::get_mailbox_registers()),
             emmc: RefCell::new(mmio::get_emmc_registers()),
             emmc_configuration: RefCell::new(EMMCConfiguration::new()),
-            interrupts: RefCell::new(mmio::get_interrupt_registers())
+            interrupts: RefCell::new(mmio::get_interrupt_registers()),
         }
     }
 
     pub fn init(&'a self) {
         self.mini_uart.borrow_mut().init(self.get_gpio_controller());
 
-        let emmc_configuration = EMMCController::initialize(
-            &self.emmc,
-            self.get_timer(),
-            self.get_gpio_controller()
-        );
+        let emmc_configuration =
+            EMMCController::initialize(&self.emmc, self.get_timer(), self.get_gpio_controller());
 
         self.emmc_configuration.replace(emmc_configuration);
     }
@@ -149,9 +174,7 @@ impl<'a> Devices<'a> {
     }
 }
 
-unsafe impl<'a> Sync for Platform<'a> {
-
-}
+unsafe impl<'a> Sync for Platform<'a> {}
 
 impl GPIOController for Devices<'_> {
     fn set_pin_mode(&self, pin: super::gpio::Pin, mode: super::gpio::Mode) {
@@ -186,8 +209,14 @@ impl Console for Devices<'_> {
 }
 
 impl MailboxController for Devices<'_> {
-    fn send_message_on_channel(&self, buffer: &MailboxBuffer, channel: super::mailbox::Channel) -> u32 {
-        self.mailbox.borrow_mut().send_message(buffer.as_ptr() as u32, channel)
+    fn send_message_on_channel(
+        &self,
+        buffer: &MailboxBuffer,
+        channel: super::mailbox::Channel,
+    ) -> u32 {
+        self.mailbox
+            .borrow_mut()
+            .send_message(buffer.as_ptr() as u32, channel)
     }
 }
 
@@ -208,10 +237,10 @@ impl Timer for Devices<'_> {
 impl<'a> SectorDevice<'a> for Devices<'a> {
     fn read_sector(&'a self, address: crate::device::sector_device::SectorAddress) -> Sector {
         let mut emmc_controller = EMMCController::with_configuration(
-            &self.emmc, 
-            self.get_gpio_controller(), 
+            &self.emmc,
+            self.get_gpio_controller(),
             self.get_timer(),
-            self.emmc_configuration.borrow().clone()
+            self.emmc_configuration.borrow().clone(),
         );
 
         let mut buffer: [u8; 512] = [0; 512];
@@ -222,13 +251,10 @@ impl<'a> SectorDevice<'a> for Devices<'a> {
     }
 }
 
-pub struct InterruptHandler {
-}
+pub struct InterruptHandler {}
 
 impl InterruptHandler {
     pub const fn new() -> Self {
-        Self {
-
-        }
+        Self {}
     }
 }

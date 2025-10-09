@@ -1,6 +1,6 @@
 use core::arch::asm;
 
-use crate::{read, write};
+use crate::{aarch64::syscall::Syscall, read, write};
 
 /// Returns the id of the cpu core as reported by the arm MPIDR_EL1 system register
 #[allow(dead_code)]
@@ -44,5 +44,19 @@ pub fn instruction_buffer() {
 pub fn data_buffer() {
     unsafe {
         asm!("dsb sy");
+    }
+}
+
+pub fn syscall(call: Syscall) {
+    unsafe {
+        match call {
+            Syscall::Thread => asm!("svc {}", const Syscall::Thread as usize),
+        }
+    }
+}
+
+pub fn start_thread(_function: fn() -> ()) {
+    unsafe {
+        asm!("svc {}", const Syscall::Thread as usize);
     }
 }

@@ -23,6 +23,10 @@ SECTIONS
     HEAP_START = .;
     . = . + HEAP_SIZE;
 
+    . = ALIGN(0x10000);
+    PAGE_SECTION_START = .;
+    . = . + PAGE_SECTION_SIZE;
+
     MMIO_START = 0x3F000000;
 
     TIMER_REGISTERS = MMIO_START + 0x3000;
@@ -35,4 +39,5 @@ SECTIONS
    /DISCARD/ : { *(.comment) *(.gnu*) *(.note*) *(.eh_frame*) }
 }
 HEAP_SIZE = 1048576;
+PAGE_SECTION_SIZE = 6553600;
 bss_size = (bss_end - bss_start)>>3;

@@ -1,8 +1,12 @@
+use super::gpio::{GPIOController, OutputLevel, StatusLight};
 use core::arch::global_asm;
-use super::{gpio::{GPIOController, StatusLight, OutputLevel}
-};
 
-use crate::{aarch64::cpu, platform::platform_devices::get_platform, println};
+use crate::{
+    aarch64::{cpu, registers::ExceptionSyndromeRegister},
+    bitfield,
+    platform::platform_devices::{get_platform, PLATFORM},
+    println,
+};
 
 global_asm!(include_str!("exception.s"));
 
@@ -12,7 +16,7 @@ pub enum ExceptionSource {
     CurrentELUserSP = 0,
     CurrentELCurrentSP = 1,
     LowerEL64 = 2,
-    LowerEL32 = 3
+    LowerEL32 = 3,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -21,18 +25,17 @@ pub enum ExceptionType {
     Synchronous = 0,
     Interrupt = 1,
     FastInterrupt = 2,
-    SystemError = 4
+    SystemError = 4,
 }
 
 #[no_mangle]
 pub extern "C" fn handle_exception(
-        exception_source: ExceptionSource,
-        exception_type: ExceptionType
-    ) {
+    exception_source: ExceptionSource,
+    exception_type: ExceptionType,
+) {
     println!(
         "Exception of type {:?} received with source {:?}",
-        exception_type,
-        exception_source
+        exception_type, exception_source
     );
 
     if exception_type == ExceptionType::Interrupt {
@@ -40,7 +43,35 @@ pub extern "C" fn handle_exception(
         return;
     }
 
-    loop {} 
+    if exception_type == ExceptionType::Synchronous {
+        // This should be system calls?
+        let esr = ExceptionSyndromeRegister::read_to_buffer();
+        let exception_class = esr.get_exception_class();
+        if exception_class == 0b010101 {
+            let syscall_number = esr.get_instruction_number();
+        }
+    }
+
+    loop {}
+}
+
+#[no_mangle]
+pub extern "C" fn handle_synchronous_exception(arg1: usize, arg2: usize, arg3: usize) {
+    println!("Handling synchronous");
+
+    let esr = ExceptionSyndromeRegister::read_to_buffer();
+
+    let exception_class = esr.get_exception_class();
+
+    println!("Exception class: {:b}", exception_class);
+
+    if exception_class == 0b010101 {
+        let syscall_number = esr.get_instruction_number();
+
+        println!("arg1: {}", arg1);
+
+        PLATFORM.handle_syscall(syscall_number, [arg1, arg2, arg3]);
+    }
 }
 
 /*fn blink_out(n: usize, timer: &Timer, status_light: &StatusLight, wait: u64) {

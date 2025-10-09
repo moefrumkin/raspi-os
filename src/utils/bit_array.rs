@@ -15,6 +15,10 @@ impl BitArrayBacking for u32 {
     const BIT_MASK: Self = 0b1;
 }
 
+impl BitArrayBacking for usize {
+    const BIT_MASK: Self = 0b1;
+}
+
 #[derive(Copy, Clone)]
 #[repr(transparent)]
 pub struct BitArray<T> {

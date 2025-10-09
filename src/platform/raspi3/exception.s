@@ -9,7 +9,8 @@
 .align 11
 _exception_vector:
 .org 0x0
-    call_handler handle_exception 0 0
+    bl handle_synchronous_exception
+    eret
 .org 0x80
     call_handler handle_exception 0 1
 .org 0x100
@@ -18,7 +19,10 @@ _exception_vector:
     call_handler handle_exception 0 3
 
 .org 0x200
-    call_handler handle_exception 1 0
+    str lr, [sp, #-16]!
+    bl handle_synchronous_exception
+    ldr lr, [sp], #16
+    eret
 .org 0x280
     call_handler handle_exception 1 1
 .org 0x300

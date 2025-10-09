@@ -2,7 +2,7 @@
 #[macro_export]
 macro_rules! read {
     ($sysreg: literal) => {
-        unsafe { 
+        unsafe {
             let value: usize;
             asm!(concat!("mrs {}, " , $sysreg), out(reg) value);
             value
@@ -52,7 +52,7 @@ macro_rules! registers {
     }
 }
 
-registers!{
+registers! {
     TranslationControlRegister("tcr_el1") {
         granule_size: 30-31,
         table_offset: 0-5
@@ -74,5 +74,9 @@ registers!{
     },
     TranslationTableBaseRegister("ttbr0_el1") {
         table_pointer: 0-47
+    },
+    ExceptionSyndromeRegister("esr_el1") {
+        exception_class: 26-31,
+        instruction_number: 0-15
     }
 }
