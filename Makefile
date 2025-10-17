@@ -28,7 +28,7 @@ QEMU_CMD = $(QEMU_ARCH) \
 #	-d int,mmu,guest_errors,page \
 
 OBJDUMP = objdump
-OBJDUMP_CMD = $(OBJDUMP) --disassemble-all $(KERNEL_ELF)
+OBJDUMP_CMD = $(OBJDUMP) -C --disassemble-all $(KERNEL_ELF)
 
 GDB = gdb #rust-gdb
 #gdb-multiarch

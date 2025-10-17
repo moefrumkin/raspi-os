@@ -12,7 +12,7 @@ pub struct TimerRegisters {
     // TODO: can we treat this as a single u64?
     counter_low_bits: Volatile<u32>,
     counter_high_bits: Volatile<u32>,
-    compare_values: [Volatile<u32>; 4]
+    compare_values: [Volatile<u32>; 4],
 }
 
 impl TimerRegisters {
@@ -41,9 +41,11 @@ impl TimerRegisters {
     }
 
     pub fn set_timeout(&mut self, micros: u32) {
-        self.compare_values[3].set(
-            self.counter_low_bits.get() + micros
-        )
+        self.compare_values[3].set(self.counter_low_bits.get() + micros)
+    }
+
+    pub fn clear_matches(&mut self) {
+        self.control_status.set(Status::cleared().set_match3(1));
     }
 }
 
@@ -53,5 +55,11 @@ bitfield! {
         match1: 1-1,
         match2: 2-2,
         match3: 3-3
+    } with {
+        pub fn cleared() -> Self {
+            Self {
+                value : 0
+            }
+        }
     }
 }

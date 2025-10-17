@@ -1,10 +1,10 @@
 use crate::bitfield;
-use crate::volatile::Volatile;
 use crate::println;
+use crate::volatile::Volatile;
 
 pub enum InterruptType {
     TimerInterrupt,
-    MiniUARTInterrupt
+    MiniUARTInterrupt,
 }
 
 #[repr(C)]
@@ -18,57 +18,60 @@ pub struct InterruptRegisters {
     enable_basic_irqs: Volatile<u32>,
     disable_irq_1: Volatile<InterruptBlock1>,
     disable_irq_2: Volatile<u32>,
-    disable_basic_irqs: Volatile<u32>
+    disable_basic_irqs: Volatile<u32>,
 }
 
 impl InterruptRegisters {
     const INTERRUPT_REGISTERS_BASE: usize = 0x3F00_B200;
 
     fn get() -> &'static mut Self {
-        unsafe {
-            &mut *{Self::INTERRUPT_REGISTERS_BASE as *mut Self}
-        }
+        unsafe { &mut *{ Self::INTERRUPT_REGISTERS_BASE as *mut Self } }
     }
-   
+
     pub fn get_interrupt_type(&self) -> Option<InterruptType> {
         if self.irq_basic_pending.get().get_block_1_irq() == 1 {
-            println!("Block 1 irq");
+            //println!("Block 1 irq");
             let block_1 = self.irq_pending_1.get();
 
             if block_1.get_auxiliary_device_interrupt() == 1 {
                 println!("UART Interrrupt");
             } else if block_1.get_system_timer_match_3() == 1 {
-                println!("Timer Interrupt");
+                //println!("Timer Interrupt");
+                return Some(InterruptType::TimerInterrupt);
             }
         }
 
         None
     }
+
+    pub fn clear_matches(&mut self) {
+        self.irq_basic_pending.set(IRQSource { value: 0 });
+        self.irq_pending_1.set(InterruptBlock1 { value: 0 });
+    }
 }
 
 pub struct InterruptController<'a> {
-    registers: &'a mut InterruptRegisters
+    registers: &'a mut InterruptRegisters,
 }
 
 impl<'a> InterruptController<'a> {
     pub fn new() -> Self {
         Self {
-            registers: InterruptRegisters::get()
+            registers: InterruptRegisters::get(),
         }
     }
 
     pub fn enable_timer_interrupt_3(&mut self) {
-        self.registers.enable_irq_1.map(|interrupt_block|
-            interrupt_block.set_system_timer_match_3(1)
-        );
+        self.registers
+            .enable_irq_1
+            .map(|interrupt_block| interrupt_block.set_system_timer_match_3(1));
     }
 
     pub fn enable_auxiliary_device_interrupts(&mut self) {
-        self.registers.enable_irq_1.map(|interrupt_block|
-            interrupt_block.set_auxiliary_device_interrupt(1)
-        );
+        self.registers
+            .enable_irq_1
+            .map(|interrupt_block| interrupt_block.set_auxiliary_device_interrupt(1));
     }
-
 }
 
 bitfield! {

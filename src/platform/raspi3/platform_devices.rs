@@ -7,7 +7,7 @@ use crate::{
         emmc::{self, EMMCConfiguration, EMMCController, EMMCRegisters},
         gpio::{GPIOController, GPIORegisters, StatusLight},
         hardware_config::HardwareConfig,
-        interrupt::InterruptRegisters,
+        interrupt::{InterruptRegisters, InterruptType},
         kernel::Kernel,
         mailbox::{MailboxBuffer, MailboxController, MailboxRegisters},
         timer::TimerRegisters,
@@ -102,8 +102,15 @@ impl<'a> Platform<'a> {
     }
 
     pub fn handle_interrupt(&self) {
-        crate::println!("Handling Interrupt");
+        // crate::println!("Handling Interrupt");
         let interrupt_type = self.devices.interrupts.borrow().get_interrupt_type();
+        if let Some(InterruptType::TimerInterrupt) = interrupt_type {
+            if let Some(ref mut kernel) = *self.kernel.borrow_mut() {
+                self.get_timer().set_timeout(1_000_000);
+                kernel.tick();
+                self.get_timer().clear_matches();
+            }
+        }
     }
 
     pub fn handle_syscall(&self, syscall_number: usize, args: SyscallArgs) {
@@ -231,6 +238,10 @@ impl Timer for Devices<'_> {
 
     fn set_timeout(&self, micros: u32) {
         self.timer.borrow_mut().set_timeout(micros);
+    }
+
+    fn clear_matches(&self) {
+        self.timer.borrow_mut().clear_matches();
     }
 }
 

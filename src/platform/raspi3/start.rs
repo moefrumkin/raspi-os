@@ -182,8 +182,23 @@ pub extern "C" fn main(heap_start: usize, heap_size: usize, table_start: usize) 
 
     println!("Done!");
 
-    //timer.set_timeout(1000);
+    timer.set_timeout(1_000_000);
     //status_light.borrow_mut().set_green(OutputLevel::High);
+    loop {
+        for i in 0..(1920 * 1080) {
+            fb.write_idx(i, 0xff00ffff);
+        }
+
+        for j in 0..1920 {
+            for i in 0..1080 {
+                fb.write_pixel(
+                    j,
+                    i,
+                    0xff000000 + ((255 * i / 1080) << 16) + ((255 * j / 1920) << 8) + 0xff,
+                );
+            }
+        }
+    }
 
     loop {
         timer.delay_millis(5000);

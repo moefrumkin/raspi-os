@@ -2,19 +2,19 @@ use core::slice;
 
 use crate::{allocator::align, utils::bit_array::BitArray};
 
-const PAGE_SIZE: usize = 65536;
+pub const PAGE_SIZE: usize = 65536;
 
 pub type Page = [u8; PAGE_SIZE];
 
 #[repr(C)]
 pub struct PageAllocator<'a> {
     free_list: &'a mut [BitArray<usize>],
-    pages: &'a mut [Page]
+    pages: &'a mut [Page],
 }
 
 pub struct PageRef {
     pub page: *mut Page,
-    pub page_number: usize
+    pub page_number: usize,
 }
 
 impl<'a> PageAllocator<'a> {
@@ -24,12 +24,12 @@ impl<'a> PageAllocator<'a> {
             for j in 0..64 {
                 let is_allocated = self.free_list[i].get_bit(j);
 
-                if is_allocated == 0  {
+                if is_allocated == 0 {
                     let block_number = 64 * i + j;
                     self.free_list[i] = self.free_list[i].set_bit(j, 1);
                     return Some(PageRef {
                         page: &mut self.pages[block_number] as *mut Page,
-                        page_number: 64 * i + j
+                        page_number: 64 * i + j,
                     });
                 }
             }
@@ -54,14 +54,12 @@ impl<'a> PageAllocator<'a> {
         let number_of_pages = ((start + bytes) - page_start) / PAGE_SIZE;
 
         unsafe {
-            let free_list = slice::from_raw_parts_mut(start as *mut BitArray<usize>, number_of_blocks / 64);
+            let free_list =
+                slice::from_raw_parts_mut(start as *mut BitArray<usize>, number_of_blocks / 64);
 
             let pages = slice::from_raw_parts_mut(page_start as *mut Page, number_of_pages);
 
-            Self {
-                free_list,
-                pages
-            }
+            Self { free_list, pages }
         }
     }
 }

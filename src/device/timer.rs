@@ -7,4 +7,6 @@ pub trait Timer {
     fn get_micros(&self) -> u64;
 
     fn set_timeout(&self, micros: u32);
+
+    fn clear_matches(&self);
 }

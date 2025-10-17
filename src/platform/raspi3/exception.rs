@@ -33,14 +33,13 @@ pub extern "C" fn handle_exception(
     exception_source: ExceptionSource,
     exception_type: ExceptionType,
 ) {
-    println!(
-        "Exception of type {:?} received with source {:?}",
-        exception_type, exception_source
-    );
+    // println!(
+    //     "Exception of type {:?} received with source {:?}",
+    //     exception_type, exception_source
+    // );
 
     if exception_type == ExceptionType::Interrupt {
         get_platform().handle_interrupt();
-        return;
     }
 
     if exception_type == ExceptionType::Synchronous {
@@ -51,8 +50,6 @@ pub extern "C" fn handle_exception(
             let syscall_number = esr.get_instruction_number();
         }
     }
-
-    loop {}
 }
 
 #[no_mangle]
