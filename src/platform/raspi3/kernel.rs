@@ -8,6 +8,7 @@ use crate::{
     allocator::page_allocator::{self, PageAllocator, PAGE_SIZE},
     platform::{
         platform_devices::get_platform,
+        raspi3::exception::InterruptFrame,
         thread::{Scheduler, Thread, ThreadStatus},
     },
 };
@@ -41,7 +42,7 @@ impl<'a> Kernel<'a> {
 
             let mut sp = PAGE_SIZE / 8;
 
-            sp -= 1;
+            sp -= 34;
 
             page64.offset(sp as isize).write(entry as u64);
 
@@ -63,8 +64,9 @@ impl<'a> Kernel<'a> {
         }
     }
 
-    pub fn tick(&mut self) {
+    pub fn tick(&mut self, frame: &InterruptFrame) {
         let timer = get_platform().get_timer();
+        //self.scheduler.update_current(frame);
         crate::println!("Tick!: {:?}", Duration::from_micros(timer.get_micros()));
     }
 }

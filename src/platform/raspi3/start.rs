@@ -119,8 +119,7 @@ pub extern "C" fn main(heap_start: usize, heap_size: usize, table_start: usize) 
     let page_allocator: RefCell<PageAllocator>;
 
     unsafe {
-        let page_start: usize =
-            &(PAGE_SECTION_START as *const usize) as *const *const usize as usize;
+        let page_start: usize = &PAGE_SECTION_START as *const usize as usize;
         let page_size: usize = &PAGE_SECTION_SIZE as *const usize as usize;
         println!(
             "Initializing Page allocator at {:#x} with size {}",

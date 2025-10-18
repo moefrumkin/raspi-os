@@ -32,14 +32,16 @@ pub enum ExceptionType {
 pub extern "C" fn handle_exception(
     exception_source: ExceptionSource,
     exception_type: ExceptionType,
+    frame: &mut InterruptFrame,
 ) {
-    // println!(
-    //     "Exception of type {:?} received with source {:?}",
-    //     exception_type, exception_source
-    // );
+    println!("Frame: {:?}", frame);
+    println!(
+        "Exception of type {:?} received with source {:?}",
+        exception_type, exception_source
+    );
 
     if exception_type == ExceptionType::Interrupt {
-        get_platform().handle_interrupt();
+        get_platform().handle_interrupt(frame);
     }
 
     if exception_type == ExceptionType::Synchronous {
@@ -52,11 +54,19 @@ pub extern "C" fn handle_exception(
     }
 }
 
+#[derive(Debug)]
+#[repr(C)]
+pub struct InterruptFrame {
+    pub regs: [u64; 32],
+}
+
 #[no_mangle]
 pub extern "C" fn handle_synchronous_exception(arg1: usize, arg2: usize, arg3: usize) {
     println!("Handling synchronous");
 
     let esr = ExceptionSyndromeRegister::read_to_buffer();
+
+    println!("ESR: {:x}", esr.value());
 
     let exception_class = esr.get_exception_class();
 

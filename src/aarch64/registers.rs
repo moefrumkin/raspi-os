@@ -36,6 +36,11 @@ macro_rules! registers {
                     pub fn write_to_register(self) {
                         write!($register, self.value)
                     }
+
+                    // TODO: get rid of this
+                    pub fn value(self) -> usize {
+                        self.value
+                    }
                 }
             }
 
