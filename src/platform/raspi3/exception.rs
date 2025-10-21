@@ -34,7 +34,6 @@ pub extern "C" fn handle_exception(
     exception_type: ExceptionType,
     frame: &mut InterruptFrame,
 ) {
-    println!("Frame: {:?}", frame);
     println!(
         "Exception of type {:?} received with source {:?}",
         exception_type, exception_source
@@ -58,6 +57,7 @@ pub extern "C" fn handle_exception(
 #[repr(C)]
 pub struct InterruptFrame {
     pub regs: [u64; 32],
+    pub elr: u64,
 }
 
 #[no_mangle]
