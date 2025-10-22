@@ -134,6 +134,7 @@ pub extern "C" fn main(heap_start: usize, heap_size: usize, table_start: usize) 
     PLATFORM.register_kernel(kernel);
 
     cpu::start_thread(thread);
+    cpu::start_thread(other_thread);
 
     println!("Enabling IRQs");
 
