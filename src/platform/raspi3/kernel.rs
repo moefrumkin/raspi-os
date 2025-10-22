@@ -69,7 +69,6 @@ impl<'a> Kernel<'a> {
     pub fn tick(&mut self, frame: &InterruptFrame) {
         let timer = get_platform().get_timer();
         self.scheduler.update_current(frame);
-        crate::println!("Tick!: {:?}", Duration::from_micros(timer.get_micros()));
     }
 
     pub fn get_return_thread(&mut self) -> Thread<'a> {

@@ -1,3 +1,4 @@
+use crate::aarch64::interrupt::{pop_irq_state, set_irq_state};
 use crate::aarch64::{cpu, interrupt};
 use crate::sync::SpinMutex;
 use alloc::alloc::{GlobalAlloc, Layout};
@@ -47,17 +48,22 @@ impl Default for AllocatorStats {
 
 unsafe impl GlobalAlloc for SpinMutex<LinkedListAllocator> {
     unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
+        let interrupt_state = pop_irq_state();
         let allocator = &mut self.lock();
 
         let allocation = allocator
             .allocate(layout)
             .map_or(core::ptr::null_mut(), |b| b as *const FreeBlock as *mut u8);
 
+        set_irq_state(interrupt_state);
+
         allocation
     }
 
     unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
+        let interrupt_state = pop_irq_state();
         self.lock().free(ptr as usize, layout.size());
+        set_irq_state(interrupt_state);
     }
 }
 
