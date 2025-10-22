@@ -2,7 +2,7 @@
 
 .macro call_handler handler source type
     msr daifset, 0b10 // Disable interrupts
-    str lr, [sp, #-16]!
+    str lr, [sp, #-16]! // Note: lr is x30 which is overwritten by bl
     bl push_frame
     mov     x0, \source
     mov     x1, \type

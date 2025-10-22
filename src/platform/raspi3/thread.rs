@@ -1,3 +1,4 @@
+use alloc::rc::Rc;
 use core::arch::asm;
 
 use alloc::vec;
@@ -6,6 +7,11 @@ use alloc::vec::Vec;
 
 use alloc::collections::VecDeque;
 
+use alloc::string::String;
+
+use alloc::boxed::Box;
+
+use crate::aarch64::interrupt::IRQLock;
 use crate::platform::raspi3::exception::InterruptFrame;
 
 #[derive(Copy, Clone)]
@@ -14,26 +20,27 @@ pub enum ThreadStatus {
     Ready,
 }
 
-#[derive(Copy, Clone)]
 pub struct Thread<'a> {
-    pub stack_pointer: *const u64,
+    pub stack_pointer: IRQLock<*const u64>,
     pub parent: Option<&'a Thread<'a>>,
-    pub status: ThreadStatus,
+    pub status: IRQLock<ThreadStatus>,
+    pub name: Box<String>,
 }
 
 impl<'a> Thread<'a> {
     pub fn from_current() -> Self {
         Self {
-            stack_pointer: 0x0 as *const u64,
+            stack_pointer: IRQLock::new(0x0 as *const u64),
             parent: None,
-            status: ThreadStatus::Running,
+            status: IRQLock::new(ThreadStatus::Running),
+            name: Box::new(String::from("Idle")),
         }
     }
 
     pub fn return_to(&self) -> ! {
         unsafe {
             asm!(
-                "mov sp, {sp}", sp = in(reg) self.stack_pointer
+                "mov sp, {sp}", sp = in(reg) *self.stack_pointer.lock()
             );
 
             asm!(
@@ -70,40 +77,46 @@ impl<'a> Thread<'a> {
 }
 
 pub struct Scheduler<'a> {
-    current_thread: Thread<'a>,
-    threads: VecDeque<Thread<'a>>,
+    current_thread: Rc<Thread<'a>>,
+    threads: Vec<Rc<Thread<'a>>>,
+    thread_queue: VecDeque<Rc<Thread<'a>>>,
 }
 
 impl<'a> Scheduler<'a> {
     pub fn new() -> Self {
+        let current_thread = Rc::new(Thread::from_current());
+
         Self {
-            current_thread: Thread::from_current(),
-            threads: VecDeque::new(),
+            current_thread: current_thread.clone(),
+            threads: vec![current_thread],
+            thread_queue: VecDeque::new(),
         }
     }
 
     pub fn add_thread(&mut self, thread: Thread<'a>) {
-        self.threads.push_back(thread);
+        let thread = Rc::new(thread);
+        self.thread_queue.push_back(thread.clone());
+        self.threads.push(thread);
     }
 
     pub fn update_current(&mut self, frame: &InterruptFrame) {
-        self.current_thread.stack_pointer = frame as *const InterruptFrame as *const u64;
+        *self.current_thread.stack_pointer.lock() = frame as *const InterruptFrame as *const u64;
     }
 
-    pub fn choose_thread(&mut self) -> Thread<'a> {
+    pub fn choose_thread(&mut self) -> Rc<Thread<'a>> {
+        self.thread_queue.push_back(self.current_thread.clone());
+
         let new_thread = self
-            .threads
+            .thread_queue
             .pop_front()
             .expect("Unable to find thread to schedule");
 
-        self.threads.push_back(self.current_thread);
+        self.current_thread = new_thread.clone();
 
-        self.current_thread = new_thread;
-
-        return new_thread;
+        return new_thread.clone();
     }
 
     pub fn set_current_stack_pointer(&mut self, pointer: *const u64) {
-        self.current_thread.stack_pointer = pointer;
+        *self.current_thread.stack_pointer.lock() = pointer;
     }
 }

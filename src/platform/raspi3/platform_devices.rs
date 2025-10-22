@@ -28,6 +28,8 @@ use core::{
 
 use crate::device::{console::Console, timer::Timer};
 
+use alloc::rc::Weak;
+
 #[macro_export]
 macro_rules! print {
     ($($arg:tt)*) => {
@@ -111,7 +113,7 @@ impl<'a> Platform<'a> {
 
     pub fn handle_interrupt(&self, frame: &mut InterruptFrame) {
         // crate::println!("Handling Interrupt");
-        let mut thread: Option<Thread> = None;
+        let mut thread: Option<Rc<Thread>> = None;
         let interrupt_type = self.devices.interrupts.borrow().get_interrupt_type();
         if let Some(InterruptType::KernelTimerInterrupt) = interrupt_type {
             if let Some(ref mut kernel) = *self.kernel.borrow_mut() {
@@ -125,6 +127,9 @@ impl<'a> Platform<'a> {
         }
 
         if let Some(thread) = thread {
+            // This is a problem since the weak count will not be decremented
+            // Less of a problem than the strong count...
+            // TODO: now we are doing strong count...
             thread.return_to();
         }
     }

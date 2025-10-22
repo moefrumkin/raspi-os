@@ -13,6 +13,8 @@ pub struct LinkedListAllocator {
     /// The amont of memory managed by this allocator
     size: usize,
 
+    free_space: usize,
+
     stats: AllocatorStats,
 }
 
@@ -89,6 +91,7 @@ impl LinkedListAllocator {
                 next: None,
             },
             size: 0,
+            free_space: 0,
             stats: AllocatorStats::new(),
         }
     }
@@ -119,6 +122,7 @@ impl LinkedListAllocator {
     fn allocate(&mut self, layout: Layout) -> Option<&mut FreeBlock> {
         self.stats.allocs += 1;
         let (size, align) = Self::expand_to_min(layout);
+        self.free_space -= size;
         // TODO: is it safe to discard next?
         if let Ok((free, _)) = self.free_list.fit_in_block(size, align) {
             Some(free)
@@ -129,6 +133,7 @@ impl LinkedListAllocator {
 
     //TODO coalesce neighboring blocks
     fn free(&mut self, start: usize, size: usize) {
+        self.free_space += size;
         self.stats.frees += 1;
 
         // TODO: should be a single source of truth for expanding blocks

@@ -5,7 +5,9 @@ use crate::allocator::page_allocator::PageAllocator;
 use crate::canvas::{canvas2d::Canvas2D, line::Line, matrix::Matrix, vector::Vector};
 use crate::ALLOCATOR;
 use crate::{print, println, read, write};
+use alloc::boxed::Box;
 use alloc::slice;
+use alloc::string::String;
 use alloc::vec::Vec;
 use core::arch::global_asm;
 use core::cell::RefCell;
@@ -146,9 +148,9 @@ pub extern "C" fn main(heap_start: usize, heap_size: usize, table_start: usize) 
 
     println!("Timer interrupt enabled!");
 
-    cpu::start_thread(graphics_thread, 0);
+    cpu::start_thread(graphics_thread, &String::from("Graphics"), 0);
     for i in 0..20 {
-        cpu::start_thread(counter_thread, i);
+        cpu::start_thread(counter_thread, &String::from("Counter"), i);
     }
 
     PLATFORM.set_kernel_timeout(TICK);

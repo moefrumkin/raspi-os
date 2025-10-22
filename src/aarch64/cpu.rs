@@ -1,3 +1,5 @@
+use alloc::boxed::Box;
+use alloc::string::String;
 use core::arch::asm;
 
 use crate::{aarch64::syscall::Syscall, read, write};
@@ -55,7 +57,11 @@ pub fn syscall(call: Syscall) {
     }
 }
 
-pub extern "C" fn start_thread<T>(_function: extern "C" fn(arg: T) -> (), _arg: usize) {
+pub extern "C" fn start_thread<T>(
+    _function: extern "C" fn(arg: T) -> (),
+    _name: &String,
+    _arg: usize,
+) {
     unsafe {
         asm!("svc {}", const Syscall::Thread as usize);
     }
