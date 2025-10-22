@@ -7,6 +7,7 @@ use crate::{
     aarch64::syscall::{Syscall, SyscallArgs},
     allocator::page_allocator::{self, PageAllocator, PAGE_SIZE},
     platform::{
+        framebuffer::FrameBuffer,
         platform_devices::get_platform,
         raspi3::exception::InterruptFrame,
         thread::{Scheduler, Thread, ThreadStatus},
@@ -46,7 +47,11 @@ impl<'a> Kernel<'a> {
 
             sp -= 34;
 
-            page64.offset(sp as isize).offset(32).write(entry as u64);
+            let frame = &mut *(page64.offset(sp as isize) as *mut InterruptFrame);
+
+            frame.elr = entry as u64;
+
+            //page64.offset(sp as isize).offset(32).write(entry as u64);
 
             stack_pointer = page64.offset(sp as isize);
         }
@@ -59,8 +64,6 @@ impl<'a> Kernel<'a> {
     }
 
     pub fn handle_syscall(&mut self, number: usize, args: SyscallArgs) {
-        crate::println!("Received system call {}, {:#?}", number, args);
-
         if number == Syscall::Thread as usize {
             self.create_thread(args[0]);
         }

@@ -2,7 +2,10 @@ use super::gpio::{GPIOController, OutputLevel, StatusLight};
 use core::arch::global_asm;
 
 use crate::{
-    aarch64::{cpu, registers::ExceptionSyndromeRegister},
+    aarch64::{
+        cpu,
+        registers::{ExceptionLinkRegister, ExceptionSyndromeRegister, FaultAddressRegister},
+    },
     bitfield,
     platform::platform_devices::{get_platform, PLATFORM},
     println,
@@ -36,15 +39,11 @@ pub extern "C" fn handle_exception(
 ) {
     if exception_type == ExceptionType::Interrupt {
         get_platform().handle_interrupt(frame);
-    }
-
-    if exception_type == ExceptionType::Synchronous {
-        // This should be system calls?
-        let esr = ExceptionSyndromeRegister::read_to_buffer();
-        let exception_class = esr.get_exception_class();
-        if exception_class == 0b010101 {
-            let syscall_number = esr.get_instruction_number();
-        }
+    } else {
+        println!(
+            "Received Exception Type {:?} from {:?}",
+            exception_type, exception_source
+        );
     }
 }
 
@@ -65,8 +64,15 @@ pub extern "C" fn handle_synchronous_exception(
     println!("Handling synchronous");
 
     let esr = ExceptionSyndromeRegister::read_to_buffer();
+    let elr = ExceptionLinkRegister::read_to_buffer();
+    let far = FaultAddressRegister::read_to_buffer();
 
-    println!("ESR: {:x}", esr.value());
+    println!(
+        "ESR: {:x}. ELR: {:x}. FAR: {:x}",
+        esr.value(),
+        elr.value(),
+        far.value()
+    );
 
     let exception_class = esr.get_exception_class();
 

@@ -83,5 +83,7 @@ registers! {
     ExceptionSyndromeRegister("esr_el1") {
         exception_class: 26-31,
         instruction_number: 0-15
-    }
+    },
+    ExceptionLinkRegister("elr_el1") {},
+    FaultAddressRegister("far_el1") {}
 }
