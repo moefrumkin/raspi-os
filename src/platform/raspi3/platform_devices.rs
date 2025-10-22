@@ -149,7 +149,7 @@ impl<'a> Platform<'a> {
 pub struct Devices<'a> {
     gpio: RefCell<&'a mut GPIORegisters>,
     timer: IRQLock<&'a mut TimerRegisters>,
-    mini_uart: RefCell<&'a mut MiniUARTRegisters>,
+    mini_uart: IRQLock<&'a mut MiniUARTRegisters>,
     mailbox: RefCell<&'a mut MailboxRegisters>,
     emmc: RefCell<&'a mut EMMCRegisters>,
     emmc_configuration: RefCell<EMMCConfiguration>,
@@ -164,7 +164,7 @@ impl<'a> Devices<'a> {
     pub const fn uninitialized() -> Self {
         Self {
             timer: IRQLock::new(mmio::get_timer_registers()),
-            mini_uart: RefCell::new(mmio::get_miniuart_registers()),
+            mini_uart: IRQLock::new(mmio::get_miniuart_registers()),
             gpio: RefCell::new(mmio::get_gpio_registers()),
             mailbox: RefCell::new(mmio::get_mailbox_registers()),
             emmc: RefCell::new(mmio::get_emmc_registers()),
@@ -174,7 +174,7 @@ impl<'a> Devices<'a> {
     }
 
     pub fn init(&'a self) {
-        self.mini_uart.borrow_mut().init(self.get_gpio_controller());
+        self.mini_uart.lock().init(self.get_gpio_controller());
 
         let emmc_configuration =
             EMMCController::initialize(&self.emmc, self.get_timer(), self.get_gpio_controller());
@@ -225,15 +225,15 @@ impl GPIOController for Devices<'_> {
 
 impl Console for Devices<'_> {
     fn newline(&self) {
-        self.mini_uart.borrow_mut().newline();
+        self.mini_uart.lock().newline();
     }
 
     fn writef(&self, args: Arguments) {
-        self.mini_uart.borrow_mut().writef(args);
+        self.mini_uart.lock().writef(args);
     }
 
     fn writefln(&self, args: Arguments) {
-        self.mini_uart.borrow_mut().writefln(args);
+        self.mini_uart.lock().writefln(args);
     }
 }
 
