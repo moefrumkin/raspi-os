@@ -1,5 +1,5 @@
 use crate::{
-    aarch64::syscall::SyscallArgs,
+    aarch64::{interrupt::IRQLock, syscall::SyscallArgs},
     allocator::page_allocator::{Page, PageAllocator, PageRef},
     device::sector_device::{Sector, SectorDevice},
     platform::{
@@ -104,7 +104,7 @@ impl<'a> Platform<'a> {
     }
 
     pub fn set_kernel_timeout(&self, millis: u32) {
-        let mut timer_regs = self.devices.timer.borrow_mut();
+        let mut timer_regs = self.devices.timer.lock();
 
         timer_regs.set_kernel_timeout(millis);
     }
@@ -148,7 +148,7 @@ impl<'a> Platform<'a> {
 
 pub struct Devices<'a> {
     gpio: RefCell<&'a mut GPIORegisters>,
-    timer: RefCell<&'a mut TimerRegisters>,
+    timer: IRQLock<&'a mut TimerRegisters>,
     mini_uart: RefCell<&'a mut MiniUARTRegisters>,
     mailbox: RefCell<&'a mut MailboxRegisters>,
     emmc: RefCell<&'a mut EMMCRegisters>,
@@ -163,7 +163,7 @@ impl<'a> Devices<'a> {
 
     pub const fn uninitialized() -> Self {
         Self {
-            timer: RefCell::new(mmio::get_timer_registers()),
+            timer: IRQLock::new(mmio::get_timer_registers()),
             mini_uart: RefCell::new(mmio::get_miniuart_registers()),
             gpio: RefCell::new(mmio::get_gpio_registers()),
             mailbox: RefCell::new(mmio::get_mailbox_registers()),
@@ -251,19 +251,19 @@ impl MailboxController for Devices<'_> {
 
 impl Timer for Devices<'_> {
     fn delay_micros(&self, micros: u64) {
-        self.timer.borrow_mut().delay_microseconds(micros);
+        self.timer.lock().delay_microseconds(micros);
     }
 
     fn get_micros(&self) -> u64 {
-        self.timer.borrow().time()
+        self.timer.lock().time()
     }
 
     fn set_timeout(&self, micros: u32) {
-        self.timer.borrow_mut().set_timeout(micros);
+        self.timer.lock().set_timeout(micros);
     }
 
     fn clear_matches(&self) {
-        self.timer.borrow_mut().clear_matches();
+        self.timer.lock().clear_matches();
     }
 }
 
