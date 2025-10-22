@@ -132,9 +132,6 @@ pub extern "C" fn main(heap_start: usize, heap_size: usize, table_start: usize) 
 
     PLATFORM.register_kernel(kernel);
 
-    cpu::start_thread(thread, 1);
-    cpu::start_thread(other_thread, 2);
-
     println!("Enabling IRQs");
 
     interrupt::enable_irq();
@@ -149,6 +146,34 @@ pub extern "C" fn main(heap_start: usize, heap_size: usize, table_start: usize) 
 
     println!("Timer interrupt enabled!");
 
+    cpu::start_thread(graphics_thread, 0);
+    for i in 0..20 {
+        cpu::start_thread(thread, i);
+    }
+
+    PLATFORM.set_kernel_timeout(TICK);
+
+    //status_light.borrow_mut().set_green(OutputLevel::High);
+
+    loop {
+        timer.delay_millis(5000);
+        println!("Timer: {:?}", Duration::from_micros(timer.get_micros()));
+    }
+}
+
+pub extern "C" fn thread(number: usize) {
+    let platform = get_platform();
+    let mut count = 1;
+    println!("Starting thread: {}", number);
+    loop {
+        println!("Hello, World! from thread {}. Iteration: {}", number, count);
+        count += 1;
+        platform.get_timer().delay_millis(200);
+    }
+}
+
+pub extern "C" fn graphics_thread(_arg: usize) {
+    let platform = get_platform();
     let resolution = Dimensions::new(1920, 1080);
 
     let fb_config = FrameBufferConfigBuilder::new()
@@ -162,29 +187,10 @@ pub extern "C" fn main(heap_start: usize, heap_size: usize, table_start: usize) 
 
     println!("Initializing Frame Buffer with config {}", fb_config);
 
-    let mut fb = FrameBuffer::from_config(fb_config, mailbox);
+    let mut fb = FrameBuffer::from_config(fb_config, platform.get_mailbox_controller());
 
     println!("Actual config is {}", fb.get_config());
 
-    for i in 0..(1920 * 1080) {
-        fb.write_idx(i, 0xff00ffff);
-    }
-
-    for j in 0..1920 {
-        for i in 0..1080 {
-            fb.write_pixel(
-                j,
-                i,
-                0xff000000 + ((255 * i / 1080) << 16) + ((255 * j / 1920) << 8) + 0xff,
-            );
-        }
-    }
-
-    println!("Done!");
-
-    PLATFORM.set_kernel_timeout(TICK);
-
-    //status_light.borrow_mut().set_green(OutputLevel::High);
     loop {
         for i in 0..(1920 * 1080) {
             fb.write_idx(i, 0xff00ffff);
@@ -201,31 +207,7 @@ pub extern "C" fn main(heap_start: usize, heap_size: usize, table_start: usize) 
         }
     }
 
-    loop {
-        timer.delay_millis(5000);
-        println!("Timer: {:?}", Duration::from_micros(timer.get_micros()));
-    }
-}
-
-pub extern "C" fn thread(number: usize) {
-    let platform = get_platform();
-    let mut count = 1;
-    println!("Starting thread: {}", number);
-    loop {
-        println!("Hello, World! from thread 1. Iteration: {}", count);
-        count += 1;
-        platform.get_timer().delay_millis(200);
-    }
-}
-
-pub extern "C" fn other_thread(_arg: usize) {
-    let platform = get_platform();
-    let mut count = 1;
-    loop {
-        println!("Hello, World! from thread 2. Iteration: {}", count);
-        count += 1;
-        platform.get_timer().delay_millis(200);
-    }
+    println!("Done!");
 }
 
 pub fn blink_sequence(status_light: &mut StatusLight, timer: &dyn Timer, interval: u64) {
