@@ -148,7 +148,7 @@ pub extern "C" fn main(heap_start: usize, heap_size: usize, table_start: usize) 
 
     cpu::start_thread(graphics_thread, 0);
     for i in 0..20 {
-        cpu::start_thread(thread, i);
+        cpu::start_thread(counter_thread, i);
     }
 
     PLATFORM.set_kernel_timeout(TICK);
@@ -161,7 +161,7 @@ pub extern "C" fn main(heap_start: usize, heap_size: usize, table_start: usize) 
     }
 }
 
-pub extern "C" fn thread(number: usize) {
+pub extern "C" fn counter_thread(number: usize) {
     let platform = get_platform();
     let mut count = 1;
     println!("Starting thread: {}", number);
