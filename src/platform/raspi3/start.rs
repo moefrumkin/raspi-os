@@ -142,6 +142,7 @@ pub extern "C" fn main(heap_start: usize, heap_size: usize, table_start: usize) 
     let mut interrupt_controller = InterruptController::new();
 
     interrupt_controller.enable_timer_interrupt_3();
+    interrupt_controller.enable_timer_interrupt_1();
     interrupt_controller.enable_auxiliary_device_interrupts();
 
     let timer = platform.get_timer();
@@ -181,7 +182,8 @@ pub extern "C" fn main(heap_start: usize, heap_size: usize, table_start: usize) 
 
     println!("Done!");
 
-    timer.set_timeout(1_000_000);
+    PLATFORM.set_kernel_timeout(1_000_000);
+
     //status_light.borrow_mut().set_green(OutputLevel::High);
     loop {
         for i in 0..(1920 * 1080) {

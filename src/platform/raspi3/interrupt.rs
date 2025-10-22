@@ -1,9 +1,11 @@
+use crate::aarch64::interrupt;
 use crate::bitfield;
 use crate::println;
 use crate::volatile::Volatile;
 
 pub enum InterruptType {
     TimerInterrupt,
+    KernelTimerInterrupt,
     MiniUARTInterrupt,
 }
 
@@ -38,6 +40,8 @@ impl InterruptRegisters {
             } else if block_1.get_system_timer_match_3() == 1 {
                 //println!("Timer Interrupt");
                 return Some(InterruptType::TimerInterrupt);
+            } else if block_1.get_system_timer_match_1() == 1 {
+                return Some(InterruptType::KernelTimerInterrupt);
             }
         }
 
@@ -67,6 +71,12 @@ impl<'a> InterruptController<'a> {
             .map(|interrupt_block| interrupt_block.set_system_timer_match_3(1));
     }
 
+    pub fn enable_timer_interrupt_1(&mut self) {
+        self.registers
+            .enable_irq_1
+            .map(|interrupt_block| interrupt_block.set_system_timer_match_1(1));
+    }
+
     pub fn enable_auxiliary_device_interrupts(&mut self) {
         self.registers
             .enable_irq_1
@@ -88,6 +98,7 @@ bitfield! {
 // TODO: Could the interrupt blocks be merged into 1 64 bit block?
 bitfield! {
     InterruptBlock1(u32) {
+        system_timer_match_1: 1-1,
         system_timer_match_3: 3-3,
         usb_controller: 9-9,
         auxiliary_device_interrupt: 29-29

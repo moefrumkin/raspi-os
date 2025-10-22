@@ -34,11 +34,6 @@ pub extern "C" fn handle_exception(
     exception_type: ExceptionType,
     frame: &mut InterruptFrame,
 ) {
-    println!(
-        "Exception of type {:?} received with source {:?}",
-        exception_type, exception_source
-    );
-
     if exception_type == ExceptionType::Interrupt {
         get_platform().handle_interrupt(frame);
     }

@@ -103,14 +103,20 @@ impl<'a> Platform<'a> {
         HardwareConfig::from_mailbox(self.get_mailbox_controller())
     }
 
+    pub fn set_kernel_timeout(&self, millis: u32) {
+        let mut timer_regs = self.devices.timer.borrow_mut();
+
+        timer_regs.set_kernel_timeout(millis);
+    }
+
     pub fn handle_interrupt(&self, frame: &mut InterruptFrame) {
         // crate::println!("Handling Interrupt");
         let mut thread: Option<Thread> = None;
         let interrupt_type = self.devices.interrupts.borrow().get_interrupt_type();
-        if let Some(InterruptType::TimerInterrupt) = interrupt_type {
+        if let Some(InterruptType::KernelTimerInterrupt) = interrupt_type {
             if let Some(ref mut kernel) = *self.kernel.borrow_mut() {
                 // TODO: are the clears necessary?
-                self.get_timer().set_timeout(1_000_000);
+                self.set_kernel_timeout(1_000_000);
                 kernel.tick(frame);
                 self.get_timer().clear_matches();
 

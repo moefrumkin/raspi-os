@@ -44,8 +44,13 @@ impl TimerRegisters {
         self.compare_values[3].set(self.counter_low_bits.get() + micros)
     }
 
+    pub fn set_kernel_timeout(&mut self, millis: u32) {
+        self.compare_values[1].set(self.counter_low_bits.get() + millis);
+    }
+
     pub fn clear_matches(&mut self) {
-        self.control_status.set(Status::cleared().set_match3(1));
+        self.control_status
+            .set(Status::cleared().set_match3(1).set_match1(1));
     }
 }
 
