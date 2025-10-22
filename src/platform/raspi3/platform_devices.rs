@@ -11,6 +11,7 @@ use crate::{
         kernel::Kernel,
         mailbox::{MailboxBuffer, MailboxController, MailboxRegisters},
         raspi3::exception::InterruptFrame,
+        thread::Thread,
         timer::TimerRegisters,
     },
 };
@@ -104,6 +105,7 @@ impl<'a> Platform<'a> {
 
     pub fn handle_interrupt(&self, frame: &mut InterruptFrame) {
         // crate::println!("Handling Interrupt");
+        let mut thread: Option<Thread> = None;
         let interrupt_type = self.devices.interrupts.borrow().get_interrupt_type();
         if let Some(InterruptType::TimerInterrupt) = interrupt_type {
             if let Some(ref mut kernel) = *self.kernel.borrow_mut() {
@@ -112,10 +114,12 @@ impl<'a> Platform<'a> {
                 kernel.tick(frame);
                 self.get_timer().clear_matches();
 
-                let thread = kernel.get_return_thread();
-
-                thread.return_to();
+                thread = Some(kernel.get_return_thread());
             }
+        }
+
+        if let Some(thread) = thread {
+            thread.return_to();
         }
     }
 

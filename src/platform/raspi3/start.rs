@@ -208,8 +208,16 @@ pub extern "C" fn main(heap_start: usize, heap_size: usize, table_start: usize) 
 pub fn thread() {
     let platform = get_platform();
     loop {
-        println!("Hello, World from thread 1");
-        platform.get_timer().delay_micros(1000);
+        println!("Hello, World! from thread 1");
+        platform.get_timer().delay_millis(200);
+    }
+}
+
+pub fn other_thread() {
+    let platform = get_platform();
+    loop {
+        println!("Hello, World! from thread 2");
+        platform.get_timer().delay_millis(200);
     }
 }
 
