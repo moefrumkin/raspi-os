@@ -36,7 +36,7 @@ pub fn pop_irq_state() -> InterruptState {
         asm!("mrs {}, daif", out(reg) daif);
     }
 
-    if daif & (1 << 7) == 1 {
+    if (daif >> 7 & (0b1)) == 1 {
         InterruptState::Disabled
     } else {
         InterruptState::Enabled
