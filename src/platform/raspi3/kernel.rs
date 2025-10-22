@@ -29,7 +29,7 @@ impl<'a> Kernel<'a> {
         }
     }
 
-    pub fn create_thread(&mut self, entry: usize) {
+    pub fn create_thread(&mut self, entry: usize, args: SyscallArgs) {
         let page_ref = self
             .page_allocator
             .borrow_mut()
@@ -49,9 +49,11 @@ impl<'a> Kernel<'a> {
 
             let frame = &mut *(page64.offset(sp as isize) as *mut InterruptFrame);
 
+            frame.regs[0] = args[1] as u64;
+
             frame.elr = entry as u64;
 
-            //page64.offset(sp as isize).offset(32).write(entry as u64);
+            crate::println!("Frame: {:?}", frame);
 
             stack_pointer = page64.offset(sp as isize);
         }
@@ -65,7 +67,7 @@ impl<'a> Kernel<'a> {
 
     pub fn handle_syscall(&mut self, number: usize, args: SyscallArgs) {
         if number == Syscall::Thread as usize {
-            self.create_thread(args[0]);
+            self.create_thread(args[0], args);
         }
     }
 

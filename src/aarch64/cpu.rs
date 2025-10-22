@@ -55,7 +55,7 @@ pub fn syscall(call: Syscall) {
     }
 }
 
-pub fn start_thread(_function: fn() -> ()) {
+pub extern "C" fn start_thread<T>(_function: extern "C" fn(arg: T) -> (), _arg: usize) {
     unsafe {
         asm!("svc {}", const Syscall::Thread as usize);
     }

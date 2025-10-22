@@ -132,8 +132,8 @@ pub extern "C" fn main(heap_start: usize, heap_size: usize, table_start: usize) 
 
     PLATFORM.register_kernel(kernel);
 
-    cpu::start_thread(thread);
-    cpu::start_thread(other_thread);
+    cpu::start_thread(thread, 1);
+    cpu::start_thread(other_thread, 2);
 
     println!("Enabling IRQs");
 
@@ -207,9 +207,10 @@ pub extern "C" fn main(heap_start: usize, heap_size: usize, table_start: usize) 
     }
 }
 
-pub fn thread() {
+pub extern "C" fn thread(number: usize) {
     let platform = get_platform();
     let mut count = 1;
+    println!("Starting thread: {}", number);
     loop {
         println!("Hello, World! from thread 1. Iteration: {}", count);
         count += 1;
@@ -217,7 +218,7 @@ pub fn thread() {
     }
 }
 
-pub fn other_thread() {
+pub extern "C" fn other_thread(_arg: usize) {
     let platform = get_platform();
     let mut count = 1;
     loop {
