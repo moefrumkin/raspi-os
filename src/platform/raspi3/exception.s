@@ -30,6 +30,7 @@ _exception_vector:
     msr daifset, 0b10 // Disable interrupts
     str lr, [sp, #-16]!
     bl push_frame
+    mov x3, sp
     bl handle_synchronous_exception
     bl pop_frame
     ldr lr, [sp], #16

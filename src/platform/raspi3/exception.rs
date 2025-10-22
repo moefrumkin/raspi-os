@@ -61,7 +61,12 @@ pub struct InterruptFrame {
 }
 
 #[no_mangle]
-pub extern "C" fn handle_synchronous_exception(arg1: usize, arg2: usize, arg3: usize) {
+pub extern "C" fn handle_synchronous_exception(
+    arg1: usize,
+    arg2: usize,
+    arg3: usize,
+    frame: &mut InterruptFrame,
+) {
     println!("Handling synchronous");
 
     let esr = ExceptionSyndromeRegister::read_to_buffer();
@@ -71,6 +76,8 @@ pub extern "C" fn handle_synchronous_exception(arg1: usize, arg2: usize, arg3: u
     let exception_class = esr.get_exception_class();
 
     println!("Exception class: {:b}", exception_class);
+
+    PLATFORM.update_frame(frame);
 
     if exception_class == 0b010101 {
         let syscall_number = esr.get_instruction_number();

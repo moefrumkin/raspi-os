@@ -128,6 +128,12 @@ impl<'a> Platform<'a> {
     pub fn register_kernel(&self, kernel: Kernel<'a>) {
         self.kernel.replace(Some(kernel));
     }
+
+    pub fn update_frame(&self, frame: &mut InterruptFrame) {
+        if let Some(ref mut kernel) = *self.kernel.borrow_mut() {
+            kernel.update_frame(frame);
+        }
+    }
 }
 
 pub struct Devices<'a> {

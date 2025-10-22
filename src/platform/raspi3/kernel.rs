@@ -73,4 +73,9 @@ impl<'a> Kernel<'a> {
     pub fn get_return_thread(&mut self) -> Thread<'a> {
         self.scheduler.choose_thread()
     }
+
+    pub fn update_frame(&mut self, frame: &mut InterruptFrame) {
+        self.scheduler
+            .set_current_stack_pointer(frame as *const InterruptFrame as *const u64);
+    }
 }

@@ -102,4 +102,8 @@ impl<'a> Scheduler<'a> {
 
         return new_thread;
     }
+
+    pub fn set_current_stack_pointer(&mut self, pointer: *const u64) {
+        self.current_thread.stack_pointer = pointer;
+    }
 }
