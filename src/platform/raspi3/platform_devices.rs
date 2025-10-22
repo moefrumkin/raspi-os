@@ -8,7 +8,7 @@ use crate::{
         gpio::{GPIOController, GPIORegisters, StatusLight},
         hardware_config::HardwareConfig,
         interrupt::{InterruptRegisters, InterruptType},
-        kernel::Kernel,
+        kernel::{Kernel, TICK},
         mailbox::{MailboxBuffer, MailboxController, MailboxRegisters},
         raspi3::exception::InterruptFrame,
         thread::Thread,
@@ -116,7 +116,7 @@ impl<'a> Platform<'a> {
         if let Some(InterruptType::KernelTimerInterrupt) = interrupt_type {
             if let Some(ref mut kernel) = *self.kernel.borrow_mut() {
                 // TODO: are the clears necessary?
-                self.set_kernel_timeout(1_000_000);
+                self.set_kernel_timeout(TICK);
                 kernel.tick(frame);
                 self.get_timer().clear_matches();
 

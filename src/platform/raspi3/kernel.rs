@@ -13,6 +13,8 @@ use crate::{
     },
 };
 
+pub const TICK: u32 = 1_000;
+
 pub struct Kernel<'a> {
     pub scheduler: Scheduler<'a>,
     pub page_allocator: RefCell<PageAllocator<'a>>,

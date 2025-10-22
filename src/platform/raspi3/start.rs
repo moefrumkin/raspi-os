@@ -1,4 +1,5 @@
 use super::kernel::Kernel;
+use super::kernel::TICK;
 use crate::aarch64::{cpu, interrupt, mmu, syscall::Syscall};
 use crate::allocator::page_allocator::PageAllocator;
 use crate::canvas::{canvas2d::Canvas2D, line::Line, matrix::Matrix, vector::Vector};
@@ -183,7 +184,7 @@ pub extern "C" fn main(heap_start: usize, heap_size: usize, table_start: usize) 
 
     println!("Done!");
 
-    PLATFORM.set_kernel_timeout(1_000_000);
+    PLATFORM.set_kernel_timeout(TICK);
 
     //status_light.borrow_mut().set_green(OutputLevel::High);
     loop {
