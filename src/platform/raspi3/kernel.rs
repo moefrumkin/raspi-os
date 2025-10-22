@@ -44,9 +44,9 @@ impl<'a> Kernel<'a> {
 
             sp -= 34;
 
-            page64.offset(sp as isize).write(entry as u64);
+            page64.offset(sp as isize).offset(32).write(entry as u64);
 
-            stack_pointer = sp as *const u64;
+            stack_pointer = page64.offset(sp as isize);
         }
 
         self.scheduler.add_thread(Thread {
@@ -68,5 +68,9 @@ impl<'a> Kernel<'a> {
         let timer = get_platform().get_timer();
         //self.scheduler.update_current(frame);
         crate::println!("Tick!: {:?}", Duration::from_micros(timer.get_micros()));
+    }
+
+    pub fn get_return_thread(&mut self) -> Thread<'a> {
+        self.scheduler.choose_thread()
     }
 }

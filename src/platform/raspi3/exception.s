@@ -78,8 +78,8 @@ push_frame: // TODO: push all registers
     stp x24, x25, [sp, 0xd0]
     stp x26, x27, [sp, 0xe0]
     stp x28, x29, [sp, 0xf0]
-    mrs x0, elr_el1 // TODO: with user programs may also need to save spsr
-    str x0, [sp, 0x100]
+    mrs x21, elr_el1 // TODO: with user programs may also need to save spsr
+    str x21, [sp, 0x100] // Dont want to mess with syscall argument registers
     ret
 
 pop_frame:

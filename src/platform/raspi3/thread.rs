@@ -4,13 +4,17 @@ use alloc::vec;
 
 use alloc::vec::Vec;
 
+use alloc::collections::VecDeque;
+
 use crate::platform::raspi3::exception::InterruptFrame;
 
+#[derive(Copy, Clone)]
 pub enum ThreadStatus {
     Running,
     Ready,
 }
 
+#[derive(Copy, Clone)]
 pub struct Thread<'a> {
     pub stack_pointer: *const u64,
     pub parent: Option<&'a Thread<'a>>,
@@ -29,12 +33,12 @@ impl<'a> Thread<'a> {
     pub fn return_to(&self) -> ! {
         unsafe {
             asm!(
-                "mov sp, {sp}", sp = in(reg) &self.stack_pointer
+                "mov sp, {sp}", sp = in(reg) self.stack_pointer
             );
 
             asm!(
                 "
-                ldp x21, x0, [sp, 0x100]
+                ldr x0, [sp, 0x100]
                 msr elr_el1, x0
                 ldp x0, x1, [sp, 0x0]
                 ldp x2, x3, [sp, 0x10]
@@ -53,10 +57,12 @@ impl<'a> Thread<'a> {
                 ldp x28, x29, [sp, 0xf0]
                 // ldp x30, xzr, [sp, #160]
                 ldp x31, x0, [sp, 0x100]
-                add sp, sp, 0x110"
+                add sp, sp, 0x110
+                ldr lr, [sp], #16
+                msr daifclr, 0b10 // Enable Interrupts
+                eret
+                "
             );
-
-            asm!("ldr lr, [sp], #16");
         }
 
         loop {}
@@ -65,22 +71,35 @@ impl<'a> Thread<'a> {
 
 pub struct Scheduler<'a> {
     current_thread: Thread<'a>,
-    threads: Vec<Thread<'a>>,
+    threads: VecDeque<Thread<'a>>,
 }
 
 impl<'a> Scheduler<'a> {
     pub fn new() -> Self {
         Self {
             current_thread: Thread::from_current(),
-            threads: vec![],
+            threads: VecDeque::new(),
         }
     }
 
     pub fn add_thread(&mut self, thread: Thread<'a>) {
-        self.threads.push(thread);
+        self.threads.push_back(thread);
     }
 
     pub fn update_current(&mut self, frame: &InterruptFrame) {
         self.current_thread.stack_pointer = frame as *const InterruptFrame as *const u64;
+    }
+
+    pub fn choose_thread(&mut self) -> Thread<'a> {
+        let new_thread = self
+            .threads
+            .pop_front()
+            .expect("Unable to find thread to schedule");
+
+        self.threads.push_back(self.current_thread);
+
+        self.current_thread = new_thread;
+
+        return new_thread;
     }
 }
