@@ -6,7 +6,7 @@ use core::{
 
 use crate::platform::interrupt::IRQSource;
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub enum InterruptState {
     Enabled,
     Disabled,
@@ -43,6 +43,7 @@ pub fn pop_irq_state() -> InterruptState {
     }
 }
 
+#[derive(Debug)]
 pub struct IRQLock<T> {
     data: UnsafeCell<T>,
 }

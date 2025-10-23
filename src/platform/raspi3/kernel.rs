@@ -65,7 +65,7 @@ impl<'a> Kernel<'a> {
 
             stack_pointer = IRQLock::new(page64.offset(sp as isize) as *const u64);
 
-            name = Box::from_raw(args[1] as *mut String)
+            name = String::from(&*(args[1] as *mut String));
         }
 
         self.scheduler.add_thread(Thread {

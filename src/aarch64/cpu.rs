@@ -57,9 +57,13 @@ pub fn syscall(call: Syscall) {
     }
 }
 
+pub fn create_thread<T>(function: extern "C" fn(arg: T) -> (), name: String, arg: usize) {
+    start_thread(function, &name, arg);
+}
+
 pub extern "C" fn start_thread<T>(
     _function: extern "C" fn(arg: T) -> (),
-    _name: &String,
+    _name: *const String,
     _arg: usize,
 ) {
     unsafe {

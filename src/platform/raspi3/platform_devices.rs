@@ -118,10 +118,10 @@ impl<'a> Platform<'a> {
         if let Some(InterruptType::KernelTimerInterrupt) = interrupt_type {
             if let Some(ref mut kernel) = *self.kernel.borrow_mut() {
                 // TODO: are the clears necessary?
-                self.set_kernel_timeout(TICK);
                 kernel.tick(frame);
                 self.get_timer().clear_matches();
 
+                self.set_kernel_timeout(TICK);
                 thread = Some(kernel.get_return_thread());
             }
         }

@@ -14,17 +14,18 @@ use alloc::boxed::Box;
 use crate::aarch64::interrupt::IRQLock;
 use crate::platform::raspi3::exception::InterruptFrame;
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub enum ThreadStatus {
     Running,
     Ready,
 }
 
+#[derive(Debug)]
 pub struct Thread<'a> {
     pub stack_pointer: IRQLock<*const u64>,
     pub parent: Option<&'a Thread<'a>>,
     pub status: IRQLock<ThreadStatus>,
-    pub name: Box<String>,
+    pub name: String,
 }
 
 impl<'a> Thread<'a> {
@@ -33,7 +34,7 @@ impl<'a> Thread<'a> {
             stack_pointer: IRQLock::new(0x0 as *const u64),
             parent: None,
             status: IRQLock::new(ThreadStatus::Running),
-            name: Box::new(String::from("Idle")),
+            name: String::from("Idle"),
         }
     }
 
@@ -77,9 +78,9 @@ impl<'a> Thread<'a> {
 }
 
 pub struct Scheduler<'a> {
-    current_thread: Rc<Thread<'a>>,
-    threads: Vec<Rc<Thread<'a>>>,
-    thread_queue: VecDeque<Rc<Thread<'a>>>,
+    pub current_thread: Rc<Thread<'a>>,
+    pub threads: Vec<Rc<Thread<'a>>>,
+    pub thread_queue: VecDeque<Rc<Thread<'a>>>,
 }
 
 impl<'a> Scheduler<'a> {
