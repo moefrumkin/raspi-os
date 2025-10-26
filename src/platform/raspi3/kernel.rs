@@ -77,14 +77,18 @@ impl<'a> Kernel<'a> {
     }
 
     pub fn handle_syscall(&mut self, number: usize, args: SyscallArgs) {
-        if number == Syscall::Thread as usize {
-            self.create_thread(args[0], args);
+        let syscall = Syscall::from_u64(number as u64).expect("Invalid Syscall Number");
+        match syscall {
+            Syscall::Thread => self.create_thread(args[0], args),
+            Syscall::Exit => self.exit_current_thread(),
         }
     }
 
     pub fn tick(&mut self, frame: &InterruptFrame) {
         self.scheduler.update_current(frame);
     }
+
+    pub fn exit_current_thread(&mut self) {}
 
     pub fn get_return_thread(&mut self) -> Rc<Thread<'a>> {
         self.scheduler.choose_thread()

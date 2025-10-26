@@ -65,7 +65,7 @@ unsafe extern "C" {
 pub struct Platform<'a> {
     devices: Devices<'a>,
     interrupt_handlers: InterruptHandler,
-    kernel: RefCell<Option<Kernel<'a>>>,
+    kernel: IRQLock<Option<Kernel<'a>>>,
 }
 
 impl<'a> Platform<'a> {
@@ -73,7 +73,7 @@ impl<'a> Platform<'a> {
         Self {
             devices: Devices::uninitialized(),
             interrupt_handlers: InterruptHandler::new(),
-            kernel: RefCell::new(None),
+            kernel: IRQLock::new(None),
         }
     }
 
@@ -116,7 +116,7 @@ impl<'a> Platform<'a> {
         let mut thread: Option<Rc<Thread>> = None;
         let interrupt_type = self.devices.interrupts.borrow().get_interrupt_type();
         if let Some(InterruptType::KernelTimerInterrupt) = interrupt_type {
-            if let Some(ref mut kernel) = *self.kernel.borrow_mut() {
+            if let Some(ref mut kernel) = *self.kernel.lock() {
                 // TODO: are the clears necessary?
                 kernel.tick(frame);
                 self.get_timer().clear_matches();
@@ -135,17 +135,17 @@ impl<'a> Platform<'a> {
     }
 
     pub fn handle_syscall(&self, syscall_number: usize, args: SyscallArgs) {
-        if let Some(ref mut kernel) = *self.kernel.borrow_mut() {
+        if let Some(ref mut kernel) = *self.kernel.lock() {
             kernel.handle_syscall(syscall_number, args);
         }
     }
 
     pub fn register_kernel(&self, kernel: Kernel<'a>) {
-        self.kernel.replace(Some(kernel));
+        *self.kernel.lock() = Some(kernel);
     }
 
     pub fn update_frame(&self, frame: &mut InterruptFrame) {
-        if let Some(ref mut kernel) = *self.kernel.borrow_mut() {
+        if let Some(ref mut kernel) = *self.kernel.lock() {
             kernel.update_frame(frame);
         }
     }

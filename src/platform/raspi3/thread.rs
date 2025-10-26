@@ -105,6 +105,8 @@ impl<'a> Scheduler<'a> {
     }
 
     pub fn choose_thread(&mut self) -> Rc<Thread<'a>> {
+        *self.current_thread.status.lock() = ThreadStatus::Ready;
+
         self.thread_queue.push_back(self.current_thread.clone());
 
         let new_thread = self
@@ -113,6 +115,8 @@ impl<'a> Scheduler<'a> {
             .expect("Unable to find thread to schedule");
 
         self.current_thread = new_thread.clone();
+
+        *new_thread.status.lock() = ThreadStatus::Running;
 
         return new_thread.clone();
     }

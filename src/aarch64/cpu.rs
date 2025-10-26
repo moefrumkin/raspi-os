@@ -49,14 +49,6 @@ pub fn data_buffer() {
     }
 }
 
-pub fn syscall(call: Syscall) {
-    unsafe {
-        match call {
-            Syscall::Thread => asm!("svc {}", const Syscall::Thread as usize),
-        }
-    }
-}
-
 pub fn create_thread<T>(function: extern "C" fn(arg: T) -> (), name: String, arg: usize) {
     start_thread(function, &name, arg);
 }
