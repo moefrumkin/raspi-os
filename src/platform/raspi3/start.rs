@@ -150,7 +150,11 @@ pub extern "C" fn main(heap_start: usize, heap_size: usize, table_start: usize) 
 
     cpu::create_thread(graphics_thread, String::from("Graphics"), 0);
     for i in 0..20 {
-        cpu::create_thread(counter_thread, String::from("Counter"), i);
+        cpu::create_thread(
+            counter_thread,
+            String::from(alloc::format!("Counter {}", i)),
+            i,
+        );
     }
 
     PLATFORM.set_kernel_timeout(TICK);

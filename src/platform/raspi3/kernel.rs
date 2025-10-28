@@ -85,9 +85,7 @@ impl<'a> Kernel<'a> {
         }
     }
 
-    pub fn tick(&mut self, frame: &InterruptFrame) {
-        crate::println!("Current Thread: {}", self.scheduler.current_thread.name);
-        self.scheduler.update_current(frame);
+    pub fn tick(&mut self) {
         self.scheduler.schedule();
     }
 
@@ -103,7 +101,7 @@ impl<'a> Kernel<'a> {
         self.scheduler.return_to_current();
     }
 
-    pub fn update_frame(&mut self, frame: &mut InterruptFrame) {
+    pub fn save_current_frame(&mut self, frame: &mut InterruptFrame) {
         self.scheduler
             .set_current_stack_pointer(frame as *const InterruptFrame as *const u64);
     }

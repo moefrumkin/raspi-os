@@ -111,14 +111,12 @@ impl<'a> Platform<'a> {
         timer_regs.set_kernel_timeout(millis);
     }
 
-    pub fn handle_interrupt(&self, frame: &mut InterruptFrame) {
-        // crate::println!("Handling Interrupt");
-        let mut thread: Option<Rc<Thread>> = None;
+    pub fn handle_interrupt(&self) {
         let interrupt_type = self.devices.interrupts.borrow().get_interrupt_type();
         if let Some(InterruptType::KernelTimerInterrupt) = interrupt_type {
             if let Some(ref mut kernel) = *self.kernel.lock() {
                 // TODO: are the clears necessary?
-                kernel.tick(frame);
+                kernel.tick();
                 self.get_timer().clear_matches();
 
                 self.set_kernel_timeout(TICK);
@@ -140,7 +138,7 @@ impl<'a> Platform<'a> {
 
     pub fn update_frame(&self, frame: &mut InterruptFrame) {
         if let Some(ref mut kernel) = *self.kernel.lock() {
-            kernel.update_frame(frame);
+            kernel.save_current_frame(frame);
         }
     }
 }

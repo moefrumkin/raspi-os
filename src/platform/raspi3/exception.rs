@@ -37,8 +37,11 @@ pub extern "C" fn handle_exception(
     exception_type: ExceptionType,
     frame: &mut InterruptFrame,
 ) {
+    let platform = get_platform();
+    platform.update_frame(frame);
+
     if exception_type == ExceptionType::Interrupt {
-        get_platform().handle_interrupt(frame);
+        platform.handle_interrupt();
     } else {
         println!(
             "Received Exception Type {:?} from {:?}",
