@@ -129,6 +129,7 @@ impl<'a> Platform<'a> {
     pub fn handle_syscall(&self, syscall_number: usize, args: SyscallArgs) {
         if let Some(ref mut kernel) = *self.kernel.lock() {
             kernel.handle_syscall(syscall_number, args);
+            kernel.return_from_exception();
         }
     }
 
