@@ -171,11 +171,15 @@ pub extern "C" fn counter_thread(number: usize) {
     let platform = get_platform();
     let mut count = 1;
     println!("Starting thread: {}", number);
-    loop {
+    for i in 0..10 {
         println!("Hello, World! from thread {}. Iteration: {}", number, count);
         count += 1;
         platform.get_timer().delay_millis(200);
     }
+
+    println!("Goodbye!");
+
+    cpu::exit_thread();
 }
 
 pub extern "C" fn graphics_thread(_arg: usize) {

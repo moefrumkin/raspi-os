@@ -89,10 +89,6 @@ impl<'a> Kernel<'a> {
         self.scheduler.schedule();
     }
 
-    pub fn exit_current_thread(&mut self) {}
-
-    pub fn delay_current_thread(&mut self, delay: u32) {}
-
     pub fn get_return_thread(&mut self) -> Rc<Thread<'a>> {
         self.scheduler.choose_thread()
     }
@@ -105,4 +101,10 @@ impl<'a> Kernel<'a> {
         self.scheduler
             .set_current_stack_pointer(frame as *const InterruptFrame as *const u64);
     }
+
+    pub fn exit_current_thread(&mut self) {
+        self.scheduler.exit_current_thread();
+    }
+
+    pub fn delay_current_thread(&mut self, delay: u32) {}
 }

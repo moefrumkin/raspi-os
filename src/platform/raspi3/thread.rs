@@ -20,6 +20,7 @@ pub enum ThreadStatus {
     Running,
     Ready,
     Waiting(u64),
+    Dead,
 }
 
 #[derive(Debug)]
@@ -148,6 +149,13 @@ impl<'a> Scheduler<'a> {
 
     pub fn schedule(&mut self) {
         self.thread_queue.push_back(self.current_thread.clone());
+
+        self.current_thread = self.thread_queue.pop_front().expect("No threads on queue");
+    }
+
+    pub fn exit_current_thread(&mut self) {
+        let dying_thread = self.current_thread.clone();
+        *dying_thread.status.lock() = ThreadStatus::Dead;
 
         self.current_thread = self.thread_queue.pop_front().expect("No threads on queue");
     }
