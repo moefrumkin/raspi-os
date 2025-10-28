@@ -157,6 +157,14 @@ impl<'a> Scheduler<'a> {
         let dying_thread = self.current_thread.clone();
         *dying_thread.status.lock() = ThreadStatus::Dead;
 
+        let dying_thread_index = self
+            .threads
+            .iter()
+            .position(|thread| Rc::ptr_eq(thread, &dying_thread))
+            .expect("Dying thread is not listed as a thread.");
+
+        self.threads.remove(dying_thread_index);
+
         self.current_thread = self.thread_queue.pop_front().expect("No threads on queue");
     }
 }
