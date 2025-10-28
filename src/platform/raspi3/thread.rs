@@ -12,12 +12,14 @@ use alloc::string::String;
 use alloc::boxed::Box;
 
 use crate::aarch64::interrupt::IRQLock;
+use crate::platform::platform_devices::PLATFORM;
 use crate::platform::raspi3::exception::InterruptFrame;
 
 #[derive(Copy, Clone, Debug)]
 pub enum ThreadStatus {
     Running,
     Ready,
+    Waiting(u64),
 }
 
 #[derive(Debug)]
@@ -81,6 +83,7 @@ pub struct Scheduler<'a> {
     pub current_thread: Rc<Thread<'a>>,
     pub threads: Vec<Rc<Thread<'a>>>,
     pub thread_queue: VecDeque<Rc<Thread<'a>>>,
+    pub waiting_threads: Vec<Rc<Thread<'a>>>,
 }
 
 impl<'a> Scheduler<'a> {
@@ -91,6 +94,7 @@ impl<'a> Scheduler<'a> {
             current_thread: current_thread.clone(),
             threads: vec![current_thread],
             thread_queue: VecDeque::new(),
+            waiting_threads: vec![],
         }
     }
 
@@ -98,6 +102,19 @@ impl<'a> Scheduler<'a> {
         let thread = Rc::new(thread);
         self.thread_queue.push_back(thread.clone());
         self.threads.push(thread);
+    }
+
+    pub fn update_waits(&mut self) {
+        let time = PLATFORM.get_timer().get_micros();
+
+        for thread in self.threads.iter_mut() {
+            if let ThreadStatus::Waiting(timeout) = *thread.status.lock() {
+                if timeout < time {
+                    *thread.status.lock() = ThreadStatus::Ready;
+                    self.thread_queue.push_back(Rc::clone(thread));
+                }
+            }
+        }
     }
 
     pub fn update_current(&mut self, frame: &InterruptFrame) {
@@ -121,7 +138,17 @@ impl<'a> Scheduler<'a> {
         return new_thread.clone();
     }
 
+    pub fn return_to_current(&self) {
+        self.current_thread.return_to();
+    }
+
     pub fn set_current_stack_pointer(&mut self, pointer: *const u64) {
         *self.current_thread.stack_pointer.lock() = pointer;
+    }
+
+    pub fn schedule(&mut self) {
+        self.thread_queue.push_back(self.current_thread.clone());
+
+        self.current_thread = self.thread_queue.pop_front().expect("No threads on queue");
     }
 }

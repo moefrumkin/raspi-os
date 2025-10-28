@@ -81,17 +81,26 @@ impl<'a> Kernel<'a> {
         match syscall {
             Syscall::Thread => self.create_thread(args[0], args),
             Syscall::Exit => self.exit_current_thread(),
+            Syscall::Wait => self.delay_current_thread(args[0] as u32),
         }
     }
 
     pub fn tick(&mut self, frame: &InterruptFrame) {
+        crate::println!("Current Thread: {}", self.scheduler.current_thread.name);
         self.scheduler.update_current(frame);
+        self.scheduler.schedule();
     }
 
     pub fn exit_current_thread(&mut self) {}
 
+    pub fn delay_current_thread(&mut self, delay: u32) {}
+
     pub fn get_return_thread(&mut self) -> Rc<Thread<'a>> {
         self.scheduler.choose_thread()
+    }
+
+    pub fn return_from_exception(&self) {
+        self.scheduler.return_to_current();
     }
 
     pub fn update_frame(&mut self, frame: &mut InterruptFrame) {

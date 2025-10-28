@@ -122,15 +122,9 @@ impl<'a> Platform<'a> {
                 self.get_timer().clear_matches();
 
                 self.set_kernel_timeout(TICK);
-                thread = Some(kernel.get_return_thread());
-            }
-        }
 
-        if let Some(thread) = thread {
-            // This is a problem since the weak count will not be decremented
-            // Less of a problem than the strong count...
-            // TODO: now we are doing strong count...
-            thread.return_to();
+                kernel.return_from_exception();
+            }
         }
     }
 
