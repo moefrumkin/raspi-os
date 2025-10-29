@@ -250,11 +250,13 @@ impl FreeBlock {
         }
 
         if trim_end {
-            self.partition(end_offset_candidate);
+            self.partition(end_offset_candidate)
+                .expect("error partitioning end");
         }
 
         if trim_start {
-            self.partition(start_offset_candidate);
+            self.partition(start_offset_candidate)
+                .expect("Error partitioning start");
             let next = self.next.take().expect("Block improperly partitioned");
 
             if let Ok((freed_block, next_block)) = next.fit_in_block(size, align) {

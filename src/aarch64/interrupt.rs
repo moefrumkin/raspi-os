@@ -39,7 +39,7 @@ pub fn get_irq_state() -> InterruptState {
         )
     }
 
-    if daif >> 5 == 0b1111 {
+    if daif >> 6 == 0b1111 {
         InterruptState::Disabled
     } else {
         InterruptState::Enabled
@@ -58,7 +58,7 @@ pub fn pop_irq_state() -> InterruptState {
         );
     }
 
-    if (daif >> 7 & (0b1)) == 1 {
+    if daif >> 6 == 0b1111 {
         InterruptState::Disabled
     } else {
         InterruptState::Enabled

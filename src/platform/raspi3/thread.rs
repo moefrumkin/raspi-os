@@ -240,6 +240,8 @@ impl<'a> Scheduler<'a> {
 
         *thread_to_delay.status.lock() = ThreadStatus::Waiting(delay);
 
+        crate::println!("Sleeping: {}", thread_to_delay.name);
+
         self.waiting_threads.push(thread_to_delay);
 
         let new_thread = self.thread_queue.pop_front().expect("No threads on queue");

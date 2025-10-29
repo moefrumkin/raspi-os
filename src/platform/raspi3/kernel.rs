@@ -44,6 +44,8 @@ impl<'a> Kernel<'a> {
             .allocate_page()
             .expect("Unable to Allocate Page");
 
+        crate::println!("Creating Thread!");
+
         let stack_pointer;
         let name;
 

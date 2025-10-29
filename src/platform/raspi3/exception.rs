@@ -52,10 +52,14 @@ pub extern "C" fn handle_exception(
     if exception_type == ExceptionType::Interrupt {
         platform.handle_interrupt();
     } else {
-        /*println!(
+        println!(
             "Received Exception Type {:?} from {:?}",
             exception_type, exception_source
-        );*/
+        );
+
+        println!("{:?}", frame);
+
+        loop {}
     }
 }
 
@@ -101,6 +105,13 @@ pub extern "C" fn handle_synchronous_exception(
         // println!("arg1: {}", arg1);
 
         PLATFORM.handle_syscall(syscall_number, [arg1, arg2, arg3]);
+    } else {
+        println!("Received syncronous exception: {:#x}", esr.value());
+        println!("FAR: {:#x}", far.value());
+
+        println!("{:?}", frame);
+
+        loop {}
     }
 }
 

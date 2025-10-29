@@ -137,4 +137,5 @@ pop_frame:
     ldp q26, q27, [sp, 0x2e0]
     ldp q28, q29, [sp, 0x310]
     ldp q30, q31, [sp, 0x330]
+    add sp, sp, 0x350
     ret
