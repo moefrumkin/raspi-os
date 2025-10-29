@@ -37,6 +37,10 @@ pub extern "C" fn handle_exception(
     exception_type: ExceptionType,
     frame: &mut InterruptFrame,
 ) {
+    /*if let Some(thread) = PLATFORM.get_current_thread() {
+        println!("\n\n {}", thread.name);
+    }
+    println!("{:#?}", frame);*/
     /*println!(
         "Exception returning to {:#x}, of type {:?}, with source {:?}",
         frame.elr, exception_type, exception_source
@@ -61,6 +65,7 @@ pub struct InterruptFrame {
     pub regs: [u64; 32],
     pub elr: u64,
     pub spsr: u64,
+    pub fp_regs: [u128; 32],
 }
 
 #[no_mangle]

@@ -1,4 +1,5 @@
 use alloc::rc::Rc;
+use alloc::sync::Arc;
 use core::arch::asm;
 
 use alloc::vec;
@@ -97,15 +98,15 @@ impl<'a> Thread<'a> {
 }
 
 pub struct Scheduler<'a> {
-    pub current_thread: Rc<Thread<'a>>,
-    pub threads: Vec<Rc<Thread<'a>>>,
-    pub thread_queue: VecDeque<Rc<Thread<'a>>>,
-    pub waiting_threads: Vec<Rc<Thread<'a>>>,
+    pub current_thread: Arc<Thread<'a>>,
+    pub threads: Vec<Arc<Thread<'a>>>,
+    pub thread_queue: VecDeque<Arc<Thread<'a>>>,
+    pub waiting_threads: Vec<Arc<Thread<'a>>>,
 }
 
 impl<'a> Scheduler<'a> {
     pub fn new() -> Self {
-        let current_thread = Rc::new(Thread::from_current());
+        let current_thread = Arc::new(Thread::from_current());
 
         Self {
             current_thread: current_thread.clone(),
@@ -116,8 +117,9 @@ impl<'a> Scheduler<'a> {
     }
 
     pub fn add_thread(&mut self, thread: Thread<'a>) {
-        let thread = Rc::new(thread);
-        self.thread_queue.push_back(Rc::clone(&thread));
+        let thread = Arc::new(thread);
+        self.thread_queue.push_back(Arc::clone(&thread));
+
         self.threads.push(thread);
 
         /*for thread in &self.threads {
@@ -140,7 +142,7 @@ impl<'a> Scheduler<'a> {
             if let ThreadStatus::Waiting(timeout) = *thread.status.lock() {
                 if timeout < time {
                     *thread.status.lock() = ThreadStatus::Ready;
-                    self.thread_queue.push_back(Rc::clone(thread));
+                    self.thread_queue.push_back(Arc::clone(thread));
                 }
             }
         }
@@ -150,21 +152,22 @@ impl<'a> Scheduler<'a> {
         *self.current_thread.stack_pointer.lock() = frame as *const InterruptFrame as *const u64;
     }
 
-    pub fn choose_thread(&mut self) -> Rc<Thread<'a>> {
+    pub fn choose_thread(&mut self) -> Arc<Thread<'a>> {
         *self.current_thread.status.lock() = ThreadStatus::Ready;
 
-        self.thread_queue.push_back(Rc::clone(&self.current_thread));
+        self.thread_queue
+            .push_back(Arc::clone(&self.current_thread));
 
         let new_thread = self
             .thread_queue
             .pop_front()
             .expect("Unable to find thread to schedule");
 
-        self.current_thread = Rc::clone(&new_thread);
+        self.current_thread = Arc::clone(&new_thread);
 
         *new_thread.status.lock() = ThreadStatus::Running;
 
-        return Rc::clone(&new_thread);
+        return Arc::clone(&new_thread);
     }
 
     pub fn return_to_current(&self) {
@@ -203,7 +206,7 @@ impl<'a> Scheduler<'a> {
             &self.current_thread,
             Rc::strong_count(&self.current_thread)
         );*/
-        let former_thread = Rc::clone(&self.current_thread);
+        let former_thread = Arc::clone(&self.current_thread);
         //crate::println!("Cloned!");
         *former_thread.status.lock() = ThreadStatus::Ready;
         self.thread_queue.push_back(former_thread);
@@ -216,7 +219,7 @@ impl<'a> Scheduler<'a> {
     }
 
     pub fn exit_current_thread(&mut self) {
-        let dying_thread = Rc::clone(&self.current_thread);
+        let dying_thread = Arc::clone(&self.current_thread);
         *dying_thread.status.lock() = ThreadStatus::Dead;
 
         crate::println!("Thread {} exited", &dying_thread.name);
@@ -224,7 +227,7 @@ impl<'a> Scheduler<'a> {
         let dying_thread_index = self
             .threads
             .iter()
-            .position(|thread| Rc::ptr_eq(thread, &dying_thread))
+            .position(|thread| Arc::ptr_eq(thread, &dying_thread))
             .expect("Dying thread is not listed as a thread.");
 
         self.threads.remove(dying_thread_index);
@@ -233,7 +236,7 @@ impl<'a> Scheduler<'a> {
     }
 
     pub fn delay_current_thread(&mut self, delay: u64) {
-        let thread_to_delay = Rc::clone(&self.current_thread);
+        let thread_to_delay = Arc::clone(&self.current_thread);
 
         *thread_to_delay.status.lock() = ThreadStatus::Waiting(delay);
 
@@ -268,7 +271,7 @@ impl<'a> Scheduler<'a> {
             if wake_time <= current_time {
                 *thread.status.lock() = ThreadStatus::Ready;
 
-                self.thread_queue.push_back(Rc::clone(&thread));
+                self.thread_queue.push_back(Arc::clone(&thread));
 
                 return false;
             } else {

@@ -1,4 +1,5 @@
 use alloc::rc::Rc;
+use alloc::sync::Arc;
 use core::{
     cell::{Ref, RefCell},
     time::Duration,
@@ -53,7 +54,7 @@ impl<'a> Kernel<'a> {
 
             let mut sp = PAGE_SIZE / 8;
 
-            sp -= 34; // TODO: use size_of instead of a magic number
+            sp -= 106; // TODO: use size_of instead of a magic number
 
             let frame = &mut *(page64.offset(sp as isize) as *mut InterruptFrame);
 
@@ -94,7 +95,7 @@ impl<'a> Kernel<'a> {
         //crate::println!("Done!");
     }
 
-    pub fn get_return_thread(&mut self) -> Rc<Thread<'a>> {
+    pub fn get_return_thread(&mut self) -> Arc<Thread<'a>> {
         self.scheduler.choose_thread()
     }
 

@@ -16,6 +16,8 @@ use crate::{
     },
 };
 
+use alloc::sync::Arc;
+
 use super::{mini_uart::MiniUARTRegisters, mmio};
 
 use alloc::boxed::Box;
@@ -111,11 +113,11 @@ impl<'a> Platform<'a> {
         timer_regs.set_kernel_timeout(millis);
     }
 
-    pub fn get_current_thread(&self) -> Option<Rc<Thread<'a>>> {
+    pub fn get_current_thread(&self) -> Option<Arc<Thread<'a>>> {
         self.kernel
             .lock()
             .as_ref()
-            .map(|kernel| Rc::clone(&kernel.scheduler.current_thread))
+            .map(|kernel| Arc::clone(&kernel.scheduler.current_thread))
     }
 
     pub fn handle_interrupt(&self) {

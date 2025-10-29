@@ -6,8 +6,10 @@ use crate::canvas::{canvas2d::Canvas2D, line::Line, matrix::Matrix, vector::Vect
 use crate::ALLOCATOR;
 use crate::{print, println, read, write};
 use alloc::boxed::Box;
+use alloc::rc::Rc;
 use alloc::slice;
 use alloc::string::String;
+use alloc::sync::Arc;
 use alloc::vec::Vec;
 use core::arch::global_asm;
 use core::cell::RefCell;
@@ -179,10 +181,16 @@ pub extern "C" fn long_count(_: usize) {
 pub extern "C" fn counter_thread(number: usize) {
     let mut count = 1;
     let mut oops = alloc::vec![];
-    interrupt::disable_irq();
     println!("Starting thread: {}", number);
     for i in 0..10 {
-        println!("Hello, World! from thread {}. Iteration: {}", number, count);
+        let current_thread = PLATFORM.get_current_thread().unwrap();
+        println!(
+            "Hello, World! from thread {} (RC {}. Sp {:p}). Iteration: {}",
+            current_thread.name,
+            Arc::strong_count(&current_thread),
+            *current_thread.stack_pointer.lock(),
+            count
+        );
         count += 1;
         oops.push(i);
 
