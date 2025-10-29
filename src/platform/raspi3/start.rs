@@ -140,11 +140,9 @@ pub extern "C" fn main(heap_start: usize, heap_size: usize, table_start: usize) 
 
     let mut interrupt_controller = InterruptController::new();
 
-    interrupt_controller.enable_timer_interrupt_3();
+    //interrupt_controller.enable_timer_interrupt_3();
     interrupt_controller.enable_timer_interrupt_1();
     interrupt_controller.enable_auxiliary_device_interrupts();
-
-    let timer = platform.get_timer();
 
     println!("Timer interrupt enabled!");
 

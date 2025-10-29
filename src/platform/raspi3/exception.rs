@@ -37,6 +37,11 @@ pub extern "C" fn handle_exception(
     exception_type: ExceptionType,
     frame: &mut InterruptFrame,
 ) {
+    /*println!(
+        "Exception returning to {:#x}, of type {:?}, with source {:?}",
+        frame.elr, exception_type, exception_source
+    );*/
+
     let platform = get_platform();
     platform.update_frame(frame);
 
@@ -55,6 +60,7 @@ pub extern "C" fn handle_exception(
 pub struct InterruptFrame {
     pub regs: [u64; 32],
     pub elr: u64,
+    pub spsr: u64,
 }
 
 #[no_mangle]
@@ -85,6 +91,7 @@ pub extern "C" fn handle_synchronous_exception(
 
     if exception_class == 0b010101 {
         let syscall_number = esr.get_instruction_number();
+        println!("Syscall returning to {:#x}", frame.elr);
 
         // println!("arg1: {}", arg1);
 

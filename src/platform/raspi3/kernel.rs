@@ -60,8 +60,9 @@ impl<'a> Kernel<'a> {
             frame.regs[0] = args[2] as u64;
 
             frame.elr = entry as u64;
+            frame.spsr = 0b101; // EL1 with SP_EL1h
 
-            crate::println!("Frame: {:?}", frame);
+            //crate::println!("Frame: {:?}", frame);
 
             stack_pointer = IRQLock::new(page64.offset(sp as isize) as *const u64);
 
@@ -86,8 +87,11 @@ impl<'a> Kernel<'a> {
     }
 
     pub fn tick(&mut self) {
+        //crate::println!("Tick");
         self.scheduler.wake_sleeping();
+        //crate::println!("Woken");
         self.scheduler.schedule();
+        //crate::println!("Done!");
     }
 
     pub fn get_return_thread(&mut self) -> Rc<Thread<'a>> {
@@ -108,6 +112,7 @@ impl<'a> Kernel<'a> {
     }
 
     pub fn delay_current_thread(&mut self, delay: u64) {
+        //crate::println!("sleeping");
         // TODO: what is wake up time is before the current time because of the time the computations take?
         let current_time = PLATFORM.get_timer().get_micros();
         let delay_end = current_time + delay;

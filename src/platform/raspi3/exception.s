@@ -80,12 +80,14 @@ push_frame: // TODO: push all registers
     stp x26, x27, [sp, 0xe0]
     stp x28, x29, [sp, 0xf0]
     mrs x21, elr_el1 // TODO: with user programs may also need to save spsr
-    str x21, [sp, 0x100] // Dont want to mess with syscall argument registers
+    mrs x22, spsr_el1
+    stp x21, x22, [sp, 0x100] // Dont want to mess with syscall argument registers
     ret
 
 pop_frame:
-    ldr x0, [sp, 0x100]
+    ldp x0, x1, [sp, 0x100]
     msr elr_el1, x0
+    msr spsr_el1, x1
     ldp x0, x1, [sp, 0x0]
     ldp x2, x3, [sp, 0x10]
     ldp x4, x5, [sp, 0x20]

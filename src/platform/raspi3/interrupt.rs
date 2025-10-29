@@ -3,6 +3,7 @@ use crate::bitfield;
 use crate::println;
 use crate::volatile::Volatile;
 
+#[derive(Debug)]
 pub enum InterruptType {
     TimerInterrupt,
     KernelTimerInterrupt,

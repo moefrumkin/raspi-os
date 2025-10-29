@@ -49,8 +49,9 @@ impl<'a> Thread<'a> {
 
             asm!(
                 "
-                ldr x0, [sp, 0x100]
+                ldp x0, x1, [sp, 0x100]
                 msr elr_el1, x0
+                msr spsr_el1, x1
                 ldp x0, x1, [sp, 0x0]
                 ldp x2, x3, [sp, 0x10]
                 ldp x4, x5, [sp, 0x20]
@@ -70,7 +71,7 @@ impl<'a> Thread<'a> {
                 // ldp x31, x0, [sp, 0x100]
                 add sp, sp, 0x110
                 ldr lr, [sp], #16
-                msr daifclr, 0b111 // Enable Interrupts
+                //msr daifclr, 0b111 // Enable Interrupts
                 eret
                 "
             );
@@ -103,6 +104,18 @@ impl<'a> Scheduler<'a> {
         let thread = Rc::new(thread);
         self.thread_queue.push_back(Rc::clone(&thread));
         self.threads.push(thread);
+
+        /*for thread in &self.threads {
+            crate::println!(
+                "{} (Strong count {}) @ {:#?}: {:?}",
+                &thread.name,
+                Rc::strong_count(thread),
+                Rc::as_ptr(thread),
+                *thread.status.lock()
+            );
+        }*/
+
+        crate::println!("\n\n\n");
     }
 
     pub fn update_waits(&mut self) {
@@ -148,18 +161,50 @@ impl<'a> Scheduler<'a> {
     }
 
     pub fn schedule(&mut self) {
+        /*crate::println!("\n\n\nScheduling \n\n");
+        crate::println!("Threads:");
+        for thread in &self.threads {
+            crate::println!(
+                "{} (Strong count {}) @ {:#?}: {:?}",
+                &thread.name,
+                Rc::strong_count(thread),
+                Rc::as_ptr(thread),
+                *thread.status.lock()
+            );
+        }
+
+        crate::println!("Queue:");
+        for thread in &self.thread_queue {
+            crate::println!(
+                "{} (Strong count {}) @ {:#?}: {:?}",
+                &thread.name,
+                Rc::strong_count(thread),
+                Rc::as_ptr(thread),
+                *thread.status.lock()
+            );
+        }
+        crate::println!(
+            "Cloning! {:?}. With strong count {}",
+            &self.current_thread,
+            Rc::strong_count(&self.current_thread)
+        );*/
         let former_thread = Rc::clone(&self.current_thread);
+        //crate::println!("Cloned!");
         *former_thread.status.lock() = ThreadStatus::Ready;
         self.thread_queue.push_back(former_thread);
 
+        //crate::println!("Old pushed");
+
         let new_thread = self.thread_queue.pop_front().expect("No threads on queue");
-        *new_thread.status.lock() = ThreadStatus::Ready;
+        *new_thread.status.lock() = ThreadStatus::Running;
         self.current_thread = new_thread;
     }
 
     pub fn exit_current_thread(&mut self) {
         let dying_thread = Rc::clone(&self.current_thread);
         *dying_thread.status.lock() = ThreadStatus::Dead;
+
+        crate::println!("Thread {} exited", &dying_thread.name);
 
         let dying_thread_index = self
             .threads
