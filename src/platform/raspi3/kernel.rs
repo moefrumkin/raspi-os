@@ -12,7 +12,7 @@ use crate::{
     allocator::page_allocator::{self, PageAllocator, PAGE_SIZE},
     platform::{
         framebuffer::FrameBuffer,
-        platform_devices::get_platform,
+        platform_devices::{get_platform, PLATFORM},
         raspi3::exception::InterruptFrame,
         thread::{Scheduler, Thread, ThreadStatus},
     },
@@ -81,11 +81,12 @@ impl<'a> Kernel<'a> {
         match syscall {
             Syscall::Thread => self.create_thread(args[0], args),
             Syscall::Exit => self.exit_current_thread(),
-            Syscall::Wait => self.delay_current_thread(args[0] as u32),
+            Syscall::Wait => self.delay_current_thread(args[0] as u64),
         }
     }
 
     pub fn tick(&mut self) {
+        self.scheduler.wake_sleeping();
         self.scheduler.schedule();
     }
 
@@ -106,5 +107,15 @@ impl<'a> Kernel<'a> {
         self.scheduler.exit_current_thread();
     }
 
-    pub fn delay_current_thread(&mut self, delay: u32) {}
+    pub fn delay_current_thread(&mut self, delay: u64) {
+        // TODO: what is wake up time is before the current time because of the time the computations take?
+        let current_time = PLATFORM.get_timer().get_micros();
+        let delay_end = current_time + delay;
+
+        self.scheduler.delay_current_thread(delay_end);
+
+        //let new_timeout = self.scheduler.get_next_thread_wakeup().unwrap() - current_time;
+
+        //PLATFORM.get_timer().set_timeout(new_timeout as u32);
+    }
 }

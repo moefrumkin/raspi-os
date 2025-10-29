@@ -148,7 +148,7 @@ pub extern "C" fn main(heap_start: usize, heap_size: usize, table_start: usize) 
 
     println!("Timer interrupt enabled!");
 
-    cpu::create_thread(graphics_thread, String::from("Graphics"), 0);
+    //cpu::create_thread(graphics_thread, String::from("Graphics"), 0);
     for i in 0..20 {
         cpu::create_thread(
             counter_thread,
@@ -157,24 +157,35 @@ pub extern "C" fn main(heap_start: usize, heap_size: usize, table_start: usize) 
         );
     }
 
+    cpu::create_thread(long_count, String::from("Long Count"), 0);
+
     PLATFORM.set_kernel_timeout(TICK);
 
     //status_light.borrow_mut().set_green(OutputLevel::High);
 
+    loop {}
+}
+
+pub extern "C" fn long_count(_: usize) {
+    let timer = get_platform().get_timer();
+    println!("Starting long count");
     loop {
-        timer.delay_millis(5000);
+        cpu::sleep(1_000_000);
         println!("Timer: {:?}", Duration::from_micros(timer.get_micros()));
     }
 }
 
 pub extern "C" fn counter_thread(number: usize) {
-    let platform = get_platform();
     let mut count = 1;
+    let mut oops = alloc::vec![];
+    interrupt::disable_irq();
     println!("Starting thread: {}", number);
     for i in 0..10 {
         println!("Hello, World! from thread {}. Iteration: {}", number, count);
         count += 1;
-        platform.get_timer().delay_millis(200);
+        oops.push(i);
+
+        cpu::sleep(200_000);
     }
 
     println!("Goodbye!");

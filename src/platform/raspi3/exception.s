@@ -1,7 +1,7 @@
 .global _exception_vector
 
 .macro call_handler handler source type
-    msr daifset, 0b10 // Disable interrupts
+    msr daifset, 0b111 // Disable interrupts
     str lr, [sp, #-16]! // Note: lr is x30 which is overwritten by bl
     bl push_frame
     mov     x0, \source
@@ -10,7 +10,7 @@
     bl       \handler
     bl pop_frame
     ldr lr, [sp], #16 
-    msr daifclr, 0b10 // Enable Interrupts
+    msr daifclr, 0b111 // Enable Interrupts
     eret
 .endm   
 

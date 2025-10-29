@@ -70,7 +70,7 @@ impl<'a> Thread<'a> {
                 // ldp x31, x0, [sp, 0x100]
                 add sp, sp, 0x110
                 ldr lr, [sp], #16
-                msr daifclr, 0b10 // Enable Interrupts
+                msr daifclr, 0b111 // Enable Interrupts
                 eret
                 "
             );
@@ -101,7 +101,7 @@ impl<'a> Scheduler<'a> {
 
     pub fn add_thread(&mut self, thread: Thread<'a>) {
         let thread = Rc::new(thread);
-        self.thread_queue.push_back(thread.clone());
+        self.thread_queue.push_back(Rc::clone(&thread));
         self.threads.push(thread);
     }
 
@@ -125,18 +125,18 @@ impl<'a> Scheduler<'a> {
     pub fn choose_thread(&mut self) -> Rc<Thread<'a>> {
         *self.current_thread.status.lock() = ThreadStatus::Ready;
 
-        self.thread_queue.push_back(self.current_thread.clone());
+        self.thread_queue.push_back(Rc::clone(&self.current_thread));
 
         let new_thread = self
             .thread_queue
             .pop_front()
             .expect("Unable to find thread to schedule");
 
-        self.current_thread = new_thread.clone();
+        self.current_thread = Rc::clone(&new_thread);
 
         *new_thread.status.lock() = ThreadStatus::Running;
 
-        return new_thread.clone();
+        return Rc::clone(&new_thread);
     }
 
     pub fn return_to_current(&self) {
@@ -148,13 +148,17 @@ impl<'a> Scheduler<'a> {
     }
 
     pub fn schedule(&mut self) {
-        self.thread_queue.push_back(self.current_thread.clone());
+        let former_thread = Rc::clone(&self.current_thread);
+        *former_thread.status.lock() = ThreadStatus::Ready;
+        self.thread_queue.push_back(former_thread);
 
-        self.current_thread = self.thread_queue.pop_front().expect("No threads on queue");
+        let new_thread = self.thread_queue.pop_front().expect("No threads on queue");
+        *new_thread.status.lock() = ThreadStatus::Ready;
+        self.current_thread = new_thread;
     }
 
     pub fn exit_current_thread(&mut self) {
-        let dying_thread = self.current_thread.clone();
+        let dying_thread = Rc::clone(&self.current_thread);
         *dying_thread.status.lock() = ThreadStatus::Dead;
 
         let dying_thread_index = self
@@ -166,5 +170,50 @@ impl<'a> Scheduler<'a> {
         self.threads.remove(dying_thread_index);
 
         self.current_thread = self.thread_queue.pop_front().expect("No threads on queue");
+    }
+
+    pub fn delay_current_thread(&mut self, delay: u64) {
+        let thread_to_delay = Rc::clone(&self.current_thread);
+
+        *thread_to_delay.status.lock() = ThreadStatus::Waiting(delay);
+
+        self.waiting_threads.push(thread_to_delay);
+
+        let new_thread = self.thread_queue.pop_front().expect("No threads on queue");
+
+        *new_thread.status.lock() = ThreadStatus::Running;
+
+        self.current_thread = new_thread;
+    }
+
+    pub fn get_next_thread_wakeup(&self) -> Option<u64> {
+        self.waiting_threads
+            .iter()
+            .map(|thread| match *thread.status.lock() {
+                ThreadStatus::Waiting(wake_time) => wake_time,
+                _ => panic!("Non waiting thread on waiting thread queue"),
+            })
+            .min()
+    }
+
+    pub fn wake_sleeping(&mut self) {
+        let current_time = PLATFORM.get_timer().get_micros();
+
+        self.waiting_threads.retain(|thread| {
+            let wake_time = match *thread.status.lock() {
+                ThreadStatus::Waiting(wake_time) => wake_time,
+                _ => panic!("Non waiting thread on waiting thread queue"),
+            };
+
+            if wake_time <= current_time {
+                *thread.status.lock() = ThreadStatus::Ready;
+
+                self.thread_queue.push_back(Rc::clone(&thread));
+
+                return false;
+            } else {
+                return true;
+            }
+        })
     }
 }

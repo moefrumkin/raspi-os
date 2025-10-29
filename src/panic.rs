@@ -11,8 +11,8 @@ use super::platform::{
 #[cfg(feature = "raspi3")]
 use crate::println;
 
-use core::{panic::PanicInfo, alloc::Layout};
 use crate::ALLOCATOR;
+use core::{alloc::Layout, panic::PanicInfo};
 
 ///The global panic handler
 #[cfg(feature = "raspi3")]
@@ -25,13 +25,14 @@ fn on_panic(info: &PanicInfo) -> ! {
     status_light.set_blue(OutputLevel::Low);
 
     status_light.set_red(OutputLevel::High);*/
+    crate::aarch64::interrupt::disable_irq();
 
     println!("");
     println!("A Fatal Kernel Panic Occured");
 
     // TODO:?
     println!("{}", info);
-    
+
     // TODO: tidy up
     if let Some(args) = info.message().as_str() {
         println!("{}", args);
@@ -51,6 +52,7 @@ fn on_panic(info: &PanicInfo) -> ! {
 #[cfg(feature = "raspi3")]
 #[alloc_error_handler]
 fn on_alloc_error(layout: Layout) -> ! {
+    crate::aarch64::interrupt::disable_irq();
     /*let status_light = PLATFORM.get_status_light().unwrap();
     let status_light = status_light.borrow_mut();
 
@@ -59,7 +61,10 @@ fn on_alloc_error(layout: Layout) -> ! {
     status_light.set_red(OutputLevel::High);*/
 
     println!("A Fatal Allocation Error Occured");
-    println!("Unable to allocate: {:?} using allocator: {:?}", layout, ALLOCATOR);
+    println!(
+        "Unable to allocate: {:?} using allocator: {:?}",
+        layout, ALLOCATOR
+    );
 
     let stats = ALLOCATOR.stats();
 

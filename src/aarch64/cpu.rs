@@ -68,3 +68,9 @@ pub extern "C" fn exit_thread() {
         asm!("svc {}", const Syscall::Exit as usize);
     }
 }
+
+pub extern "C" fn sleep(_micros: u64) {
+    unsafe {
+        asm!("svc {}", const Syscall::Wait as usize);
+    }
+}

@@ -124,6 +124,11 @@ impl<'a> Platform<'a> {
                 kernel.return_from_exception();
             }
         }
+
+        // Note: we could also just wake thread as part of the tick?
+        if let Some(InterruptType::TimerInterrupt) = interrupt_type {
+            if let Some(ref mut kernel) = *self.kernel.lock() {}
+        }
     }
 
     pub fn handle_syscall(&self, syscall_number: usize, args: SyscallArgs) {

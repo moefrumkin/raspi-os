@@ -14,12 +14,12 @@ pub enum InterruptState {
 
 pub fn enable_irq() {
     unsafe {
-        asm!("msr daifclr, 0b10");
+        asm!("msr daifclr, 0b1111");
     }
 }
 
 pub fn disable_irq() {
-    unsafe { asm!("msr daifset, 0b10") }
+    unsafe { asm!("msr daifset, 0b1111") }
 }
 
 pub fn set_irq_state(state: InterruptState) {
@@ -33,7 +33,12 @@ pub fn pop_irq_state() -> InterruptState {
     let daif: u64;
 
     unsafe {
-        asm!("mrs {}, daif", out(reg) daif);
+        asm!(
+            "mrs {}, daif",
+            "msr daifset, 0b1111",
+            out(reg) daif,
+            options(preserves_flags, nostack)
+        );
     }
 
     if (daif >> 7 & (0b1)) == 1 {
