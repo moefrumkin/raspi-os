@@ -146,7 +146,7 @@ pub extern "C" fn main(heap_start: usize, heap_size: usize, table_start: usize) 
 
     println!("Timer interrupt enabled!");
 
-    //cpu::create_thread(graphics_thread, String::from("Graphics"), 0);
+    cpu::create_thread(graphics_thread, String::from("Graphics"), 0);
     for i in 0..20 {
         cpu::create_thread(
             counter_thread,
@@ -169,7 +169,10 @@ pub extern "C" fn long_count(_: usize) {
     println!("Starting long count");
     loop {
         cpu::sleep(1_000_000);
-        println!("Timer: {:?}", Duration::from_micros(timer.get_micros()));
+        println!(
+            "Long Count Timer: {:?}",
+            Duration::from_micros(timer.get_micros())
+        );
     }
 }
 

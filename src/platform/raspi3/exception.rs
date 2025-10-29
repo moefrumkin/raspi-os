@@ -48,10 +48,10 @@ pub extern "C" fn handle_exception(
     if exception_type == ExceptionType::Interrupt {
         platform.handle_interrupt();
     } else {
-        println!(
+        /*println!(
             "Received Exception Type {:?} from {:?}",
             exception_type, exception_source
-        );
+        );*/
     }
 }
 
@@ -91,7 +91,7 @@ pub extern "C" fn handle_synchronous_exception(
 
     if exception_class == 0b010101 {
         let syscall_number = esr.get_instruction_number();
-        println!("Syscall returning to {:#x}", frame.elr);
+        //println!("Syscall returning to {:#x}", frame.elr);
 
         // println!("arg1: {}", arg1);
 

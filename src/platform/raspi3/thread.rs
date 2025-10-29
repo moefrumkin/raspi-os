@@ -67,11 +67,8 @@ impl<'a> Thread<'a> {
                 ldp x24, x25, [sp, 0xd0]
                 ldp x26, x27, [sp, 0xe0]
                 ldp x28, x29, [sp, 0xf0]
-                // ldp x30, xzr, [sp, #160]
-                // ldp x31, x0, [sp, 0x100]
                 add sp, sp, 0x110
                 ldr lr, [sp], #16
-                //msr daifclr, 0b111 // Enable Interrupts
                 eret
                 "
             );
@@ -115,7 +112,7 @@ impl<'a> Scheduler<'a> {
             );
         }*/
 
-        crate::println!("\n\n\n");
+        //crate::println!("\n\n\n");
     }
 
     pub fn update_waits(&mut self) {

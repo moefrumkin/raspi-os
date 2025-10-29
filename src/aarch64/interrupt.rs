@@ -6,7 +6,7 @@ use core::{
 
 use crate::platform::interrupt::IRQSource;
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub enum InterruptState {
     Enabled,
     Disabled,
@@ -26,6 +26,23 @@ pub fn set_irq_state(state: InterruptState) {
     match state {
         InterruptState::Enabled => enable_irq(),
         InterruptState::Disabled => disable_irq(),
+    }
+}
+
+pub fn get_irq_state() -> InterruptState {
+    let daif: u64;
+
+    unsafe {
+        asm!(
+            "mrs {}, daif",
+            out(reg) daif
+        )
+    }
+
+    if daif >> 5 == 0b1111 {
+        InterruptState::Disabled
+    } else {
+        InterruptState::Enabled
     }
 }
 
