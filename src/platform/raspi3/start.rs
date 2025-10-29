@@ -228,8 +228,6 @@ pub extern "C" fn graphics_thread(_arg: usize) {
             }
         }
     }
-
-    println!("Done!");
 }
 
 pub fn blink_sequence(status_light: &mut StatusLight, timer: &dyn Timer, interval: u64) {

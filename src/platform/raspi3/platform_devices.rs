@@ -111,6 +111,13 @@ impl<'a> Platform<'a> {
         timer_regs.set_kernel_timeout(millis);
     }
 
+    pub fn get_current_thread(&self) -> Option<Rc<Thread<'a>>> {
+        self.kernel
+            .lock()
+            .as_ref()
+            .map(|kernel| Rc::clone(&kernel.scheduler.current_thread))
+    }
+
     pub fn handle_interrupt(&self) {
         let interrupt_type = self.devices.interrupts.borrow().get_interrupt_type();
         if let Some(InterruptType::KernelTimerInterrupt) = interrupt_type {

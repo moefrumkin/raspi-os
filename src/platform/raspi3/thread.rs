@@ -67,7 +67,25 @@ impl<'a> Thread<'a> {
                 ldp x24, x25, [sp, 0xd0]
                 ldp x26, x27, [sp, 0xe0]
                 ldp x28, x29, [sp, 0xf0]
-                add sp, sp, 0x110
+
+                ldp q0, q1, [sp, 0x110]
+                ldp q2, q3, [sp, 0x130]
+                ldp q4, q5, [sp, 0x150]
+                ldp q6, q7, [sp, 0x170]
+                ldp q8, q9, [sp, 0x190]
+                ldp q10, q11, [sp, 0x1b0]
+                ldp q12, q13, [sp, 0x1e0]
+                ldp q14, q15, [sp, 0x210]
+                ldp q16, q17, [sp, 0x230]
+                ldp q18, q19, [sp, 0x250]
+                ldp q20, q21, [sp, 0x270]
+                ldp q22, q23, [sp, 0x290]
+                ldp q24, q25, [sp, 0x2b0]
+                ldp q26, q27, [sp, 0x2e0]
+                ldp q28, q29, [sp, 0x310]
+                ldp q30, q31, [sp, 0x330]
+
+                add sp, sp, 0x350
                 ldr lr, [sp], #16
                 eret
                 "

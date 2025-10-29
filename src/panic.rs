@@ -5,7 +5,7 @@
 #[cfg(feature = "raspi3")]
 use super::platform::{
     gpio::{GPIOController, OutputLevel, StatusLight},
-    //platform_devices::PLATFORM
+    platform_devices::PLATFORM,
 };
 
 #[cfg(feature = "raspi3")]
@@ -30,6 +30,9 @@ fn on_panic(info: &PanicInfo) -> ! {
     println!("");
     println!("A Fatal Kernel Panic Occured");
 
+    if let Some(thread) = PLATFORM.get_current_thread() {
+        println!("In thread: {}", thread.name);
+    }
     // TODO:?
     println!("{}", info);
 
