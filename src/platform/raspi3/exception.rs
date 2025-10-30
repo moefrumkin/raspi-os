@@ -70,6 +70,7 @@ pub struct InterruptFrame {
     pub elr: u64,
     pub spsr: u64,
     pub fp_regs: [u128; 32],
+    pub fpsr: u64,
 }
 
 #[no_mangle]

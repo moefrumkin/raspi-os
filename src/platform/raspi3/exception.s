@@ -63,7 +63,7 @@ _exception_vector:
 
 
 push_frame: // TODO: push all registers
-    sub sp, sp, 0x350 // TODO: check math
+    sub sp, sp, 0x360 // TODO: check math
     stp x0, x1, [sp, 0x0]
     stp x2, x3, [sp, 0x10]
     stp x4, x5, [sp, 0x20]
@@ -99,12 +99,16 @@ push_frame: // TODO: push all registers
     stp q26, q27, [sp, 0x2e0]
     stp q28, q29, [sp, 0x310]
     stp q30, q31, [sp, 0x330]
+    mrs x21, fpsr
+    str x21, [sp, 0x350]
     ret
 
 pop_frame:
     ldp x0, x1, [sp, 0x100]
     msr elr_el1, x0
     msr spsr_el1, x1
+    ldr x1, [sp, 0x350]
+    msr fpsr, x1
     ldp x0, x1, [sp, 0x0]
     ldp x2, x3, [sp, 0x10]
     ldp x4, x5, [sp, 0x20]
@@ -137,5 +141,5 @@ pop_frame:
     ldp q26, q27, [sp, 0x2e0]
     ldp q28, q29, [sp, 0x310]
     ldp q30, q31, [sp, 0x330]
-    add sp, sp, 0x350
+    add sp, sp, 0x360
     ret

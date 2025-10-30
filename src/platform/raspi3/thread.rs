@@ -53,6 +53,9 @@ impl<'a> Thread<'a> {
                 ldp x0, x1, [sp, 0x100]
                 msr elr_el1, x0
                 msr spsr_el1, x1
+                ldr x1, [sp, 0x350]
+                msr fpsr, x1
+
                 ldp x0, x1, [sp, 0x0]
                 ldp x2, x3, [sp, 0x10]
                 ldp x4, x5, [sp, 0x20]
@@ -86,7 +89,7 @@ impl<'a> Thread<'a> {
                 ldp q28, q29, [sp, 0x310]
                 ldp q30, q31, [sp, 0x330]
 
-                add sp, sp, 0x350
+                add sp, sp, 0x360
                 ldr lr, [sp], #16
                 eret
                 "
