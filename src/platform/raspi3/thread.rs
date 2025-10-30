@@ -225,8 +225,6 @@ impl<'a> Scheduler<'a> {
         let dying_thread = Arc::clone(&self.current_thread);
         *dying_thread.status.lock() = ThreadStatus::Dead;
 
-        crate::println!("Thread {} exited", &dying_thread.name);
-
         let dying_thread_index = self
             .threads
             .iter()
@@ -242,8 +240,6 @@ impl<'a> Scheduler<'a> {
         let thread_to_delay = Arc::clone(&self.current_thread);
 
         *thread_to_delay.status.lock() = ThreadStatus::Waiting(delay);
-
-        crate::println!("Sleeping: {}", thread_to_delay.name);
 
         self.waiting_threads.push(thread_to_delay);
 

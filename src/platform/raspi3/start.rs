@@ -150,7 +150,6 @@ pub extern "C" fn main(heap_start: usize, heap_size: usize, table_start: usize) 
 
     cpu::create_thread(graphics_thread, String::from("Graphics"), 0);
 
-    println!("Graphics Thread Created");
     for i in 0..20 {
         cpu::create_thread(
             counter_thread,
@@ -159,11 +158,7 @@ pub extern "C" fn main(heap_start: usize, heap_size: usize, table_start: usize) 
         );
     }
 
-    println!("Creating Long Count");
-
     cpu::create_thread(long_count, String::from("Long Count"), 0);
-
-    println!("Done!");
 
     PLATFORM.set_kernel_timeout(TICK);
 
@@ -189,22 +184,14 @@ pub extern "C" fn counter_thread(number: usize) {
     let mut oops = alloc::vec![];
     println!("Starting thread: {}", number);
     for i in 0..10 {
-        //let current_thread = PLATFORM.get_current_thread().unwrap();
-        /*println!(
-            "Hello, World! from thread {} (RC {}. Sp {:p}). Iteration: {}",
-            current_thread.name,
-            Arc::strong_count(&current_thread),
-            *current_thread.stack_pointer.lock(),
-            count
-        );*/
         println!("Counter {}: {}", number, count);
         count += 1;
         oops.push(i);
 
-        //cpu::sleep(200_000);
+        cpu::sleep(200_000);
     }
 
-    println!("Goodbye!");
+    println!("Goodbye from Counter {}", number);
 
     cpu::exit_thread();
 }
