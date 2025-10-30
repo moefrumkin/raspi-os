@@ -55,7 +55,7 @@ run: $(KERNEL_ELF)
 	$(QEMU_CMD)
 
 run-trace: $(KERNEL_ELF)
-	$(QEMU_CMD) --trace "memory_region_ops_*,file=trace.log"
+	$(QEMU_CMD) --trace "exec_tb,file=trace.log"
 
 run-nogui: $(KERNEL_ELF)
 	$(QEMU_CMD) -nographic

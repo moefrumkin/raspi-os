@@ -183,6 +183,7 @@ impl LinkedListAllocator {
 }
 
 #[derive(Debug)]
+#[repr(align(16))]
 struct FreeBlock {
     size: usize,
     next: Option<&'static mut FreeBlock>,
