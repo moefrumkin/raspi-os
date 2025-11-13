@@ -25,6 +25,7 @@ pub enum ThreadStatus {
 }
 
 #[derive(Debug)]
+// TODO: implement Drop trait
 pub struct Thread<'a> {
     pub stack_pointer: IRQLock<*const u64>,
     pub parent: Option<&'a Thread<'a>>,
