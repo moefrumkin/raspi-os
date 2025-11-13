@@ -24,7 +24,7 @@ pub enum ThreadStatus {
     Dead,
 }
 
-type ThreadID = u64;
+pub type ThreadID = u64;
 
 #[derive(Debug)]
 // TODO: implement Drop trait
@@ -284,5 +284,14 @@ impl<'a> Scheduler<'a> {
                 return true;
             }
         })
+    }
+
+    pub fn set_current_thread_return(&mut self, value: u64) {
+        let frame = *self.current_thread.stack_pointer.lock() as *mut InterruptFrame;
+
+        unsafe {
+            let frame = &mut *frame;
+            frame.regs[0] = value;
+        }
     }
 }

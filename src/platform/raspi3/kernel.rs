@@ -1,3 +1,4 @@
+use super::thread::ThreadID;
 use alloc::rc::Rc;
 use alloc::sync::Arc;
 use core::{
@@ -73,13 +74,17 @@ impl<'a> Kernel<'a> {
             name = String::from(&*(args[1] as *mut String));
         }
 
+        let id = self.thread_id_allocator.allocate_id();
+
         self.scheduler.add_thread(Thread {
             stack_pointer,
             parent: None,
             status: IRQLock::new(ThreadStatus::Ready),
             name,
-            id: self.thread_id_allocator.allocate_id(),
+            id,
         });
+
+        self.scheduler.set_current_thread_return(id);
     }
 
     pub fn handle_syscall(&mut self, number: usize, args: SyscallArgs) {

@@ -49,18 +49,25 @@ pub fn data_buffer() {
     }
 }
 
-pub fn create_thread<T>(function: extern "C" fn(arg: T) -> (), name: String, arg: usize) {
-    start_thread(function, &name, arg);
+pub fn create_thread<T>(function: extern "C" fn(arg: T) -> (), name: String, arg: usize) -> u64 {
+    start_thread(function, &name, arg)
 }
 
 pub extern "C" fn start_thread<T>(
     _function: extern "C" fn(arg: T) -> (),
     _name: *const String,
     _arg: usize,
-) {
+) -> u64 {
     unsafe {
         asm!("svc {}", const Syscall::Thread as usize);
     }
+
+    let thread_id: u64;
+    unsafe {
+        asm!("mov {}, x0", out(reg) thread_id);
+    }
+
+    thread_id
 }
 
 pub extern "C" fn exit_thread() {

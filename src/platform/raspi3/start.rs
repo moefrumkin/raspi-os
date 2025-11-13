@@ -151,11 +151,13 @@ pub extern "C" fn main(heap_start: usize, heap_size: usize, table_start: usize) 
     cpu::create_thread(graphics_thread, String::from("Graphics"), 0);
 
     for i in 0..20 {
-        cpu::create_thread(
+        let id = cpu::create_thread(
             counter_thread,
             String::from(alloc::format!("Counter {}", i)),
             i,
         );
+
+        println!("Counter {} started with id {}", i, id);
     }
 
     cpu::create_thread(long_count, String::from("Long Count"), 0);
