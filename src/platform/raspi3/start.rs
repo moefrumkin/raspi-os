@@ -150,7 +150,19 @@ pub extern "C" fn main(heap_start: usize, heap_size: usize, table_start: usize) 
 
     cpu::create_thread(graphics_thread, String::from("Graphics"), 0);
 
-    for i in 0..20 {
+    cpu::create_thread(long_count, String::from("Long Count"), 0);
+
+    cpu::create_thread(run_count, String::from("Counters"), 20);
+
+    PLATFORM.set_kernel_timeout(TICK);
+
+    //status_light.borrow_mut().set_green(OutputLevel::High);
+
+    loop {}
+}
+
+pub extern "C" fn run_count(n: usize) {
+    for i in 0..n {
         let id = cpu::create_thread(
             counter_thread,
             String::from(alloc::format!("Counter {}", i)),
@@ -158,13 +170,11 @@ pub extern "C" fn main(heap_start: usize, heap_size: usize, table_start: usize) 
         );
 
         println!("Counter {} started with id {}", i, id);
+
+        let ret = cpu::join_thread(id);
+
+        println!("Counter {} ended with exit code {}", i, ret);
     }
-
-    cpu::create_thread(long_count, String::from("Long Count"), 0);
-
-    PLATFORM.set_kernel_timeout(TICK);
-
-    //status_light.borrow_mut().set_green(OutputLevel::High);
 
     loop {}
 }

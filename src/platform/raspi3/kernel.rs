@@ -93,6 +93,7 @@ impl<'a> Kernel<'a> {
             Syscall::Thread => self.create_thread(args[0], args),
             Syscall::Exit => self.exit_current_thread(args[0] as u64),
             Syscall::Wait => self.delay_current_thread(args[0] as u64),
+            Syscall::Join => self.join_current_thread(args[0] as ThreadID),
         }
     }
 
@@ -128,5 +129,9 @@ impl<'a> Kernel<'a> {
         //let new_timeout = self.scheduler.get_next_thread_wakeup().unwrap() - current_time;
 
         //PLATFORM.get_timer().set_timeout(new_timeout as u32);
+    }
+
+    pub fn join_current_thread(&mut self, thread_id: ThreadID) {
+        self.scheduler.join_current_thread(thread_id);
     }
 }

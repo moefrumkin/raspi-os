@@ -81,3 +81,17 @@ pub extern "C" fn sleep(_micros: u64) {
         asm!("svc {}", const Syscall::Wait as usize);
     }
 }
+
+pub extern "C" fn join_thread(_thread_id: u64) -> u64 {
+    unsafe {
+        asm!("svc {}", const Syscall::Join as usize);
+    }
+
+    let return_code: u64;
+
+    unsafe {
+        asm!("mov {}, x0", out(reg) return_code);
+    }
+
+    return_code
+}

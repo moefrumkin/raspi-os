@@ -22,6 +22,7 @@ pub enum ThreadStatus {
     Ready,
     Waiting(u64),
     Exited(u64),
+    Joining(ThreadID),
 }
 
 pub type ThreadID = u64;
@@ -235,8 +236,23 @@ impl<'a> Scheduler<'a> {
             .iter()
             .position(|thread| Arc::ptr_eq(thread, &dying_thread))
             .expect("Dying thread is not listed as a thread.");
-
         self.threads.remove(dying_thread_index);
+
+        let dying_thread_id = dying_thread.id;
+
+        self.threads.iter().for_each(|thread| {
+            if let ThreadStatus::Joining(id) = *thread.status.lock() {
+                if id == dying_thread_id {
+                    unsafe {
+                        let frame = &mut *(*thread.stack_pointer.lock() as *mut InterruptFrame);
+
+                        frame.regs[0] = code;
+
+                        self.thread_queue.push_back(thread.clone());
+                    }
+                }
+            }
+        });
 
         self.current_thread = self.thread_queue.pop_front().expect("No threads on queue");
     }
@@ -293,5 +309,11 @@ impl<'a> Scheduler<'a> {
             let frame = &mut *frame;
             frame.regs[0] = value;
         }
+    }
+
+    pub fn join_current_thread(&mut self, thread_id: ThreadID) {
+        *self.current_thread.status.lock() = ThreadStatus::Joining(thread_id);
+
+        self.current_thread = self.thread_queue.pop_front().expect("No threads on queue");
     }
 }
