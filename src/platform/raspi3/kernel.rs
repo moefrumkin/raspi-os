@@ -91,7 +91,7 @@ impl<'a> Kernel<'a> {
         let syscall = Syscall::from_u64(number as u64).expect("Invalid Syscall Number");
         match syscall {
             Syscall::Thread => self.create_thread(args[0], args),
-            Syscall::Exit => self.exit_current_thread(),
+            Syscall::Exit => self.exit_current_thread(args[0] as u64),
             Syscall::Wait => self.delay_current_thread(args[0] as u64),
         }
     }
@@ -114,8 +114,8 @@ impl<'a> Kernel<'a> {
             .set_current_stack_pointer(frame as *const InterruptFrame as *const u64);
     }
 
-    pub fn exit_current_thread(&mut self) {
-        self.scheduler.exit_current_thread();
+    pub fn exit_current_thread(&mut self, code: u64) {
+        self.scheduler.exit_current_thread(code);
     }
 
     pub fn delay_current_thread(&mut self, delay: u64) {

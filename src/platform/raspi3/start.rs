@@ -195,7 +195,7 @@ pub extern "C" fn counter_thread(number: usize) {
 
     println!("Goodbye from Counter {}", number);
 
-    cpu::exit_thread();
+    cpu::exit_thread(0);
 }
 
 pub extern "C" fn graphics_thread(_arg: usize) {

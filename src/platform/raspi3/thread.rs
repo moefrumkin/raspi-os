@@ -21,7 +21,7 @@ pub enum ThreadStatus {
     Running,
     Ready,
     Waiting(u64),
-    Dead,
+    Exited(u64),
 }
 
 pub type ThreadID = u64;
@@ -226,9 +226,9 @@ impl<'a> Scheduler<'a> {
         self.current_thread = new_thread;
     }
 
-    pub fn exit_current_thread(&mut self) {
+    pub fn exit_current_thread(&mut self, code: u64) {
         let dying_thread = Arc::clone(&self.current_thread);
-        *dying_thread.status.lock() = ThreadStatus::Dead;
+        *dying_thread.status.lock() = ThreadStatus::Exited(code);
 
         let dying_thread_index = self
             .threads

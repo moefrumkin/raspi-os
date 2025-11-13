@@ -70,7 +70,7 @@ pub extern "C" fn start_thread<T>(
     thread_id
 }
 
-pub extern "C" fn exit_thread() {
+pub extern "C" fn exit_thread(_code: u64) {
     unsafe {
         asm!("svc {}", const Syscall::Exit as usize);
     }
