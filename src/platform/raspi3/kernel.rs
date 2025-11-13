@@ -10,7 +10,10 @@ use crate::{
         interrupt::IRQLock,
         syscall::{Syscall, SyscallArgs},
     },
-    allocator::page_allocator::{self, PageAllocator, PAGE_SIZE},
+    allocator::{
+        id_allocator::IDAllocator,
+        page_allocator::{self, PageAllocator, PAGE_SIZE},
+    },
     platform::{
         framebuffer::FrameBuffer,
         platform_devices::{get_platform, PLATFORM},
@@ -27,6 +30,7 @@ pub const TICK: u32 = 1_000;
 pub struct Kernel<'a> {
     pub scheduler: Scheduler<'a>,
     pub page_allocator: RefCell<PageAllocator<'a>>,
+    pub thread_id_allocator: IDAllocator,
 }
 
 impl<'a> Kernel<'a> {
@@ -34,6 +38,7 @@ impl<'a> Kernel<'a> {
         Self {
             scheduler: Scheduler::new(),
             page_allocator,
+            thread_id_allocator: IDAllocator::new(),
         }
     }
 
@@ -73,6 +78,7 @@ impl<'a> Kernel<'a> {
             parent: None,
             status: IRQLock::new(ThreadStatus::Ready),
             name,
+            id: self.thread_id_allocator.allocate_id(),
         });
     }
 

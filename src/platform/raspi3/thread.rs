@@ -24,6 +24,8 @@ pub enum ThreadStatus {
     Dead,
 }
 
+type ThreadID = u64;
+
 #[derive(Debug)]
 // TODO: implement Drop trait
 pub struct Thread<'a> {
@@ -31,6 +33,7 @@ pub struct Thread<'a> {
     pub parent: Option<&'a Thread<'a>>,
     pub status: IRQLock<ThreadStatus>,
     pub name: String,
+    pub id: u64,
 }
 
 impl<'a> Thread<'a> {
@@ -40,6 +43,7 @@ impl<'a> Thread<'a> {
             parent: None,
             status: IRQLock::new(ThreadStatus::Running),
             name: String::from("Idle"),
+            id: 0,
         }
     }
 
