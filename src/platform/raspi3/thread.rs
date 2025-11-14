@@ -31,10 +31,11 @@ pub type ThreadID = u64;
 // TODO: implement Drop trait
 pub struct Thread<'a> {
     pub stack_pointer: IRQLock<*const u64>,
-    pub parent: Option<&'a Thread<'a>>,
+    pub parent: Option<Arc<Thread<'a>>>,
     pub status: IRQLock<ThreadStatus>,
     pub name: String,
     pub id: u64,
+    pub children: IRQLock<Vec<Arc<Thread<'a>>>>,
 }
 
 impl<'a> Thread<'a> {
@@ -45,6 +46,7 @@ impl<'a> Thread<'a> {
             status: IRQLock::new(ThreadStatus::Running),
             name: String::from("Idle"),
             id: 0,
+            children: IRQLock::new(vec![]),
         }
     }
 
@@ -104,6 +106,15 @@ impl<'a> Thread<'a> {
 
         loop {}
     }
+
+    /// Unsafe if the stack pointer is not accurate
+    /// TODO: for memory safety, shyould this require a mutable ref to self?
+    fn set_return_value(&self, value: u64) {
+        unsafe {
+            let frame = &mut *(*self.stack_pointer.lock() as *mut InterruptFrame);
+            frame.regs[0] = value;
+        }
+    }
 }
 
 pub struct Scheduler<'a> {
@@ -128,6 +139,8 @@ impl<'a> Scheduler<'a> {
     pub fn add_thread(&mut self, thread: Thread<'a>) {
         let thread = Arc::new(thread);
         self.thread_queue.push_back(Arc::clone(&thread));
+
+        self.current_thread.children.lock().push(thread.clone());
 
         self.threads.push(thread);
 
@@ -254,6 +267,12 @@ impl<'a> Scheduler<'a> {
             }
         });
 
+        /*if let Some(ref parent) = dying_thread.parent {
+            let children = &mut parent.children.lock();
+
+            children.retain(|child| child.id == dying_thread_id);
+        }*/
+
         self.current_thread = self.thread_queue.pop_front().expect("No threads on queue");
     }
 
@@ -312,8 +331,30 @@ impl<'a> Scheduler<'a> {
     }
 
     pub fn join_current_thread(&mut self, thread_id: ThreadID) {
-        *self.current_thread.status.lock() = ThreadStatus::Joining(thread_id);
+        let child_thread_index = self
+            .current_thread
+            .children
+            .lock()
+            .iter()
+            .position(|child| child.id == thread_id)
+            .expect(alloc::format!("Waiting on child that doesn't exist {}", thread_id).as_str());
 
-        self.current_thread = self.thread_queue.pop_front().expect("No threads on queue");
+        let child_thread_status = *self.current_thread.children.lock()[child_thread_index]
+            .status
+            .lock();
+
+        if let ThreadStatus::Exited(exit_code) = child_thread_status {
+            self.current_thread
+                .children
+                .lock()
+                .remove(child_thread_index);
+
+            self.current_thread.set_return_value(exit_code);
+        } else {
+            self.current_thread.status.lock();
+            *self.current_thread.status.lock() = ThreadStatus::Joining(thread_id);
+
+            self.current_thread = self.thread_queue.pop_front().expect("No threads on queue");
+        }
     }
 }

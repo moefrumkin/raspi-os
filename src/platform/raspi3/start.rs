@@ -162,21 +162,27 @@ pub extern "C" fn main(heap_start: usize, heap_size: usize, table_start: usize) 
 }
 
 pub extern "C" fn run_count(n: usize) {
+    let mut threads = Vec::with_capacity(n);
+
     for i in 0..n {
+        println!("Starting counter {}", i);
+
         let id = cpu::create_thread(
             counter_thread,
             String::from(alloc::format!("Counter {}", i)),
             i,
         );
 
-        println!("Counter {} started with id {}", i, id);
-
-        let ret = cpu::join_thread(id);
-
-        println!("Counter {} ended with exit code {}", i, ret);
+        threads.push(id);
     }
 
-    loop {}
+    for i in 0..n {
+        let ret = cpu::join_thread(threads[i] as u64);
+
+        println!("Counter thread {} exited with code {}", i, ret);
+    }
+
+    cpu::exit_thread(0);
 }
 
 pub extern "C" fn long_count(_: usize) {

@@ -1,6 +1,7 @@
 use super::thread::ThreadID;
 use alloc::rc::Rc;
 use alloc::sync::Arc;
+use alloc::vec;
 use core::{
     cell::{Ref, RefCell},
     time::Duration,
@@ -78,10 +79,11 @@ impl<'a> Kernel<'a> {
 
         self.scheduler.add_thread(Thread {
             stack_pointer,
-            parent: None,
+            parent: Some(self.scheduler.current_thread.clone()),
             status: IRQLock::new(ThreadStatus::Ready),
             name,
             id,
+            children: IRQLock::new(vec![]),
         });
 
         self.scheduler.set_current_thread_return(id);
