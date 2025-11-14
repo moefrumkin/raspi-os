@@ -1,5 +1,6 @@
 use super::kernel::Kernel;
 use super::kernel::TICK;
+use super::programs::counter;
 use crate::aarch64::{cpu, interrupt, mmu, syscall::Syscall};
 use crate::allocator::page_allocator::PageAllocator;
 use crate::canvas::{canvas2d::Canvas2D, line::Line, matrix::Matrix, vector::Vector};
@@ -152,7 +153,7 @@ pub extern "C" fn main(heap_start: usize, heap_size: usize, table_start: usize) 
 
     cpu::create_thread(long_count, String::from("Long Count"), 0);
 
-    cpu::create_thread(run_count, String::from("Counters"), 20);
+    cpu::create_thread(counter::run_count, String::from("Counters"), 20);
 
     PLATFORM.set_kernel_timeout(TICK);
 
@@ -161,30 +162,6 @@ pub extern "C" fn main(heap_start: usize, heap_size: usize, table_start: usize) 
     loop {
         cpu::yield_thread();
     }
-}
-
-pub extern "C" fn run_count(n: usize) {
-    let mut threads = Vec::with_capacity(n);
-
-    for i in 0..n {
-        println!("Starting counter {}", i);
-
-        let id = cpu::create_thread(
-            counter_thread,
-            String::from(alloc::format!("Counter {}", i)),
-            i,
-        );
-
-        threads.push(id);
-    }
-
-    for i in 0..n {
-        let ret = cpu::join_thread(threads[i] as u64);
-
-        println!("Counter thread {} exited with code {}", i, ret);
-    }
-
-    cpu::exit_thread(0);
 }
 
 pub extern "C" fn long_count(_: usize) {
@@ -197,23 +174,6 @@ pub extern "C" fn long_count(_: usize) {
             Duration::from_micros(timer.get_micros())
         );
     }
-}
-
-pub extern "C" fn counter_thread(number: usize) {
-    let mut count = 1;
-    let mut oops = alloc::vec![];
-    println!("Starting thread: {}", number);
-    for i in 0..10 {
-        println!("Counter {}: {}", number, count);
-        count += 1;
-        oops.push(i);
-
-        cpu::sleep(200_000);
-    }
-
-    println!("Goodbye from Counter {}", number);
-
-    cpu::exit_thread(0);
 }
 
 pub extern "C" fn graphics_thread(_arg: usize) {

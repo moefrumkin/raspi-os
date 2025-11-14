@@ -1,21 +1,22 @@
 //! Rasperry Pi 3 platform specific implementations
 
+pub mod clock;
+pub mod emmc;
+pub mod framebuffer;
 pub mod gpio;
+pub mod hardware_config;
+pub mod interrupt;
+pub mod kernel;
 pub mod mailbox;
+pub mod mailbox_property;
+pub mod mini_uart;
 pub mod mmio;
+pub mod platform_devices;
+pub mod power;
+pub mod programs;
 #[cfg(not(test))]
 pub mod start;
-pub mod timer;
-pub mod mini_uart;
-pub mod mailbox_property;
-pub mod framebuffer;
-pub mod clock;
-pub mod hardware_config;
-pub mod power;
-pub mod emmc;
-pub mod interrupt;
-pub mod platform_devices;
 pub mod thread;
-pub mod kernel;
+pub mod timer;
 
 mod exception;
