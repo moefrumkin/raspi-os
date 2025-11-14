@@ -158,7 +158,9 @@ pub extern "C" fn main(heap_start: usize, heap_size: usize, table_start: usize) 
 
     //status_light.borrow_mut().set_green(OutputLevel::High);
 
-    loop {}
+    loop {
+        cpu::yield_thread();
+    }
 }
 
 pub extern "C" fn run_count(n: usize) {

@@ -357,4 +357,12 @@ impl<'a> Scheduler<'a> {
             self.current_thread = self.thread_queue.pop_front().expect("No threads on queue");
         }
     }
+
+    pub fn yield_current_thread(&mut self) {
+        let yielding_thread = self.current_thread.clone();
+
+        self.thread_queue.push_back(yielding_thread);
+
+        self.current_thread = self.thread_queue.pop_front().expect("No threads on queue");
+    }
 }

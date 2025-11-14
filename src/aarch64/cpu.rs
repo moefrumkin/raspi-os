@@ -95,3 +95,9 @@ pub extern "C" fn join_thread(_thread_id: u64) -> u64 {
 
     return_code
 }
+
+pub extern "C" fn yield_thread() {
+    unsafe {
+        asm!("svc {}", const Syscall::Yield as usize);
+    }
+}

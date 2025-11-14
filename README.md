@@ -179,7 +179,7 @@ Further documentation can be found on the [ARM Website](https://developer.arm.co
 | MakeThread | ChildID | Name, Entry | Create a child thread with the given name starting at the entry point | Partial |
 | Sleep | Milliseconds | None | Suspend the thread from executing until at least the given amount of time has passed | Partial |
 | Join | ThreadID | ExitStatus | Wait until the thread has finished and return its exit code | Partial |
-| Yield | None | None | Voluntarily return execution to the kernel | Not Started |
+| Yield | None | None | Voluntarily return execution to the kernel | Partial |
 | Open | String | Optional Object Handle | | Not started
 | Close | Object Handle ||| Not started
 | Read | Object Handle, Buffer, Max length | Read Status | | Not started 
