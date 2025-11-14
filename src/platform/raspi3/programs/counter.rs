@@ -1,6 +1,7 @@
 use crate::aarch64::cpu;
 use crate::aarch64::interrupt::IRQLock;
 use crate::println;
+use alloc::boxed::Box;
 use alloc::string::String;
 use alloc::sync::Arc;
 use alloc::vec::Vec;
@@ -23,6 +24,12 @@ impl Counter {
     }
 }
 
+pub struct CounterThreadArguments {
+    counter: Arc<IRQLock<Counter>>,
+    iterations: usize,
+    thread_number: usize,
+}
+
 pub extern "C" fn run_count(n: usize) {
     let mut threads = Vec::with_capacity(n);
     let counter = Arc::new(IRQLock::new(Counter::new()));
@@ -30,10 +37,16 @@ pub extern "C" fn run_count(n: usize) {
     for i in 0..n {
         println!("Starting counter {}", i);
 
+        let args = Box::new(CounterThreadArguments {
+            counter: counter.clone(),
+            iterations: 2_000_000,
+            thread_number: i,
+        });
+
         let id = cpu::create_thread(
             counter_thread,
             String::from(alloc::format!("Counter {}", i)),
-            &counter as *const Arc<_> as usize,
+            Box::into_raw(args) as usize,
         );
 
         threads.push(id);
@@ -50,9 +63,10 @@ pub extern "C" fn run_count(n: usize) {
     cpu::exit_thread(0);
 }
 
-pub extern "C" fn counter_thread(counter: &Arc<IRQLock<Counter>>) {
-    let counter = counter.clone();
-    for _ in 0..100000 {
+pub extern "C" fn counter_thread(counter: Box<CounterThreadArguments>) {
+    let args = counter;
+    let counter = args.counter;
+    for _ in 0..args.iterations {
         counter.lock().increment();
 
         //cpu::sleep(200_000);
