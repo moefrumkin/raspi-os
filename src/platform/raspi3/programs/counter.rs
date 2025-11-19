@@ -42,7 +42,7 @@ pub extern "C" fn run_count(n: usize) {
 
         let args = Box::new(CounterThreadArguments {
             counter: counter.clone(),
-            iterations: 2_000,
+            iterations: 200_000,
             thread_number: i,
         });
 
