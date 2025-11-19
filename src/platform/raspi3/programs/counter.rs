@@ -1,10 +1,13 @@
 use crate::aarch64::cpu;
 use crate::aarch64::interrupt::IRQLock;
+use crate::platform::semaphore::SemMutex;
 use crate::println;
 use alloc::boxed::Box;
 use alloc::string::String;
 use alloc::sync::Arc;
 use alloc::vec::Vec;
+
+type Mutex<T> = SemMutex<T>;
 
 pub struct Counter {
     count: u64,
@@ -25,21 +28,21 @@ impl Counter {
 }
 
 pub struct CounterThreadArguments {
-    counter: Arc<IRQLock<Counter>>,
+    counter: Arc<SemMutex<Counter>>,
     iterations: usize,
     thread_number: usize,
 }
 
 pub extern "C" fn run_count(n: usize) {
     let mut threads = Vec::with_capacity(n);
-    let counter = Arc::new(IRQLock::new(Counter::new()));
+    let counter = Arc::new(Mutex::new(Counter::new()));
 
     for i in 0..n {
         println!("Starting counter {}", i);
 
         let args = Box::new(CounterThreadArguments {
             counter: counter.clone(),
-            iterations: 2_000_000,
+            iterations: 2_000,
             thread_number: i,
         });
 

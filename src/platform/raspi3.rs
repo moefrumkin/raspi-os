@@ -14,6 +14,7 @@ pub mod mmio;
 pub mod platform_devices;
 pub mod power;
 pub mod programs;
+pub mod semaphore;
 #[cfg(not(test))]
 pub mod start;
 pub mod thread;
