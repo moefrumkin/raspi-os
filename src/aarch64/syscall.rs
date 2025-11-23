@@ -4,6 +4,11 @@ pub enum Syscall {
     Wait = 0x3,
     Join = 0x4,
     Yield = 0x5,
+
+    Open = 0x6,
+    Close = 0x7,
+    Read = 0x8,
+    Write = 0x9
 }
 
 pub type SyscallArgs = [usize; 3];
@@ -16,6 +21,11 @@ impl Syscall {
             0x3 => Some(Syscall::Wait),
             0x4 => Some(Syscall::Join),
             0x5 => Some(Syscall::Yield),
+
+            0x6 => Some(Syscall::Open),
+            0x7 => Some(Syscall::Close),
+            0x8 => Some(Syscall::Read),
+            0x9 => Some(Syscall::Write),
             _ => None,
         }
     }

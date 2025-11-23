@@ -173,18 +173,18 @@ Further documentation can be found on the [ARM Website](https://developer.arm.co
 
 ### System Calls
 
-| Name | Arguments | Return Value | Decription | Implementation Status |
-| - | - | - | - | - |
-| Exit | Code | None | Exit the program with the given code. | Partial |
-| MakeThread | ChildID | Name, Entry | Create a child thread with the given name starting at the entry point | Partial |
-| Sleep | Milliseconds | None | Suspend the thread from executing until at least the given amount of time has passed | Partial |
-| Join | ThreadID | ExitStatus | Wait until the thread has finished and return its exit code | Partial |
-| Yield | None | None | Voluntarily return execution to the kernel | Partial |
-| Open | String | Optional Object Handle | | Not started
-| Close | Object Handle ||| Not started
-| Read | Object Handle, Buffer, Max length | Read Status | | Not started 
-| Write | Object Handle, Buffer, Max length | Write Status | | Not started
-| Message | Message Value | | | Not Started (Low Priority)
+| Number | Name | Arguments | Return Value | Decription | Implementation Status |
+| - | - | - | - | - | - |
+| 2 | Exit | Code | None | Exit the program with the given code. | Partial |
+| 1 | MakeThread | ChildID | Name, Entry | Create a child thread with the given name starting at the entry point | Partial |
+| 3 | Sleep | Milliseconds | None | Suspend the thread from executing until at least the given amount of time has passed | Partial |
+| 4 | Join | ThreadID | ExitStatus | Wait until the thread has finished and return its exit code | Partial |
+| 5 | Yield | None | None | Voluntarily return execution to the kernel | Partial |
+| 6 | Open | String | Optional Object Handle | | Not started
+| 7 | Close | Object Handle ||| Not started
+| 8 | Read | Object Handle, Buffer, Max length | Read Status | | Not started 
+| 9 | Write | Object Handle, Buffer, Max length | Write Status | | Not started
+| | Message | Message Value | | | Not Started (Low Priority)
 
 ## MMU
 When enabled, the ARM MMU manages the processor's cache and [memory virtualization](https://en.wikipedia.org/wiki/Memory_virtualization) with a nearly dangerous level of configurability, as described on the [website](https://developer.arm.com/documentation/101811/0102/The-Memory-Management-Unit-MMU), and in the [additional documentation](https://documentation-service.arm.com/static/5efa1d23dbdee951c1ccdec5?token=). The first choice we are faced with is the granule size, which is the smallest unit of memory in the translation process. ARM generously provides three options:  4KB, 16KB, and 64KB. Choosing the smallest option gives us the most granularity, and once the initialization process is understood, it is not too difficult to change. To indicate this selection, we write `0b10` to bits [31:30] of the translation control register (`tcr_el1`). A 4KB (or rather KiB) region contains 4096 = 2<sup>12</sup> bytes, meaning that the last 12 bytes of the virtual address are used for determining the offset within a granule. By the specification, each translation table contains up to 512 = 2<sup>9</sup> entries. As a result, with `n` tables and 4KiB granules, virtual addresses are `9n + 12` bits long. Since the Raspberry Pi 3 has 1GB, or 2<sup>30</sup> bytes of memory, 2 levels will suffice. We communicate this to the MMU by setting the `T0SZ` field of `tcr_el1` to 34, which is the amount from 64 we want to shrink the address space. Because we only have 2 levels of tables out of a maximum of 4, the first tables are considered level 2 tables. ARM allows level 1 and 2 table entries to point directly to blocks of memory by setting the second bit to `0`. Since we are creating a 1-to-1 mapping, this technique lets us skip the level 3 tables all together. Rather, each level 2 entry points to a 2MiB block, and bits `9 + 12 = 21` are used to determine the offset within the block. Armed with this plan, all we need to do is populate a 512 entry level 2 table. Each entry supplies bits 21-30 of the address. We mark the tenth bit to set the access flag and the first to mark the entry as valid. Once finished, we can point the Translation Table Base Register 0 (`ttbr0_el1`) to the start of the table, and activiate the MMU by writing a value of 1 to the first bit of the system control register (`sctlr_el1`).

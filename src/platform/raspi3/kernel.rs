@@ -97,6 +97,7 @@ impl<'a> Kernel<'a> {
             Syscall::Wait => self.delay_current_thread(args[0] as u64),
             Syscall::Join => self.join_current_thread(args[0] as ThreadID),
             Syscall::Yield => self.scheduler.yield_current_thread(),
+            _ => panic!("Unsupported Syscall")
         }
     }
 

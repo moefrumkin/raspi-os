@@ -101,3 +101,34 @@ pub extern "C" fn yield_thread() {
         asm!("svc {}", const Syscall::Yield as usize);
     }
 }
+
+fn open_object(name: &str) -> u64 {
+    let ptr = name.as_ptr();
+    let size = name.len();
+
+    let object_handle: u64;
+
+    unsafe {
+        asm!("
+            mov x0, {}
+            mov x1, {}
+        ", 
+        in(reg) ptr,
+        in(reg) size
+    );
+
+    asm!("svc {}", const Syscall::Open as usize);
+
+    asm!("mov {}, x0", out(reg) object_handle);
+    }
+
+    object_handle
+}
+
+fn close_object(handle: u64) {
+    unsafe {
+        asm!("mov x0, {}", in(reg) handle);
+
+        asm!("svc {}", const Syscall::Close as usize);
+    }
+}
