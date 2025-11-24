@@ -375,4 +375,13 @@ impl<'a> Scheduler<'a> {
     pub fn add_object_to_current_thread(&self, object: Box<dyn KernelObject>, id: ObjectHandle) {
         self.current_thread.objects.lock().push((id, object));
     }
+
+    pub fn remove_object_from_current_thread(&self, handle: ObjectHandle) {
+        // TODO: error handling?
+        // TODO: will this call drop?
+
+        self.current_thread.objects.lock().retain(|(id, _)|
+            *id != handle
+        );
+    }
 }

@@ -101,6 +101,7 @@ impl<'a> Kernel<'a> {
             Syscall::Open => self.open_object(unsafe {
                 str::from_raw_parts(args[0] as *const u8, args[1])
             }),
+            Syscall::Close => self.scheduler.remove_object_from_current_thread(args[0] as u64),
             _ => panic!("Unsupported Syscall")
         }
     }

@@ -4,13 +4,16 @@ use crate::println;
 pub extern "C" fn ls(_: usize) {
     println!("Opening object");
 
-    let handle = cpu::open_object("/");
+    let root_handle = cpu::open_object("/");
 
-    println!("Opened with handle: {}", handle);
+    println!("Opened with handle: {}", root_handle);
 
-    let handle = cpu::open_object("/FIXUP.DAT");
+    let fixup_handle = cpu::open_object("/FIXUP.DAT");
 
-    println!("Opened with handle: {}", handle);
+    println!("Opened with handle: {}", fixup_handle);
+
+    cpu::close_object(root_handle);
+    cpu::close_object(fixup_handle);
 
     cpu::exit_thread(0);
 }
