@@ -10,17 +10,15 @@ use crate::{
     aarch64::{
         interrupt::IRQLock,
         syscall::{Syscall, SyscallArgs},
-    },
-    allocator::{
+    }, allocator::{
         id_allocator::IDAllocator,
-        page_allocator::{self, PageAllocator, PAGE_SIZE},
-    },
-    platform::{
+        page_allocator::{self, PAGE_SIZE, PageAllocator},
+    }, filesystem::{self, fat32::FAT32Filesystem}, platform::{
         framebuffer::FrameBuffer,
-        platform_devices::{get_platform, PLATFORM},
+        platform_devices::{PLATFORM, get_platform},
         raspi3::exception::InterruptFrame,
         thread::{Scheduler, Thread, ThreadStatus},
-    },
+    }
 };
 
 use alloc::boxed::Box;
@@ -32,14 +30,20 @@ pub struct Kernel<'a> {
     pub scheduler: Scheduler<'a>,
     pub page_allocator: RefCell<PageAllocator<'a>>,
     pub thread_id_allocator: IDAllocator,
+    pub object_id_allocator: IDAllocator,
+    filesystem: IRQLock<FAT32Filesystem<'a>> // TODO: should this be here or on the platform?
 }
 
 impl<'a> Kernel<'a> {
-    pub fn with_page_allocator(page_allocator: RefCell<PageAllocator<'a>>) -> Self {
+    pub fn with_page_allocator_and_filesystem(page_allocator: RefCell<PageAllocator<'a>>,
+    filesystem: IRQLock<FAT32Filesystem<'a>>
+) -> Self {
         Self {
             scheduler: Scheduler::new(),
             page_allocator,
             thread_id_allocator: IDAllocator::new(),
+            object_id_allocator: IDAllocator::new(),
+            filesystem
         }
     }
 
@@ -144,5 +148,9 @@ impl<'a> Kernel<'a> {
 
     pub fn open_object(&self, name: &str) {
         crate::println!("Opening: {}", name);
+
+        let entry = self.filesystem.lock().search_item(name);
+
+        crate::println!("{:#?}", entry);
     }
 }

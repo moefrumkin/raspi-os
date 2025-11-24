@@ -4,7 +4,7 @@ use crate::println;
 pub extern "C" fn ls(_: usize) {
     println!("Opening object");
 
-    let handle = cpu::open_object("hello");
+    let handle = cpu::open_object("/");
 
     println!("Opened with handle: {}", handle);
 

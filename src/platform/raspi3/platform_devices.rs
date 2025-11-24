@@ -1,8 +1,5 @@
 use crate::{
-    aarch64::{interrupt::IRQLock, syscall::SyscallArgs},
-    allocator::page_allocator::{Page, PageAllocator, PageRef},
-    device::sector_device::{Sector, SectorDevice},
-    platform::{
+    aarch64::{interrupt::IRQLock, syscall::SyscallArgs}, allocator::page_allocator::{Page, PageAllocator, PageRef}, device::sector_device::{Sector, SectorDevice}, filesystem::fat32::FAT32Filesystem, platform::{
         self,
         emmc::{self, EMMCConfiguration, EMMCController, EMMCRegisters},
         gpio::{GPIOController, GPIORegisters, StatusLight},
@@ -13,7 +10,7 @@ use crate::{
         raspi3::exception::InterruptFrame,
         thread::Thread,
         timer::TimerRegisters,
-    },
+    }
 };
 
 use alloc::sync::Arc;

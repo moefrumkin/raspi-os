@@ -15,6 +15,7 @@ use alloc::vec::Vec;
 use core::arch::global_asm;
 use core::cell::RefCell;
 use core::time::Duration;
+use crate::aarch64::interrupt::IRQLock;
 
 use crate::device::timer::Timer;
 
@@ -109,7 +110,7 @@ pub extern "C" fn main(heap_start: usize, heap_size: usize, table_start: usize) 
 
     let partition = master_boot_record.partition_entries[0];
 
-    let mut filesystem = FAT32Filesystem::load_in_partition(
+    let filesystem = FAT32Filesystem::load_in_partition(
         emmc_controller,
         mbr_sector_number + partition.first_sector_address(),
         mbr_sector_number + partition.last_sector_address(),
@@ -133,7 +134,7 @@ pub extern "C" fn main(heap_start: usize, heap_size: usize, table_start: usize) 
         page_allocator = RefCell::new(PageAllocator::with_start_and_length(page_start, page_size));
     }
 
-    let kernel = Kernel::with_page_allocator(page_allocator);
+    let kernel = Kernel::with_page_allocator_and_filesystem(page_allocator, IRQLock::new(filesystem));
 
     PLATFORM.register_kernel(kernel);
 
