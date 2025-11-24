@@ -1,6 +1,6 @@
 use super::kernel::Kernel;
 use super::kernel::TICK;
-use super::programs::counter;
+use super::programs::{counter, ls};
 use crate::aarch64::{cpu, interrupt, mmu, syscall::Syscall};
 use crate::allocator::page_allocator::PageAllocator;
 use crate::canvas::{canvas2d::Canvas2D, line::Line, matrix::Matrix, vector::Vector};
@@ -154,6 +154,8 @@ pub extern "C" fn main(heap_start: usize, heap_size: usize, table_start: usize) 
     cpu::create_thread(long_count, String::from("Long Count"), 0);
 
     cpu::create_thread(counter::run_count, String::from("Counters"), 20);
+
+    cpu::create_thread(ls::ls, String::from("ls"), 0);
 
     PLATFORM.set_kernel_timeout(TICK);
 

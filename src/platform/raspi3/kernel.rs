@@ -3,8 +3,7 @@ use alloc::rc::Rc;
 use alloc::sync::Arc;
 use alloc::vec;
 use core::{
-    cell::{Ref, RefCell},
-    time::Duration,
+    cell::{Ref, RefCell}, str, time::Duration
 };
 
 use crate::{
@@ -84,6 +83,7 @@ impl<'a> Kernel<'a> {
             name,
             id,
             children: IRQLock::new(vec![]),
+            objects: vec![]
         });
 
         self.scheduler.set_current_thread_return(id);
@@ -97,6 +97,9 @@ impl<'a> Kernel<'a> {
             Syscall::Wait => self.delay_current_thread(args[0] as u64),
             Syscall::Join => self.join_current_thread(args[0] as ThreadID),
             Syscall::Yield => self.scheduler.yield_current_thread(),
+            Syscall::Open => self.open_object(unsafe {
+                str::from_raw_parts(args[0] as *const u8, args[1])
+            }),
             _ => panic!("Unsupported Syscall")
         }
     }
@@ -137,5 +140,9 @@ impl<'a> Kernel<'a> {
 
     pub fn join_current_thread(&mut self, thread_id: ThreadID) {
         self.scheduler.join_current_thread(thread_id);
+    }
+
+    pub fn open_object(&self, name: &str) {
+        crate::println!("Opening: {}", name);
     }
 }

@@ -102,7 +102,7 @@ pub extern "C" fn yield_thread() {
     }
 }
 
-fn open_object(name: &str) -> u64 {
+pub fn open_object(name: &str) -> u64 {
     let ptr = name.as_ptr();
     let size = name.len();
 
@@ -125,7 +125,7 @@ fn open_object(name: &str) -> u64 {
     object_handle
 }
 
-fn close_object(handle: u64) {
+pub fn close_object(handle: u64) {
     unsafe {
         asm!("mov x0, {}", in(reg) handle);
 

@@ -19,5 +19,6 @@ pub mod semaphore;
 pub mod start;
 pub mod thread;
 pub mod timer;
+pub mod kernel_object;
 
 mod exception;

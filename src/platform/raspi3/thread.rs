@@ -15,6 +15,10 @@ use alloc::boxed::Box;
 use crate::aarch64::interrupt::IRQLock;
 use crate::platform::platform_devices::PLATFORM;
 use crate::platform::raspi3::exception::InterruptFrame;
+use super::kernel_object::{
+    ObjectHandle,
+    KernelObject
+};
 
 #[derive(Copy, Clone, Debug)]
 pub enum ThreadStatus {
@@ -36,6 +40,7 @@ pub struct Thread<'a> {
     pub name: String,
     pub id: u64,
     pub children: IRQLock<Vec<Arc<Thread<'a>>>>,
+    pub objects: Vec<(ObjectHandle, Box<dyn KernelObject>)> // TODO: find a more efficient way of doing this
 }
 
 impl<'a> Thread<'a> {
@@ -47,6 +52,7 @@ impl<'a> Thread<'a> {
             name: String::from("Idle"),
             id: 0,
             children: IRQLock::new(vec![]),
+            objects: vec![]
         }
     }
 
