@@ -14,10 +14,7 @@ use crate::{
         id_allocator::IDAllocator,
         page_allocator::{self, PAGE_SIZE, PageAllocator},
     }, filesystem::{self, fat32::FAT32Filesystem}, platform::{
-        framebuffer::FrameBuffer,
-        platform_devices::{PLATFORM, get_platform},
-        raspi3::exception::InterruptFrame,
-        thread::{Scheduler, Thread, ThreadStatus},
+        framebuffer::FrameBuffer, kernel_object::FileObject, platform_devices::{PLATFORM, get_platform}, raspi3::exception::InterruptFrame, thread::{Scheduler, Thread, ThreadStatus}
     }
 };
 
@@ -87,7 +84,7 @@ impl<'a> Kernel<'a> {
             name,
             id,
             children: IRQLock::new(vec![]),
-            objects: vec![]
+            objects: IRQLock::new(vec![])
         });
 
         self.scheduler.set_current_thread_return(id);
@@ -146,11 +143,18 @@ impl<'a> Kernel<'a> {
         self.scheduler.join_current_thread(thread_id);
     }
 
-    pub fn open_object(&self, name: &str) {
-        crate::println!("Opening: {}", name);
-
+    pub fn open_object(&mut self, name: &str) {
         let entry = self.filesystem.lock().search_item(name);
 
-        crate::println!("{:#?}", entry);
+        if let Some(entry) = entry {
+            let id = self.object_id_allocator.allocate_id();
+
+            let object = Box::new(FileObject::from_entry(entry));
+            self.scheduler.add_object_to_current_thread(object, id);
+
+            self.scheduler.set_current_thread_return(id);
+        } else {
+            self.scheduler.set_current_thread_return(0);
+        }
     }
 }

@@ -40,7 +40,7 @@ pub struct Thread<'a> {
     pub name: String,
     pub id: u64,
     pub children: IRQLock<Vec<Arc<Thread<'a>>>>,
-    pub objects: Vec<(ObjectHandle, Box<dyn KernelObject>)> // TODO: find a more efficient way of doing this
+    pub objects: IRQLock<Vec<(ObjectHandle, Box<dyn KernelObject>)>> // TODO: find a more efficient way of doing this
 }
 
 impl<'a> Thread<'a> {
@@ -52,7 +52,7 @@ impl<'a> Thread<'a> {
             name: String::from("Idle"),
             id: 0,
             children: IRQLock::new(vec![]),
-            objects: vec![]
+            objects: IRQLock::new(vec![])
         }
     }
 
@@ -370,5 +370,9 @@ impl<'a> Scheduler<'a> {
         self.thread_queue.push_back(yielding_thread);
 
         self.current_thread = self.thread_queue.pop_front().expect("No threads on queue");
+    }
+
+    pub fn add_object_to_current_thread(&self, object: Box<dyn KernelObject>, id: ObjectHandle) {
+        self.current_thread.objects.lock().push((id, object));
     }
 }
