@@ -3,7 +3,7 @@ use alloc::rc::Rc;
 use alloc::sync::Arc;
 use alloc::vec;
 use core::{
-    cell::{Ref, RefCell}, str, time::Duration
+    cell::{Ref, RefCell}, slice, str, time::Duration
 };
 
 use crate::{
@@ -20,6 +20,10 @@ use crate::{
 
 use alloc::boxed::Box;
 use alloc::string::String;
+
+use super::kernel_object::{
+    ObjectHandle
+};
 
 pub const TICK: u32 = 1_000;
 
@@ -102,6 +106,9 @@ impl<'a> Kernel<'a> {
                 str::from_raw_parts(args[0] as *const u8, args[1])
             }),
             Syscall::Close => self.scheduler.remove_object_from_current_thread(args[0] as u64),
+            Syscall::Read => self.read_object(args[0] as u64, unsafe {
+                slice::from_raw_parts_mut(args[1] as *mut u8, args[2])
+            }),
             _ => panic!("Unsupported Syscall")
         }
     }
@@ -157,5 +164,10 @@ impl<'a> Kernel<'a> {
         } else {
             self.scheduler.set_current_thread_return(0);
         }
+    }
+
+    pub fn read_object(&mut self, handle: ObjectHandle, buffer: &mut [u8]) {
+        crate::println!("Reading");
+        self.scheduler.read(handle, buffer);
     }
 }

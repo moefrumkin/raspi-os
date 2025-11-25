@@ -132,3 +132,28 @@ pub fn close_object(handle: u64) {
         asm!("svc {}", const Syscall::Close as usize);
     }
 }
+
+pub fn read_object(handle: u64, buffer: &mut [char]) -> usize {
+    unsafe {
+        asm!(
+            "mov x0, {}
+            mov x1, {}
+            mov x2, {}",
+            in(reg) handle,
+            in(reg) buffer.as_ptr() as usize,
+            in(reg) buffer.len()
+        );
+    }
+
+    unsafe {
+        asm!("svc {}", const Syscall::Read as usize);
+    }
+
+    let bytes_read;
+
+    unsafe {
+        asm!("mov {}, x0", out(reg) bytes_read);
+    }
+
+    bytes_read
+}

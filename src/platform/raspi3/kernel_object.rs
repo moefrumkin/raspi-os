@@ -5,7 +5,9 @@ use crate::filesystem::fat32::FAT32DirectoryEntry;
 pub type ObjectHandle = u64;
 
 pub trait KernelObject: Debug {
-
+    fn read(&self, _: &mut [u8]) -> usize {
+        0
+    }
 }
 
 #[derive(Debug)]
@@ -22,5 +24,9 @@ impl FileObject {
 }
 
 impl KernelObject for FileObject {
+    fn read(&self, buffer: &mut [u8]) -> usize {
+        crate::println!("Reading: {:#p}", buffer);
 
+        0
+    }
 }

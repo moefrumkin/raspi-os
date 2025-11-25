@@ -62,8 +62,6 @@ impl<'a> FrameBuffer<'a> {
             virtual_offset: Offset::none()
         };
 
-        crate::println!("Buffer: {:#x}", start_addr);
-
         Self {
             config: actual_config,
             buffer

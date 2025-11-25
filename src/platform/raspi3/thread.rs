@@ -384,4 +384,23 @@ impl<'a> Scheduler<'a> {
             *id != handle
         );
     }
+
+    pub fn read(&mut self, handle: ObjectHandle, buffer: &mut [u8]) {
+        let mut return_value = 0;
+
+        {
+            let objects = self.current_thread.objects.lock();
+
+            for i in 0..objects.len() {
+                let (id, o) = &objects[i];
+
+                if *id == handle {
+                    return_value = o.read(buffer);
+                    break;
+                }
+            }
+        }
+
+        self.set_current_thread_return(return_value as u64);
+    }
 }
