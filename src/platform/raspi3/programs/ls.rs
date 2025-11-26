@@ -5,7 +5,7 @@ use crate::print;
 pub extern "C" fn ls(_: usize) {
     println!("Opening object");
 
-    let fixup_handle = cpu::open_object("/LOST.TXT");
+    let fixup_handle = cpu::open_object("USERS./MOE./HI.TXT");
 
     println!("Opened with handle: {}", fixup_handle);
 

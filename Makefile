@@ -84,3 +84,17 @@ doc-noopen:
 
 test:
 	cargo test --features=$(PLATFORM) -- --nocapture
+
+CC = clang
+
+CFLAGS = -target aarch64-none-elf -nostdlib
+
+
+user_programs_src:=$(programs/*.c)
+user_programs_elf=$(pathsubst %.c, %.elf, $(programs/*.c))
+
+programs_clean:
+	rm programs/*.elf
+
+programs/*.elf:
+	$(CC) $(CFLAGS) $@
