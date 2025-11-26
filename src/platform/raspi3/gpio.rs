@@ -36,6 +36,7 @@ const GPPUDCLK_SIZE: u32 = 32;
 const GPPUDCLK_BASE_OFFSET: u32 = GPIO_BASE_OFFSET + 0x98;
 
 #[repr(C)]
+#[derive(Debug)]
 pub struct GPIORegisters {
     function_select_banks: [Volatile<FunctionSelectBlock>; 6],
     res0: u32,

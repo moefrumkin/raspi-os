@@ -1,3 +1,5 @@
+use core::fmt::Debug;
+
 #[repr(transparent)]
 #[derive(Copy, Clone)]
 pub struct Sector {
@@ -6,7 +8,7 @@ pub struct Sector {
 
 pub type SectorAddress = u32;
 
-pub trait SectorDevice<'a> {
+pub trait SectorDevice<'a>: Debug {
     fn read_sector(&'a self, address: SectorAddress) -> Sector;
 }
 

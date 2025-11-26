@@ -13,6 +13,7 @@ pub trait MailboxController {
 }
 
 #[repr(C)]
+#[derive(Debug)]
 pub struct MailboxRegisters {
     read: Volatile<u32>,
     res0: [u32; 5],

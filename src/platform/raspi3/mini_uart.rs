@@ -10,6 +10,7 @@ use core::{
 use alloc::rc::Rc;
 
 #[repr(C)]
+#[derive(Debug)]
 pub struct MiniUARTRegisters {
     interrupt: Volatile<InterruptSource>,
     enables: Volatile<InterruptEnable>,

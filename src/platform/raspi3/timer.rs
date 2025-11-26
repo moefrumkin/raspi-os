@@ -7,6 +7,7 @@ const CLO_OFFSET: usize = 4;
 const CHI_OFFSET: usize = 8;
 
 #[repr(C)]
+#[derive(Debug)]
 pub struct TimerRegisters {
     control_status: Volatile<Status>,
     // TODO: can we treat this as a single u64?

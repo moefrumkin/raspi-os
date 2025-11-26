@@ -19,7 +19,7 @@ impl BitArrayBacking for usize {
     const BIT_MASK: Self = 0b1;
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 #[repr(transparent)]
 pub struct BitArray<T> {
     array: T

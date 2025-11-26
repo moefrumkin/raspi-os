@@ -1,11 +1,11 @@
 use crate::{
-    aarch64::{interrupt::IRQLock, syscall::SyscallArgs}, allocator::page_allocator::{Page, PageAllocator, PageRef}, device::sector_device::{Sector, SectorDevice}, filesystem::fat32::FAT32Filesystem, platform::{
+    aarch64::{interrupt::IRQLock, syscall::SyscallArgs}, allocator::page_allocator::{Page, PageAllocator, PageRef}, device::sector_device::{Sector, SectorDevice}, filesystem::fat32::{FAT32DirectoryEntry, FAT32Filesystem}, platform::{
         self,
         emmc::{self, EMMCConfiguration, EMMCController, EMMCRegisters},
         gpio::{GPIOController, GPIORegisters, StatusLight},
         hardware_config::HardwareConfig,
         interrupt::{InterruptRegisters, InterruptType},
-        kernel::{Kernel, TICK},
+        kernel::{self, Kernel, TICK},
         mailbox::{MailboxBuffer, MailboxController, MailboxRegisters},
         raspi3::exception::InterruptFrame,
         thread::Thread,
@@ -32,7 +32,7 @@ use alloc::rc::Weak;
 #[macro_export]
 macro_rules! print {
     ($($arg:tt)*) => {
-        PLATFORM.get_console().writef(format_args!($($arg)*))
+        crate::platform::raspi3::platform_devices::PLATFORM.get_console().writef(format_args!($($arg)*))
     };
 }
 
@@ -139,7 +139,7 @@ impl<'a> Platform<'a> {
         }
     }
 
-    pub fn handle_syscall(&self, syscall_number: usize, args: SyscallArgs) {
+    pub fn handle_syscall(& self, syscall_number: usize, args: SyscallArgs) {
         if let Some(ref mut kernel) = *self.kernel.lock() {
             kernel.handle_syscall(syscall_number, args);
             kernel.return_from_exception();
@@ -155,8 +155,17 @@ impl<'a> Platform<'a> {
             kernel.save_current_frame(frame);
         }
     }
+
+    pub fn read(&self, entry: FAT32DirectoryEntry, buffer: &mut [u8]) -> usize {
+        if let Some(ref mut kernel) = *self.kernel.lock() {
+            kernel.read(entry, buffer)
+        } else {
+            0
+        }
+    }
 }
 
+#[derive(Debug)]
 pub struct Devices<'a> {
     gpio: RefCell<&'a mut GPIORegisters>,
     timer: IRQLock<&'a mut TimerRegisters>,

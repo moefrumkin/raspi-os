@@ -1,6 +1,7 @@
 use core::fmt::Debug;
+use alloc::sync::Arc;
 
-use crate::filesystem::fat32::FAT32DirectoryEntry;
+use crate::{aarch64::interrupt::IRQLock, filesystem::fat32::{FAT32DirectoryEntry, FAT32Filesystem}, platform::platform_devices::{PLATFORM, get_platform}};
 
 pub type ObjectHandle = u64;
 
@@ -12,21 +13,20 @@ pub trait KernelObject: Debug {
 
 #[derive(Debug)]
 pub struct FileObject {
-    fat_entry: FAT32DirectoryEntry
+    fat_entry: FAT32DirectoryEntry,
 }
 
 impl FileObject {
-    pub fn from_entry(fat_entry: FAT32DirectoryEntry) -> Self {
+    pub fn from_entry(fat_entry: FAT32DirectoryEntry,
+    ) -> Self {
         Self {
-            fat_entry
+            fat_entry,
         }
     }
 }
 
 impl KernelObject for FileObject {
     fn read(&self, buffer: &mut [u8]) -> usize {
-        crate::println!("Reading: {:#p}", buffer);
-
-        0
+        get_platform().read(self.fat_entry, buffer)
     }
 }

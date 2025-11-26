@@ -1,8 +1,10 @@
-use crate::{bitfield, device::sector_device::{Sector, SectorAddress, SectorDevice}, utils::fat_name::fat_name_from_chars};
-use core::{cell::RefCell, fmt::{self, Display, Formatter}};
+use crate::{aarch64::interrupt::IRQLock, bitfield, device::sector_device::{Sector, SectorAddress, SectorDevice}, utils::fat_name::fat_name_from_chars};
+use core::{cell::RefCell, cmp::min, fmt::{self, Display, Formatter}};
 use alloc::vec::Vec;
 use alloc::rc::Rc;
+use alloc::sync::Arc;
 
+#[derive(Debug)]
 pub struct FAT32Filesystem<'a> {
     sector_device: &'a dyn SectorDevice<'a>,
 
@@ -50,6 +52,7 @@ pub struct FAT32BootSector {
     signature_word: [u8; 2],
 }
 
+#[derive(Debug)]
 pub struct FAT32Config {
     pub bytes_per_sector: u16,
     pub sectors_per_cluster: u8,
@@ -201,7 +204,7 @@ impl<'a> FAT32Filesystem<'a> {
             let mut found = false;
 
             for entry in &self
-                .read_directory(current_entry.first_sector())
+                .read_directory(current_entry.first_cluster())
                 .entries
             {
                 // TODO: get name more efficiently
@@ -249,11 +252,70 @@ impl<'a> FAT32Filesystem<'a> {
     fn get_fat_entry(&self, cluster_number: u32) -> FAT32TableEntry {
         let fat_offset = cluster_number * 4; // FAT32 specific
         let fat_sector_number = self.fat_start + (fat_offset / self.config.bytes_per_sector as u32);
-        let fat_sector_offset = cluster_number % self.config.bytes_per_sector as u32;
+
+        // TODO: is this correct?
+        let fat_sector_offset = (cluster_number / 4) % self.config.bytes_per_sector as u32;
 
         let fat_sector = FAT32FATSector::from(self.sector_device.read_sector(fat_sector_number));
 
         fat_sector.get_fat32_entry(fat_sector_offset)
+    }
+
+    pub fn read_file(&self, file: FAT32DirectoryEntry, buffer: &mut [u8]) ->  usize {
+        crate::println!("Reading: {:?}", file);
+        if file.attributes.get_directory() == 1 {
+            0
+        } else {
+            let mut read_so_far = 0;
+            let file_size = file.file_size;
+
+            let to_read = min(file_size as usize, buffer.len());
+
+            let mut current_cluster = file.first_cluster();
+            crate::println!("Starting at cluster: {}, ({:?})", current_cluster, self.get_fat_entry(current_cluster));
+
+            while read_so_far < to_read {
+                let part_to_read = min(
+                    Sector::SECTOR_SIZE * self.config.sectors_per_cluster as usize,
+                     to_read - read_so_far);
+                
+                self.read_cluster(current_cluster, &mut buffer[read_so_far..(read_so_far + part_to_read)]);
+
+                read_so_far += part_to_read;
+
+                let current_fat_entry = self.get_fat_entry(current_cluster);
+
+                if let FAT32TableEntry::Allocated(next) = current_fat_entry {
+                    current_cluster = next;
+                } else {
+                    return read_so_far;
+                }
+            }
+
+            read_so_far
+        }
+    }
+
+    fn read_cluster(&self, cluster: u32, buffer: &mut [u8]) {
+        let mut read_so_far = 0;
+        let to_read = buffer.len();
+
+        let mut sector_number = self.cluster_number_to_sector_number(cluster);
+        let mut iteration = 0;
+
+        while read_so_far < to_read {
+            let amount_to_read = min(Sector::SECTOR_SIZE, to_read - read_so_far);
+            let sector = self.sector_device.read_sector(sector_number);
+
+            for i in 0 .. amount_to_read {
+                buffer[(iteration as usize * Sector::SECTOR_SIZE as usize + i as usize) as usize] = sector.values[i];
+            }
+
+            read_so_far += amount_to_read;
+
+            iteration += 1;
+            sector_number += 1;
+        }
     }
 }
 
@@ -513,7 +575,7 @@ impl FAT32DirectoryEntry {
         self.attributes.get_volume_id() == 1
     }
 
-    pub fn first_sector(&self) -> u32 {
+    pub fn first_cluster(&self) -> u32 {
         self.first_cluster_low_word as u32 | ((self.first_cluster_high_word as u32) << 16)
     }
 }
@@ -535,7 +597,7 @@ impl Display for FAT32DirectoryEntry {
 
         write!(f, " {} sectors", size)?;
 
-        write!(f, " starting at cluster {}", self.first_sector())?;
+        write!(f, " starting at cluster {}", self.first_cluster())?;
 
         Ok(())
     }

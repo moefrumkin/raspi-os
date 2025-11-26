@@ -11,6 +11,7 @@ pub enum InterruptType {
 }
 
 #[repr(C)]
+#[derive(Debug)]
 pub struct InterruptRegisters {
     irq_basic_pending: Volatile<IRQSource>,
     irq_pending_1: Volatile<InterruptBlock1>,

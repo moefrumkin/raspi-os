@@ -459,6 +459,7 @@ impl<'a> EMMCController<'a> {
 }
 
 #[repr(C)]
+#[derive(Debug)]
 pub struct EMMCRegisters {
     pub arg2: Volatile<u32>,
     pub block_size_and_count: Volatile<BlockSizeAndCount>,

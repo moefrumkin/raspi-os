@@ -13,7 +13,7 @@ use crate::{
     }, allocator::{
         id_allocator::IDAllocator,
         page_allocator::{self, PAGE_SIZE, PageAllocator},
-    }, filesystem::{self, fat32::FAT32Filesystem}, platform::{
+    }, filesystem::{self, fat32::{FAT32DirectoryEntry, FAT32Filesystem}}, platform::{
         framebuffer::FrameBuffer, kernel_object::FileObject, platform_devices::{PLATFORM, get_platform}, raspi3::exception::InterruptFrame, thread::{Scheduler, Thread, ThreadStatus}
     }
 };
@@ -32,7 +32,7 @@ pub struct Kernel<'a> {
     pub page_allocator: RefCell<PageAllocator<'a>>,
     pub thread_id_allocator: IDAllocator,
     pub object_id_allocator: IDAllocator,
-    filesystem: IRQLock<FAT32Filesystem<'a>> // TODO: should this be here or on the platform?
+    filesystem: Arc<IRQLock<FAT32Filesystem<'a>>> // TODO: should this be here or on the platform?
 }
 
 impl<'a> Kernel<'a> {
@@ -44,7 +44,7 @@ impl<'a> Kernel<'a> {
             page_allocator,
             thread_id_allocator: IDAllocator::new(),
             object_id_allocator: IDAllocator::new(),
-            filesystem
+            filesystem: Arc::new(filesystem)
         }
     }
 
@@ -157,8 +157,7 @@ impl<'a> Kernel<'a> {
         if let Some(entry) = entry {
             let id = self.object_id_allocator.allocate_id();
 
-            let object = Box::new(FileObject::from_entry(entry));
-            self.scheduler.add_object_to_current_thread(object, id);
+            self.scheduler.add_object_to_current_thread(Box::new(FileObject::from_entry(entry)), id);
 
             self.scheduler.set_current_thread_return(id);
         } else {
@@ -169,5 +168,9 @@ impl<'a> Kernel<'a> {
     pub fn read_object(&mut self, handle: ObjectHandle, buffer: &mut [u8]) {
         crate::println!("Reading");
         self.scheduler.read(handle, buffer);
+    }
+
+    pub fn read(&self, entry: FAT32DirectoryEntry, buffer: &mut [u8]) -> usize {
+        self.filesystem.lock().read_file(entry, buffer)
     }
 }

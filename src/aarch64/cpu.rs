@@ -133,7 +133,7 @@ pub fn close_object(handle: u64) {
     }
 }
 
-pub fn read_object(handle: u64, buffer: &mut [char]) -> usize {
+pub fn read_object(handle: u64, buffer: &mut [u8]) -> usize {
     unsafe {
         asm!(
             "mov x0, {}
