@@ -26,3 +26,5 @@ gdb.txt
 
 traces
 traces/*
+
+programs/*.elf
