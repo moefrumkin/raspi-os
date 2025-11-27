@@ -31,7 +31,7 @@ pub struct ELFIdentification {
     padding: [u8; 7]
 }
 
-#[repr(u64)]
+#[repr(u16)]
 #[derive(Debug)]
 enum ObjectFileType {
     None = 0x0,
@@ -64,23 +64,23 @@ impl TryFrom<&[u8]> for ELF64Header {
 
         let elf_identification: ELFIdentification = buffer[0..16].try_into()?;
 
-        let object_file_type: ObjectFileType = u64::from_le_bytes(buffer[16..24].try_into().expect("Uhh")).try_into()?;
+        let object_file_type: ObjectFileType = u16::from_le_bytes(buffer[16..18].try_into().expect("Uhh")).try_into()?;
 
         Ok(Self {
             elf_identification,
             object_file_type,
-            e_machine: u16::from_le_bytes(buffer[24..26].try_into().unwrap()),
-            e_version: u32::from_le_bytes(buffer[26..30].try_into().unwrap()),
-            program_entry_address: u64::from_le_bytes(buffer[30..38].try_into().unwrap()),
-            program_header_offset: u64::from_le_bytes(buffer[38..46].try_into().unwrap()),
-            section_header_offset: u64::from_le_bytes(buffer[46..54].try_into().unwrap()),
-            e_flags: u32::from_le_bytes(buffer[54..58].try_into().unwrap()),
-            elf_header_size: u16::from_le_bytes(buffer[58..60].try_into().unwrap()),
-            program_header_entry_size: u16::from_le_bytes(buffer[60..62].try_into().unwrap()),
-            program_header_number: u16::from_le_bytes(buffer[62..64].try_into().unwrap()),
-            section_header_entry_size: u16::from_le_bytes(buffer[64..68].try_into().unwrap()),
-            section_header_entry_num: u16::from_le_bytes(buffer[68..70].try_into().unwrap()),
-            string_table_entry_number: u16::from_le_bytes(buffer[70..72].try_into().unwrap()),
+            e_machine: u16::from_le_bytes(buffer[18..20].try_into().unwrap()),
+            e_version: u32::from_le_bytes(buffer[20..24].try_into().unwrap()),
+            program_entry_address: u64::from_le_bytes(buffer[24..32].try_into().unwrap()),
+            program_header_offset: u64::from_le_bytes(buffer[32..40].try_into().unwrap()),
+            section_header_offset: u64::from_le_bytes(buffer[40..48].try_into().unwrap()),
+            e_flags: u32::from_le_bytes(buffer[48..52].try_into().unwrap()),
+            elf_header_size: u16::from_le_bytes(buffer[52..54].try_into().unwrap()),
+            program_header_entry_size: u16::from_le_bytes(buffer[54..56].try_into().unwrap()),
+            program_header_number: u16::from_le_bytes(buffer[56..58].try_into().unwrap()),
+            section_header_entry_size: u16::from_le_bytes(buffer[58..60].try_into().unwrap()),
+            section_header_entry_num: u16::from_le_bytes(buffer[60..62].try_into().unwrap()),
+            string_table_entry_number: u16::from_le_bytes(buffer[62..64].try_into().unwrap()),
         })
     }
 }
@@ -111,10 +111,10 @@ impl TryFrom<&[u8]> for ELFIdentification {
     }
 }
 
-impl TryFrom<u64> for ObjectFileType {
+impl TryFrom<u16> for ObjectFileType {
  type Error = &'static str;
 
- fn try_from(value: u64) -> Result<Self, Self::Error> {
+ fn try_from(value: u16) -> Result<Self, Self::Error> {
     match value {
         0x0 => Ok(ObjectFileType::None),
         0x1 => Ok(ObjectFileType::RelocatableFile),

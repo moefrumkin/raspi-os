@@ -1,11 +1,12 @@
 use crate::aarch64::cpu;
+use crate::elf::ELF64Header;
 use crate::println;
 use crate::print;
 
 pub extern "C" fn ls(_: usize) {
     println!("Opening object");
 
-    let fixup_handle = cpu::open_object("USERS./MOE./HI.TXT");
+    let fixup_handle = cpu::open_object("BIN./EXIT.ELF");
 
     println!("Opened with handle: {}", fixup_handle);
 
@@ -14,12 +15,11 @@ pub extern "C" fn ls(_: usize) {
     println!("Reading from file");
     let bytes_read = cpu::read_object(fixup_handle, &mut buffer);
 
-    for i in 0..512 {
-        print!("{}", buffer[i] as char);
-    }
-    print!("\n");
-
+    let header = ELF64Header::try_from(&buffer[0..bytes_read]).expect("Error parsing elf");
+    
     println!("{} bytes read", bytes_read);
+
+    println!("{:?}", header);
 
     cpu::close_object(fixup_handle);
 
