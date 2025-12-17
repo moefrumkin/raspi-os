@@ -1,6 +1,7 @@
 use super::kernel::Kernel;
 use super::kernel::TICK;
 use super::programs::{counter, ls};
+use crate::aarch64::interrupt::IRQLock;
 use crate::aarch64::{cpu, interrupt, mmu, syscall::Syscall};
 use crate::allocator::page_allocator::PageAllocator;
 use crate::canvas::{canvas2d::Canvas2D, line::Line, matrix::Matrix, vector::Vector};
@@ -15,7 +16,6 @@ use alloc::vec::Vec;
 use core::arch::global_asm;
 use core::cell::RefCell;
 use core::time::Duration;
-use crate::aarch64::interrupt::IRQLock;
 
 use crate::device::timer::Timer;
 
@@ -134,7 +134,8 @@ pub extern "C" fn main(heap_start: usize, heap_size: usize, table_start: usize) 
         page_allocator = RefCell::new(PageAllocator::with_start_and_length(page_start, page_size));
     }
 
-    let kernel = Kernel::with_page_allocator_and_filesystem(page_allocator, IRQLock::new(filesystem));
+    let kernel =
+        Kernel::with_page_allocator_and_filesystem(page_allocator, IRQLock::new(filesystem));
 
     PLATFORM.register_kernel(kernel);
 
@@ -152,9 +153,9 @@ pub extern "C" fn main(heap_start: usize, heap_size: usize, table_start: usize) 
 
     cpu::create_thread(graphics_thread, String::from("Graphics"), 0);
 
-    cpu::create_thread(long_count, String::from("Long Count"), 0);
+    //cpu::create_thread(long_count, String::from("Long Count"), 0);
 
-    cpu::create_thread(counter::run_count, String::from("Counters"), 20);
+    //cpu::create_thread(counter::run_count, String::from("Counters"), 20);
 
     cpu::create_thread(ls::ls, String::from("ls"), 0);
 
