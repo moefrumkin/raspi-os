@@ -26,7 +26,7 @@ pub extern "C" fn readelf(_: usize) {
 
     let pheader_start = header.program_header_offset;
 
-    println!("Pheader has offset: {}", pheader_start);
+    println!("{:?}", header);
 
     for i in 0..header.program_header_number {
         let pheader_offset = pheader_start + ((header.program_header_entry_size * i) as u64);
@@ -41,8 +41,6 @@ pub extern "C" fn readelf(_: usize) {
 
         pheaders.push(phdr);
     }
-
-    println!("{:?}", header);
 
     cpu::close_object(fixup_handle);
 
