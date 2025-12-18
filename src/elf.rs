@@ -3,20 +3,20 @@ use crate::elf;
 #[repr(C)]
 #[derive(Debug)]
 pub struct ELF64Header {
-    elf_identification: ELFIdentification, 
+    elf_identification: ELFIdentification,
     object_file_type: ObjectFileType,
     e_machine: u16,
     e_version: u32,
     program_entry_address: u64, // Address to first transfer execution to
-    program_header_offset: u64,
+    pub program_header_offset: u64,
     section_header_offset: u64,
     e_flags: u32,
-    elf_header_size: u16,
-    program_header_entry_size: u16,
-    program_header_number: u16,
+    pub elf_header_size: u16,
+    pub program_header_entry_size: u16,
+    pub program_header_number: u16,
     section_header_entry_size: u16,
     section_header_entry_num: u16,
-    string_table_entry_number: u16
+    string_table_entry_number: u16,
 }
 
 #[repr(C)]
@@ -28,7 +28,7 @@ pub struct ELFIdentification {
     file_version: u8,
     abi_identification: u8,
     abi_version: u8,
-    padding: [u8; 7]
+    padding: [u8; 7],
 }
 
 #[repr(u16)]
@@ -46,7 +46,7 @@ enum ObjectFileType {
 pub enum ELFFileClass {
     Invalid = 0x0,
     Class32 = 0x1,
-    Class64 = 0x2
+    Class64 = 0x2,
 }
 
 impl ELFIdentification {
@@ -64,7 +64,8 @@ impl TryFrom<&[u8]> for ELF64Header {
 
         let elf_identification: ELFIdentification = buffer[0..16].try_into()?;
 
-        let object_file_type: ObjectFileType = u16::from_le_bytes(buffer[16..18].try_into().expect("Uhh")).try_into()?;
+        let object_file_type: ObjectFileType =
+            u16::from_le_bytes(buffer[16..18].try_into().expect("Uhh")).try_into()?;
 
         Ok(Self {
             elf_identification,
@@ -91,7 +92,7 @@ impl TryFrom<&[u8]> for ELFIdentification {
     fn try_from(buffer: &[u8]) -> Result<Self, Self::Error> {
         if buffer.len() < core::mem::size_of::<ELFIdentification>() {
             return Err("File not larger enough to contain identification");
-        } 
+        }
 
         if buffer[0..4] != Self::MAGIC_NUMBER {
             return Err("Magic number not found");
@@ -112,18 +113,18 @@ impl TryFrom<&[u8]> for ELFIdentification {
 }
 
 impl TryFrom<u16> for ObjectFileType {
- type Error = &'static str;
+    type Error = &'static str;
 
- fn try_from(value: u16) -> Result<Self, Self::Error> {
-    match value {
-        0x0 => Ok(ObjectFileType::None),
-        0x1 => Ok(ObjectFileType::RelocatableFile),
-        0x2 => Ok(ObjectFileType::ExecutableFile),
-        0x3 => Ok(ObjectFileType::SharedObjectFile),
-        0x4 => Ok(ObjectFileType::CoreFile),
-        _ => Err("Invalid object file type")
+    fn try_from(value: u16) -> Result<Self, Self::Error> {
+        match value {
+            0x0 => Ok(ObjectFileType::None),
+            0x1 => Ok(ObjectFileType::RelocatableFile),
+            0x2 => Ok(ObjectFileType::ExecutableFile),
+            0x3 => Ok(ObjectFileType::SharedObjectFile),
+            0x4 => Ok(ObjectFileType::CoreFile),
+            _ => Err("Invalid object file type"),
+        }
     }
- }
 }
 
 impl TryFrom<u8> for ELFFileClass {
@@ -134,7 +135,33 @@ impl TryFrom<u8> for ELFFileClass {
             0x0 => Ok(ELFFileClass::Invalid),
             0x1 => Ok(ELFFileClass::Class32),
             0x2 => Ok(ELFFileClass::Class64),
-            _ => Err("Invalid elf file class")
+            _ => Err("Invalid elf file class"),
         }
     }
+}
+
+#[repr(C)]
+#[derive(Debug, Clone, Copy)]
+pub struct ProgramHeader {
+    program_type: ProgramType,
+    flags: u32,
+    offset: u64,
+    virtual_address: u64,
+    physical_address: u64,
+    file_size: u64,
+    memory_size: u64,
+    alignment: u64,
+}
+
+#[repr(u32)]
+#[derive(Debug, Clone, Copy)]
+pub enum ProgramType {
+    Ignored = 0x0,
+    Loadable = 0x1,
+    Dynamic = 0x2,
+    Interpreter = 0x3,
+    Note = 0x4,
+    Shlib = 0x5,
+    PHeader = 0x6,
+    ThreadLocalStorage = 0x7,
 }
