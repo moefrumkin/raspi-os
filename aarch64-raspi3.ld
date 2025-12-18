@@ -2,6 +2,7 @@ ENTRY(_start)
 SECTIONS
 {
     . = 0x80000;
+    # VM_START = 0xffff000000000000;
     .text : { KEEP( *(.text.boot)) *(.text .text.* .gnu.linkonce.t*) }
     .rodata : { *(.rodata .rodata.* .gnu.linkonce.r*) }
     PROVIDE(_data = .);
