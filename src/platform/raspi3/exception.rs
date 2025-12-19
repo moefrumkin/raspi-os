@@ -57,6 +57,11 @@ pub extern "C" fn handle_exception(
             exception_type, exception_source
         );
 
+        if let Some(ref thread) = PLATFORM.get_current_thread() {
+            println!("From thread: {}", thread.name);
+            println!("With sp: {:#p}", *thread.stack_pointer.lock());
+        }
+
         let esr = ExceptionSyndromeRegister::read_to_buffer().value();
         let far = FaultAddressRegister::read_to_buffer().value();
         let elr = ExceptionLinkRegister::read_to_buffer().value();

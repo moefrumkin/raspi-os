@@ -12,6 +12,7 @@ pub struct PageAllocator<'a> {
     pages: &'a mut [Page],
 }
 
+#[derive(Debug)]
 pub struct PageRef {
     pub page: *mut Page,
     pub page_number: usize,
@@ -21,7 +22,8 @@ impl<'a> PageAllocator<'a> {
     pub fn allocate_page(&mut self) -> Option<PageRef> {
         for i in 0..self.free_list.len() {
             // TODO: check edge cases to make sure we don't go over the number of pages allocated
-            for j in 0..64 {
+            for j in 0..16 {
+                let j = 4 * j;
                 let is_allocated = self.free_list[i].get_bit(j);
 
                 if is_allocated == 0 {

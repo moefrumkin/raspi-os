@@ -3,27 +3,37 @@ use alloc::rc::Rc;
 use alloc::sync::Arc;
 use alloc::vec;
 use core::{
-    cell::{Ref, RefCell}, slice, str, time::Duration
+    cell::{Ref, RefCell},
+    slice, str,
+    time::Duration,
 };
 
 use crate::{
     aarch64::{
         interrupt::IRQLock,
         syscall::{Syscall, SyscallArgs},
-    }, allocator::{
+    },
+    allocator::{
         id_allocator::IDAllocator,
-        page_allocator::{self, PAGE_SIZE, PageAllocator},
-    }, filesystem::{self, fat32::{FAT32DirectoryEntry, FAT32Filesystem}}, platform::{
-        framebuffer::FrameBuffer, kernel_object::FileObject, platform_devices::{PLATFORM, get_platform}, raspi3::exception::InterruptFrame, thread::{Scheduler, Thread, ThreadStatus}
-    }
+        page_allocator::{self, PageAllocator, PAGE_SIZE},
+    },
+    filesystem::{
+        self,
+        fat32::{FAT32DirectoryEntry, FAT32Filesystem},
+    },
+    platform::{
+        framebuffer::FrameBuffer,
+        kernel_object::FileObject,
+        platform_devices::{get_platform, PLATFORM},
+        raspi3::exception::InterruptFrame,
+        thread::{Scheduler, Thread, ThreadStatus},
+    },
 };
 
 use alloc::boxed::Box;
 use alloc::string::String;
 
-use super::kernel_object::{
-    ObjectHandle
-};
+use super::kernel_object::ObjectHandle;
 
 pub const TICK: u32 = 1_000;
 
@@ -32,19 +42,20 @@ pub struct Kernel<'a> {
     pub page_allocator: RefCell<PageAllocator<'a>>,
     pub thread_id_allocator: IDAllocator,
     pub object_id_allocator: IDAllocator,
-    filesystem: Arc<IRQLock<FAT32Filesystem<'a>>> // TODO: should this be here or on the platform?
+    filesystem: Arc<IRQLock<FAT32Filesystem<'a>>>, // TODO: should this be here or on the platform?
 }
 
 impl<'a> Kernel<'a> {
-    pub fn with_page_allocator_and_filesystem(page_allocator: RefCell<PageAllocator<'a>>,
-    filesystem: IRQLock<FAT32Filesystem<'a>>
-) -> Self {
+    pub fn with_page_allocator_and_filesystem(
+        page_allocator: RefCell<PageAllocator<'a>>,
+        filesystem: IRQLock<FAT32Filesystem<'a>>,
+    ) -> Self {
         Self {
             scheduler: Scheduler::new(),
             page_allocator,
             thread_id_allocator: IDAllocator::new(),
             object_id_allocator: IDAllocator::new(),
-            filesystem: Arc::new(filesystem)
+            filesystem: Arc::new(filesystem),
         }
     }
 
@@ -88,7 +99,7 @@ impl<'a> Kernel<'a> {
             name,
             id,
             children: IRQLock::new(vec![]),
-            objects: IRQLock::new(vec![])
+            objects: IRQLock::new(vec![]),
         });
 
         self.scheduler.set_current_thread_return(id);
@@ -102,14 +113,16 @@ impl<'a> Kernel<'a> {
             Syscall::Wait => self.delay_current_thread(args[0] as u64),
             Syscall::Join => self.join_current_thread(args[0] as ThreadID),
             Syscall::Yield => self.scheduler.yield_current_thread(),
-            Syscall::Open => self.open_object(unsafe {
-                str::from_raw_parts(args[0] as *const u8, args[1])
-            }),
-            Syscall::Close => self.scheduler.remove_object_from_current_thread(args[0] as u64),
+            Syscall::Open => {
+                self.open_object(unsafe { str::from_raw_parts(args[0] as *const u8, args[1]) })
+            }
+            Syscall::Close => self
+                .scheduler
+                .remove_object_from_current_thread(args[0] as u64),
             Syscall::Read => self.read_object(args[0] as u64, unsafe {
                 slice::from_raw_parts_mut(args[1] as *mut u8, args[2])
             }),
-            _ => panic!("Unsupported Syscall")
+            _ => panic!("Unsupported Syscall"),
         }
     }
 
@@ -157,7 +170,8 @@ impl<'a> Kernel<'a> {
         if let Some(entry) = entry {
             let id = self.object_id_allocator.allocate_id();
 
-            self.scheduler.add_object_to_current_thread(Box::new(FileObject::from_entry(entry)), id);
+            self.scheduler
+                .add_object_to_current_thread(Box::new(FileObject::from_entry(entry)), id);
 
             self.scheduler.set_current_thread_return(id);
         } else {

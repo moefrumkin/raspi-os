@@ -132,6 +132,12 @@ pub extern "C" fn main(heap_start: usize, heap_size: usize, table_start: usize) 
         );
 
         page_allocator = RefCell::new(PageAllocator::with_start_and_length(page_start, page_size));
+
+        for i in 0..100 {
+            let page = page_allocator.borrow_mut().allocate_page();
+
+            println!("Page: {:?}", page);
+        }
     }
 
     let kernel =
@@ -151,13 +157,13 @@ pub extern "C" fn main(heap_start: usize, heap_size: usize, table_start: usize) 
 
     println!("Timer interrupt enabled!");
 
-    cpu::create_thread(graphics_thread, String::from("Graphics"), 0);
+    //cpu::create_thread(graphics_thread, String::from("Graphics"), 0);
 
     //cpu::create_thread(long_count, String::from("Long Count"), 0);
 
-    //cpu::create_thread(counter::run_count, String::from("Counters"), 20);
+    cpu::create_thread(counter::run_count, String::from("Counters"), 20);
 
-    cpu::create_thread(readelf::readelf, String::from("readelf"), 0);
+    //cpu::create_thread(readelf::readelf, String::from("readelf"), 0);
 
     PLATFORM.set_kernel_timeout(TICK);
 
