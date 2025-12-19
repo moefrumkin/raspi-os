@@ -41,7 +41,7 @@ use super::{
 
 unsafe extern "C" {
     unsafe static PAGE_SECTION_START: usize;
-    unsafe static PAGE_SECTION_SIZE: usize;
+    unsafe static PAGE_SECTION_SIZE: &'static usize;
 }
 
 global_asm!(include_str!("start.s"));
@@ -125,7 +125,7 @@ pub extern "C" fn main(heap_start: usize, heap_size: usize, table_start: usize) 
 
     unsafe {
         let page_start: usize = &PAGE_SECTION_START as *const usize as usize;
-        let page_size: usize = &PAGE_SECTION_SIZE as *const usize as usize;
+        let page_size: usize = 6553600;
         println!(
             "Initializing Page allocator at {:#x} with size {}",
             page_start, page_size
