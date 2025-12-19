@@ -73,7 +73,7 @@ nm:
 readelf:
 	aarch64-none-elf-readelf --header $(KERNEL_ELF)
 
-gdb: symbol_elf
+gdb: 
 	$(GDB_CMD)
 
 clean:
