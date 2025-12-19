@@ -23,6 +23,8 @@ SECTIONS
 
     KERNEL_TABLE_START = .;
 
+    . = . + 0x10000;
+
     . = ALIGN(0x1000); /*TODO: is this a reasonable aligment*/
     HEAP_START = .;
     . = . + HEAP_SIZE;
@@ -32,6 +34,7 @@ SECTIONS
     . = . + PAGE_SECTION_SIZE;
 
     MMIO_START = 0x3F000000;
+    VIRTUAL_MMIO_START = VM_START + MMIO_START;
 
     TIMER_REGISTERS = MMIO_START + 0x3000;
     INTERRUPT_REGISTERS = MMIO_START + 0xB200;

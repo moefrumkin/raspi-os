@@ -28,3 +28,7 @@ traces
 traces/*
 
 programs/*.elf
+
+*.bin
+
+dump

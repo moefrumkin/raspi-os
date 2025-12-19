@@ -130,7 +130,7 @@ _start: //spin if not main core
     bl create_user_page_tables
 
     ldr x0, =VM_START
-    //add sp, x0, 0x400000
+    add sp, sp, x0
 
     adrp x0, KERNEL_TABLE_START
     msr ttbr1_el1, x0
@@ -145,28 +145,26 @@ _start: //spin if not main core
     msr mair_el1, x0
 
 
-    ldr x3, =main
-    ldr x4, =0xffff000000000000
-    add x3, x4, x3
+    ldr     x0, =HEAP_START
+    ldr     x1, =HEAP_SIZE
+    ldr     x2, =USER_TABLE_START
 
+    ldr x5, =main
+    ldr x6, =0xffff000000000000
+    add x5, x5, x6
 
     isb
     dsb sy
 
     // Enable memory translation
-    mrs x0, sctlr_el1
-    orr x0, x0, #1
+    mrs x4, sctlr_el1
+    orr x4, x4, #1
     //orr x0, x0, #(1 << 25) Do we need to deal with endianness?
-    msr sctlr_el1, x0
+    msr sctlr_el1, x4
 
     isb
 
-    ldr     x0, =HEAP_START
-    ldr     x1, =HEAP_SIZE
-    ldr     x2, =USER_TABLE_START
-
-
-    b       main
+    br       x5
 
 
 // Map a virtual address
@@ -220,7 +218,7 @@ create_page_tables:
 
     // Map device memory
     ldr x1, =MMIO_START
-    ldr x2, =VM_START
+    ldr x2, =VIRTUAL_MMIO_START
     ldr x3, =(0xffff000000000000 + 0x40000000 - 0x20000)
     map_blocks x0, x1, x2, x3, (0x1 | (0x00 << 2) | (0x1 << 10)), x4
 
@@ -239,6 +237,6 @@ create_user_page_tables:
     ldr x1, = MMIO_START
     ldr x2, = MMIO_START
     ldr x3, =(0x40000000 - 0x20000)
-    map_blocks x0, x1, x2, x3 (0x1 | (0x00 << 2) | (0x1 << 10)), x4
+    map_blocks x0, x1, x2, x3, (0x1 | (0x00 << 2) | (0x1 << 10)), x4
 
     ret
