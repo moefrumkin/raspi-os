@@ -6,7 +6,7 @@ use crate::{
         cpu,
         registers::{ExceptionLinkRegister, ExceptionSyndromeRegister, FaultAddressRegister},
     },
-    bitfield,
+    bitfield, elf,
     platform::platform_devices::{get_platform, PLATFORM},
     println,
 };
@@ -56,6 +56,14 @@ pub extern "C" fn handle_exception(
             "Received Exception Type {:?} from {:?}",
             exception_type, exception_source
         );
+
+        let esr = ExceptionSyndromeRegister::read_to_buffer().value();
+        let far = FaultAddressRegister::read_to_buffer().value();
+        let elr = ExceptionLinkRegister::read_to_buffer().value();
+
+        println!("elr: {:#x}", elr);
+        println!("esr: {:#x}", esr);
+        println!("far: {:#x}", far);
 
         println!("{:?}", frame);
 

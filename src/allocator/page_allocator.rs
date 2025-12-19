@@ -2,7 +2,7 @@ use core::slice;
 
 use crate::{allocator::align, utils::bit_array::BitArray};
 
-pub const PAGE_SIZE: usize = 65536;
+pub const PAGE_SIZE: usize = 4096;
 
 pub type Page = [u8; PAGE_SIZE];
 
@@ -49,7 +49,7 @@ impl<'a> PageAllocator<'a> {
         let number_of_blocks = bytes / (PAGE_SIZE + 1);
         let bytes_in_free_list = number_of_blocks / 8;
 
-        let page_start = align(start + bytes_in_free_list, 0x10_000);
+        let page_start = align(start + bytes_in_free_list, 0x1000);
 
         let number_of_pages = ((start + bytes) - page_start) / PAGE_SIZE;
 

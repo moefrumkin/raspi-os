@@ -114,13 +114,7 @@ _start: //spin if not main core
 5:  ldr     x0, =_start
     mov     sp, x0
 
-    // clear bss
-    ldr     x1, =bss_start
-    ldr     w2, =bss_size
-3:  cbz     w2, 4f
-    str     xzr, [x1], #8
-    sub     w2, w2, #1
-    cbnz    w2, 3b
+
 
     // set up exception handlers and jump to Rust, should not return
 4:  ldr     x0, =_exception_vector
@@ -150,8 +144,6 @@ _start: //spin if not main core
     ldr     x2, =USER_TABLE_START
 
     ldr x5, =main
-    ldr x6, =0xffff000000000000
-    add x5, x5, x6
 
     isb
     dsb sy
@@ -164,6 +156,15 @@ _start: //spin if not main core
 
     isb
 
+    // clear bss
+    ldr     x7, =bss_start
+    ldr     w8, =bss_size
+3:  cbz     w8, 9f
+    str     xzr, [x7], #8
+    sub     w8, w8, #1
+    cbnz    w8, 3b
+
+9:
     br       x5
 
 

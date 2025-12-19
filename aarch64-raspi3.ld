@@ -2,12 +2,30 @@ ENTRY(_start)
 SECTIONS
 {
     . = 0x80000;
+
+    .text.boot : {
+        KEEP( *(.text.boot))
+    }
+
     VM_START = 0xffff000000000000;
-    .text : { KEEP( *(.text.boot)) *(.text .text.* .gnu.linkonce.t*) }
-    .rodata : { *(.rodata .rodata.* .gnu.linkonce.r*) }
+    
+    . = . + VM_START;
+
+    .text : AT(ADDR(.text) - VM_START) {
+         *(.text .text.* .gnu.linkonce.t*) 
+    }
+
+    .rodata : AT(ADDR(.rodata) - VM_START) {
+         *(.rodata .rodata.* .gnu.linkonce.r*)
+    }
+
     PROVIDE(_data = .);
-    .data : { *(.data .data.* .gnu.linkonce.d*) }
-    .bss (NOLOAD) : {
+
+    .data : AT(ADDR(.data) - VM_START) {
+        *(.data .data.* .gnu.linkonce.d*)
+    }
+
+    .bss (NOLOAD) : AT(ADDR(.bss) - VM_START) {
         . = ALIGN(16);
         bss_start = .;
         *(.bss .bss.*)
@@ -17,11 +35,11 @@ SECTIONS
 
     . = ALIGN(0x1000);
 
-    USER_TABLE_START = .;
+    USER_TABLE_START = . - VM_START;
     
     . = . + 0x10000;
 
-    KERNEL_TABLE_START = .;
+    KERNEL_TABLE_START = . - VM_START;
 
     . = . + 0x10000;
 
