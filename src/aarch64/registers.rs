@@ -77,7 +77,10 @@ registers! {
             Disabled = 0b0
         }
     },
-    TranslationTableBaseRegister("ttbr0_el1") {
+    KernelTranslationTableBaseRegister("ttbr1_el1") {
+        table_pointer: 0-47
+    },
+    UserTranslationTableBaseRegister("ttbr0_el1") {
         table_pointer: 0-47
     },
     ExceptionSyndromeRegister("esr_el1") {

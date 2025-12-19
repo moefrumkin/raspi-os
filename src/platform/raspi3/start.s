@@ -125,8 +125,118 @@ _start: //spin if not main core
     // set up exception handlers and jump to Rust, should not return
 4:  ldr     x0, =_exception_vector
     msr     VBAR_EL1, x0
+
+    bl create_page_tables
+    bl create_user_page_tables
+
+    ldr x0, =VM_START
+    //add sp, x0, 0x400000
+
+    adrp x0, KERNEL_TABLE_START
+    msr ttbr1_el1, x0
+
+    adrp x0, USER_TABLE_START
+    msr ttbr0_el1, x0
+
+    ldr x0, =((64 - 48) | ((64 - 48) << 16) | (0 << 14) | (2 << 30) | (0b101 << 32))
+    msr tcr_el1, x0
+
+    ldr x0, =(0x00 << (8 * 0x0) | (0x44 << (8 * 0x1)))
+    msr mair_el1, x0
+
+
     ldr     x0, =HEAP_START
     ldr     x1, =HEAP_SIZE
-    ldr     x2, =TABLE_START
+    ldr     x2, =USER_TABLE_START
 
+    ldr x3, =main
+    ldr x4, =0xffff000000000000
+    add x3, x4, x3
+
+
+    isb
+    dsb sy
+
+    // Enable memory translation
+    mrs x0, sctlr_el1
+    orr x0, x0, #1
+    //orr x0, x0, #(1 << 25) Do we need to deal with endianness?
+    msr sctlr_el1, x0
+
+    isb
+    
     b       main
+
+
+// Map a virtual address
+.macro create_table_entry, tbl, virt, shift, tmp1, tmp2
+    lsr \tmp1, \virt, #\shift // temp1 stores the indef in the table
+    and \tmp1, \tmp1, 511
+    add \tmp2, \tbl, #4096 // Point to the next table
+
+    orr \tmp2, \tmp2, 0x3 // Mark as a pointer to another table
+    str \tmp2, [\tbl, \tmp1, lsl #3] // Store the entry
+    add \tbl, \tbl, #4096 // Move to the next table
+.endm
+
+// Add an entry to the pgd
+.macro create_pgd_entry, pgd, virt, tmp1, tmp2
+    create_table_entry \pgd, \virt, 39, \tmp1, \tmp2
+    create_table_entry \pgd, \virt, 30, \tmp1, \tmp2
+.endm
+
+.macro map_blocks, tbl, phys, start, end, flags, tmp_reg
+    lsr \start, \start, #21 // shift by section shift
+    and \start, \start, 511 // Extract the index in the table
+    lsr \end, \end, #21
+    and \end, \end, #511
+    lsr \phys, \phys, #21
+
+    mov \tmp_reg, #\flags
+    orr \phys, \tmp_reg, \phys, lsl 21 // The entry in the table
+
+100:
+    str \phys, [\tbl, \start, lsl #3] // Store the entry
+    add \start, \start, #1 // Move to the next entry
+    add \phys, \phys, 0x200000
+    cmp \start, \end
+    b.ls 100b
+.endm
+
+create_page_tables:
+
+    adrp    x0, KERNEL_TABLE_START // x0 points to the start of the first pgd
+    ldr     x1, =VM_START // x0 is the base of the virtual memory address
+
+    create_pgd_entry x0, x1, x2, x3
+
+    // Map the kernel and the kernel stack
+    mov x1, xzr
+    ldr x2, =VM_START
+
+    ldr x3, =0xffff00003ee00000
+    map_blocks x0, x1, x2, x3, (0x1 | (0x1 << 2) | (0x1 << 10)), x4
+
+    // Map device memory
+    ldr x1, =MMIO_START
+    ldr x2, =VM_START
+    ldr x3, =(0xffff000000000000 + 0x40000000 - 0x20000)
+    map_blocks x0, x1, x2, x3, (0x1 | (0x00 << 2) | (0x1 << 10)), x4
+
+    ret
+
+create_user_page_tables:
+    adrp    x0, USER_TABLE_START
+    mov x1, xzr
+
+    create_pgd_entry x0, x1, x2, x3
+
+    mov x2, xzr
+    mov x3, 0x4000000 // Total user memory. TODO: check this value
+    map_blocks x0, x1, x2, x3, (0x1 | (0x1 << 2) | (0x1 << 10)), x4
+
+    ldr x8, =0xbd008
+    ldr x9, =0xbd803
+    str x9, [x8]
+
+    ret

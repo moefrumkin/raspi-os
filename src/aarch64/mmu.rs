@@ -1,42 +1,44 @@
-use core::arch::asm;
-use crate::bitfield;
+use super::registers::{
+    SystemControlRegister, TranslationControlRegister, UserTranslationTableBaseRegister,
+};
 use crate::aarch64::cpu;
-use super::registers::{TranslationControlRegister, SystemControlRegister, TranslationTableBaseRegister};
+use crate::bitfield;
+use core::arch::asm;
 
 pub unsafe fn init(table_start: *mut usize) {
-        let table = core::slice::from_raw_parts_mut(table_start, 512);
-        
-        let mair = 0;
+    let table = core::slice::from_raw_parts_mut(table_start, 512);
 
-        TranslationTableBaseRegister::read_to_buffer()
-            .set_table_pointer(table_start as usize)
-            .write_to_register();
+    let mair = 0;
 
-        write!("mair_el1", mair);
+    UserTranslationTableBaseRegister::read_to_buffer()
+        .set_table_pointer(table_start as usize)
+        .write_to_register();
 
-        TranslationControlRegister::read_to_buffer()
-            .set_granule_size(TranslationControlRegister::GranuleSize::Kb4 as usize)
-            .set_table_offset(33)
-            .write_to_register();
+    write!("mair_el1", mair);
 
-        cpu::instruction_buffer();
+    TranslationControlRegister::read_to_buffer()
+        .set_granule_size(TranslationControlRegister::GranuleSize::Kb4 as usize)
+        .set_table_offset(33)
+        .write_to_register();
 
-        let attributes = MemoryAttributes::new()
-            .set_access_flag(1)
-            .set_entry_type(MemoryAttributes::BLOCK_ENTRY);
+    cpu::instruction_buffer();
 
-        for i in 0..512 {
-            table[i] = attributes.clone().set_address(i << 21).value;
-        }
-        
-        cpu::data_buffer();
+    let attributes = MemoryAttributes::new()
+        .set_access_flag(1)
+        .set_entry_type(MemoryAttributes::BLOCK_ENTRY);
 
-        SystemControlRegister::read_to_buffer()
-            .set_translation_state(SystemControlRegister::TranslationState::Enabled as usize)
-            .set_cache_enable(1)
-            .write_to_register();
+    for i in 0..512 {
+        table[i] = attributes.clone().set_address(i << 21).value;
+    }
 
-        cpu::instruction_buffer();
+    cpu::data_buffer();
+
+    SystemControlRegister::read_to_buffer()
+        .set_translation_state(SystemControlRegister::TranslationState::Enabled as usize)
+        .set_cache_enable(1)
+        .write_to_register();
+
+    cpu::instruction_buffer();
 }
 
 pub unsafe fn init_tested(table_start: *mut usize) -> Result<(), ()> {
@@ -44,7 +46,7 @@ pub unsafe fn init_tested(table_start: *mut usize) -> Result<(), ()> {
         core::ptr::write_volatile(i as *mut usize, i);
     }
 
-    for i in (0x256_000 .. 0x20000000).step_by(0x8000) {
+    for i in (0x256_000..0x20000000).step_by(0x8000) {
         core::ptr::write_volatile(i as *mut usize, i);
     }
 
@@ -56,7 +58,7 @@ pub unsafe fn init_tested(table_start: *mut usize) -> Result<(), ()> {
         }
     }
 
-    for i in (0x256_000 .. 0x20000000).step_by(0x8000) {
+    for i in (0x256_000..0x20000000).step_by(0x8000) {
         if core::ptr::read_volatile(i as *const usize) != i {
             return Err(());
         }
@@ -66,7 +68,7 @@ pub unsafe fn init_tested(table_start: *mut usize) -> Result<(), ()> {
 }
 
 struct TranslationTable {
-    table: [usize; Self::TABLE_LENGTH]
+    table: [usize; Self::TABLE_LENGTH],
 }
 
 impl TranslationTable {
@@ -74,7 +76,7 @@ impl TranslationTable {
 }
 
 bitfield! {
-    MemoryAttributes(usize) {        
+    MemoryAttributes(usize) {
         entry_type: 0-1,
         attribute_index: 2-4,
         security_bit: 5-5,
@@ -86,8 +88,8 @@ bitfield! {
         unprivileged_execution: 54-54,
         software_values: 55-58
     } with {
-        const ADDRESS_MASK: usize = ((1 << (52 - 11 + 1)) - 1) << 11; 
-        
+        const ADDRESS_MASK: usize = ((1 << (52 - 11 + 1)) - 1) << 11;
+
         const BLOCK_ENTRY: usize = 0b001;
         const TABLE_ENTRY: usize = 0b011;
 
@@ -97,7 +99,7 @@ bitfield! {
 
         // TODO: shouldn't address be used?
         pub fn set_address(mut self, _address: usize) -> Self {
-            self.value &= !Self::ADDRESS_MASK; 
+            self.value &= !Self::ADDRESS_MASK;
             self
         }
 

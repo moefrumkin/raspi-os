@@ -2,7 +2,7 @@ ENTRY(_start)
 SECTIONS
 {
     . = 0x80000;
-    # VM_START = 0xffff000000000000;
+    VM_START = 0xffff000000000000;
     .text : { KEEP( *(.text.boot)) *(.text .text.* .gnu.linkonce.t*) }
     .rodata : { *(.rodata .rodata.* .gnu.linkonce.r*) }
     PROVIDE(_data = .);
@@ -16,9 +16,12 @@ SECTIONS
     }
 
     . = ALIGN(0x1000);
+
+    USER_TABLE_START = .;
     
-    TABLE_START = .;
-    . += 0x1010;
+    . = . + 0x10000;
+
+    KERNEL_TABLE_START = .;
 
     . = ALIGN(0x1000); /*TODO: is this a reasonable aligment*/
     HEAP_START = .;
