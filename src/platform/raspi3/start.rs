@@ -61,9 +61,9 @@ pub extern "C" fn main(heap_start: usize, heap_size: usize, table_start: usize) 
     println!("Entering Boot Sequence (with new build system?)");
     println!("Initializing Memory Virtualization");
 
-    unsafe {
+    /*unsafe {
         mmu::init(table_start as *mut usize);
-    };
+    };*/
 
     println!("Memory Virtualization Initialized");
 

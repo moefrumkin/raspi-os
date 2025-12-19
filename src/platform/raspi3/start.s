@@ -145,10 +145,6 @@ _start: //spin if not main core
     msr mair_el1, x0
 
 
-    ldr     x0, =HEAP_START
-    ldr     x1, =HEAP_SIZE
-    ldr     x2, =USER_TABLE_START
-
     ldr x3, =main
     ldr x4, =0xffff000000000000
     add x3, x4, x3
@@ -164,7 +160,12 @@ _start: //spin if not main core
     msr sctlr_el1, x0
 
     isb
-    
+
+    ldr     x0, =HEAP_START
+    ldr     x1, =HEAP_SIZE
+    ldr     x2, =USER_TABLE_START
+
+
     b       main
 
 
@@ -232,11 +233,12 @@ create_user_page_tables:
     create_pgd_entry x0, x1, x2, x3
 
     mov x2, xzr
-    mov x3, 0x4000000 // Total user memory. TODO: check this value
+    mov x3, 0x3ee00000 // Total user memory. TODO: check this value
     map_blocks x0, x1, x2, x3, (0x1 | (0x1 << 2) | (0x1 << 10)), x4
 
-    ldr x8, =0xbd008
-    ldr x9, =0xbd803
-    str x9, [x8]
+    ldr x1, = MMIO_START
+    ldr x2, = MMIO_START
+    ldr x3, =(0x40000000 - 0x20000)
+    map_blocks x0, x1, x2, x3 (0x1 | (0x00 << 2) | (0x1 << 10)), x4
 
     ret
