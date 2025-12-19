@@ -161,9 +161,9 @@ pub extern "C" fn main(heap_start: usize, heap_size: usize, table_start: usize) 
 
     //cpu::create_thread(long_count, String::from("Long Count"), 0);
 
-    cpu::create_thread(counter::run_count, String::from("Counters"), 20);
+    //cpu::create_thread(counter::run_count, String::from("Counters"), 20);
 
-    //cpu::create_thread(readelf::readelf, String::from("readelf"), 0);
+    cpu::create_thread(readelf::readelf, String::from("readelf"), 0);
 
     PLATFORM.set_kernel_timeout(TICK);
 

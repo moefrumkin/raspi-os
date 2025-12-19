@@ -10,13 +10,15 @@ use core::{
 
 use crate::{
     aarch64::{
+        cpu,
         interrupt::IRQLock,
         syscall::{Syscall, SyscallArgs},
     },
     allocator::{
         id_allocator::IDAllocator,
-        page_allocator::{self, PageAllocator, PAGE_SIZE},
+        page_allocator::{self, PageAllocator, PageRef, PAGE_SIZE},
     },
+    elf::{ELF64Header, ProgramHeader},
     filesystem::{
         self,
         fat32::{FAT32DirectoryEntry, FAT32Filesystem},
@@ -57,6 +59,13 @@ impl<'a> Kernel<'a> {
             object_id_allocator: IDAllocator::new(),
             filesystem: Arc::new(filesystem),
         }
+    }
+
+    pub fn allocate_page(&mut self) -> PageRef {
+        self.page_allocator
+            .borrow_mut()
+            .allocate_page()
+            .expect("Error allocationg page")
     }
 
     pub fn create_thread(&mut self, entry: usize, args: SyscallArgs) {
@@ -180,11 +189,52 @@ impl<'a> Kernel<'a> {
     }
 
     pub fn read_object(&mut self, handle: ObjectHandle, buffer: &mut [u8]) {
-        crate::println!("Reading");
         self.scheduler.read(handle, buffer);
     }
 
     pub fn read(&self, entry: FAT32DirectoryEntry, buffer: &mut [u8]) -> usize {
         self.filesystem.lock().read_file(entry, buffer)
+    }
+
+    pub fn exec(&mut self, program: &str) {
+        let handle = cpu::open_object(program);
+
+        let mut buffer: [u8; 8192] = [b'\0'; 8192];
+
+        crate::println!("Reading program {}", program);
+
+        let bytes_read = cpu::read_object(handle, &mut buffer);
+
+        crate::println!("Parsing ELF");
+
+        let header = ELF64Header::try_from(&buffer[0..bytes_read]).expect("Error parsing elf");
+
+        let mut pheaders = vec![];
+
+        let pheader_start = header.program_header_offset;
+
+        for i in 0..header.program_header_number {
+            let pheader_offset = pheader_start + ((header.program_header_entry_size * i) as u64);
+
+            let phdr = unsafe {
+                let buffer_offest = buffer.as_ptr().offset(pheader_offset as isize);
+
+                *(buffer_offest as *const ProgramHeader)
+            };
+
+            crate::println!("Header: {:?}\n", phdr);
+
+            pheaders.push(phdr);
+        }
+
+        let pgd = self.allocate_page();
+
+        let pud = self.allocate_page();
+
+        let pmd = self.allocate_page();
+
+        let pld = self.allocate_page();
+
+        cpu::close_object(handle);
     }
 }

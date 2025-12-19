@@ -1,5 +1,9 @@
 use crate::{
-    aarch64::{interrupt::IRQLock, syscall::SyscallArgs}, allocator::page_allocator::{Page, PageAllocator, PageRef}, device::sector_device::{Sector, SectorDevice}, filesystem::fat32::{FAT32DirectoryEntry, FAT32Filesystem}, platform::{
+    aarch64::{interrupt::IRQLock, syscall::SyscallArgs},
+    allocator::page_allocator::{Page, PageAllocator, PageRef},
+    device::sector_device::{Sector, SectorDevice},
+    filesystem::fat32::{FAT32DirectoryEntry, FAT32Filesystem},
+    platform::{
         self,
         emmc::{self, EMMCConfiguration, EMMCController, EMMCRegisters},
         gpio::{GPIOController, GPIORegisters, StatusLight},
@@ -10,7 +14,7 @@ use crate::{
         raspi3::exception::InterruptFrame,
         thread::Thread,
         timer::TimerRegisters,
-    }
+    },
 };
 
 use alloc::sync::Arc;
@@ -139,7 +143,21 @@ impl<'a> Platform<'a> {
         }
     }
 
-    pub fn handle_syscall(& self, syscall_number: usize, args: SyscallArgs) {
+    pub fn exec(&self, program: &str) {
+        if let Some(ref mut kernel) = *self.kernel.lock() {
+            kernel.exec(program);
+        }
+    }
+
+    pub fn allocate_page(&self) -> PageRef {
+        if let Some(ref mut kernel) = *self.kernel.lock() {
+            kernel.allocate_page()
+        } else {
+            panic!();
+        }
+    }
+
+    pub fn handle_syscall(&self, syscall_number: usize, args: SyscallArgs) {
         if let Some(ref mut kernel) = *self.kernel.lock() {
             kernel.handle_syscall(syscall_number, args);
             kernel.return_from_exception();
