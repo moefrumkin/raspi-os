@@ -12,13 +12,12 @@ use alloc::string::String;
 
 use alloc::boxed::Box;
 
+use super::kernel_object::{KernelObject, ObjectHandle};
 use crate::aarch64::interrupt::IRQLock;
+use crate::aarch64::mmu;
+use crate::platform::page_table::PageTable;
 use crate::platform::platform_devices::PLATFORM;
 use crate::platform::raspi3::exception::InterruptFrame;
-use super::kernel_object::{
-    ObjectHandle,
-    KernelObject
-};
 
 #[derive(Copy, Clone, Debug)]
 pub enum ThreadStatus {
@@ -40,7 +39,9 @@ pub struct Thread<'a> {
     pub name: String,
     pub id: u64,
     pub children: IRQLock<Vec<Arc<Thread<'a>>>>,
-    pub objects: IRQLock<Vec<(ObjectHandle, Box<dyn KernelObject>)>> // TODO: find a more efficient way of doing this
+    pub objects: IRQLock<Vec<(ObjectHandle, Box<dyn KernelObject>)>>, // TODO: find a more efficient way of doing this
+    pub kernel_table: PageTable,
+    pub user_table: PageTable,
 }
 
 impl<'a> Thread<'a> {
@@ -52,15 +53,25 @@ impl<'a> Thread<'a> {
             name: String::from("Idle"),
             id: 0,
             children: IRQLock::new(vec![]),
-            objects: IRQLock::new(vec![])
+            objects: IRQLock::new(vec![]),
+            kernel_table: PageTable::from(mmu::get_kernel_table()),
+            user_table: PageTable::from(mmu::get_user_table()),
         }
     }
 
     pub fn return_to(&self) -> ! {
         unsafe {
+            let user_table = self.user_table.get_ttbr();
+
             asm!(
                 "mov sp, {sp}", sp = in(reg) *self.stack_pointer.lock()
             );
+
+            // See the Armv8-A address translation manual
+            asm!("msr ttbr0_el1, {ttbr0}", ttbr0 = in(reg) user_table);
+            asm!("dsb ishst");
+            //asm!("tlbi alle1");
+            asm!("dsb ish", "isb");
 
             asm!(
                 "
@@ -380,9 +391,10 @@ impl<'a> Scheduler<'a> {
         // TODO: error handling?
         // TODO: will this call drop?
 
-        self.current_thread.objects.lock().retain(|(id, _)|
-            *id != handle
-        );
+        self.current_thread
+            .objects
+            .lock()
+            .retain(|(id, _)| *id != handle);
     }
 
     pub fn read(&mut self, handle: ObjectHandle, buffer: &mut [u8]) {

@@ -12,11 +12,12 @@ use crate::{
     aarch64::{
         cpu,
         interrupt::IRQLock,
+        mmu,
         syscall::{Syscall, SyscallArgs},
     },
     allocator::{
         id_allocator::IDAllocator,
-        page_allocator::{self, PageAllocator, PageRef, PAGE_SIZE},
+        page_allocator::{self, Page, PageAllocator, PageRef, PAGE_SIZE},
     },
     elf::{ELF64Header, ProgramHeader},
     filesystem::{
@@ -26,6 +27,7 @@ use crate::{
     platform::{
         framebuffer::FrameBuffer,
         kernel_object::FileObject,
+        page_table::PageTable,
         platform_devices::{get_platform, PLATFORM},
         raspi3::exception::InterruptFrame,
         thread::{Scheduler, Thread, ThreadStatus},
@@ -109,6 +111,8 @@ impl<'a> Kernel<'a> {
             id,
             children: IRQLock::new(vec![]),
             objects: IRQLock::new(vec![]),
+            kernel_table: self.scheduler.current_thread.kernel_table, // Currently all kernel threads have the same mapping
+            user_table: PageTable::new_unmapped(),
         });
 
         self.scheduler.set_current_thread_return(id);
@@ -227,13 +231,7 @@ impl<'a> Kernel<'a> {
             pheaders.push(phdr);
         }
 
-        let pgd = self.allocate_page();
-
-        let pud = self.allocate_page();
-
-        let pmd = self.allocate_page();
-
-        let pld = self.allocate_page();
+        for ref pheader in pheaders {}
 
         cpu::close_object(handle);
     }

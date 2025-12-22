@@ -122,6 +122,12 @@ pub extern "C" fn handle_synchronous_exception(
     } else {
         println!("Received syncronous exception: {:#x}", esr.value());
         println!("FAR: {:#x}", far.value());
+        println!("ELR: {:#x}", elr.value());
+
+        if let Some(ref thread) = PLATFORM.get_current_thread() {
+            println!("From thread: {}", thread.name);
+            println!("With sp: {:#p}", *thread.stack_pointer.lock());
+        }
 
         println!("{:?}", frame);
 

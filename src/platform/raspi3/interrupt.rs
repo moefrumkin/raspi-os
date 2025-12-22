@@ -26,7 +26,7 @@ pub struct InterruptRegisters {
 }
 
 impl InterruptRegisters {
-    const INTERRUPT_REGISTERS_BASE: usize = 0x3F00_B200;
+    const INTERRUPT_REGISTERS_BASE: usize = 0xFFFF_0000_3F00_B200; // TODO: extract
 
     fn get() -> &'static mut Self {
         unsafe { &mut *{ Self::INTERRUPT_REGISTERS_BASE as *mut Self } }

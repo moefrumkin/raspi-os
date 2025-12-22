@@ -2,8 +2,17 @@ use super::registers::{
     SystemControlRegister, TranslationControlRegister, UserTranslationTableBaseRegister,
 };
 use crate::aarch64::cpu;
+use crate::aarch64::registers::KernelTranslationTableBaseRegister;
 use crate::bitfield;
 use core::arch::asm;
+
+pub fn get_user_table() -> usize {
+    UserTranslationTableBaseRegister::read_to_buffer().value()
+}
+
+pub fn get_kernel_table() -> usize {
+    KernelTranslationTableBaseRegister::read_to_buffer().value()
+}
 
 pub unsafe fn init(table_start: *mut usize) {
     let table = core::slice::from_raw_parts_mut(table_start, 512);
@@ -84,6 +93,8 @@ bitfield! {
         shareability: 8-9,
         access_flag: 10-10,
 
+        address: 12-52,
+
         privileged_execution: 53-53,
         unprivileged_execution: 54-54,
         software_values: 55-58
@@ -98,15 +109,70 @@ bitfield! {
         }
 
         // TODO: shouldn't address be used?
-        pub fn set_address(mut self, _address: usize) -> Self {
+        /*pub fn set_address(mut self, _address: usize) -> Self {
             self.value &= !Self::ADDRESS_MASK;
             self
-        }
+        }*/
 
         pub fn clone(&self) -> Self {
             Self {
                 value: self.value
             }
+        }
+    }
+}
+
+bitfield! {
+    Address(u64) {
+        offset: 0-11,
+        pte: 12-20,
+        pld: 21-29,
+        pud: 30-38,
+        pgd: 39-47,
+        pte_entry: 12-47
+    } with {
+        pub fn new (value: u64) -> Self {
+            Self {value}
+        }
+    }
+}
+
+bitfield! {
+    TableDescriptor(u64) {
+        valid: 0-0,
+        identifier: 0-1,
+        next_table_address: 3-51,
+        attributes: 52-63 // TODO: check bits
+    } with {
+        pub fn new(value: u64) -> Self {
+            Self {value}
+        }
+
+        pub fn is_valid(self) -> bool {
+            self.get_valid() == 1
+        }
+
+        pub fn get_value(self) -> u64 {
+            self.value
+        }
+    }
+}
+
+bitfield! {
+    TableEntry(u64) {
+        id: 0-1,
+        attribute_index: 2-4,
+        access_flag: 10-10,
+        address: 12-47
+    } with {
+        pub fn from(value: u64) -> Self {
+            Self {
+                value
+            }
+        }
+
+        pub fn get_value(self) -> u64 {
+            self.value
         }
     }
 }

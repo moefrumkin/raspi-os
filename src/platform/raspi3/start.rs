@@ -132,12 +132,6 @@ pub extern "C" fn main(heap_start: usize, heap_size: usize, table_start: usize) 
         );
 
         page_allocator = RefCell::new(PageAllocator::with_start_and_length(page_start, page_size));
-
-        for i in 0..100 {
-            let page = page_allocator.borrow_mut().allocate_page();
-
-            println!("Page: {:?}", page);
-        }
     }
 
     let kernel =

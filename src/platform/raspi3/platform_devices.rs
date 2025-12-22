@@ -1,6 +1,6 @@
 use crate::{
     aarch64::{interrupt::IRQLock, syscall::SyscallArgs},
-    allocator::page_allocator::{Page, PageAllocator, PageRef},
+    allocator::page_allocator::{Page, PageAllocator, PageRef, PAGE_SIZE},
     device::sector_device::{Sector, SectorDevice},
     filesystem::fat32::{FAT32DirectoryEntry, FAT32Filesystem},
     platform::{
@@ -147,6 +147,18 @@ impl<'a> Platform<'a> {
         if let Some(ref mut kernel) = *self.kernel.lock() {
             kernel.exec(program);
         }
+    }
+
+    pub fn allocate_zeroed_page(&self) -> PageRef {
+        let page_ref = self.allocate_page();
+
+        for i in 0..PAGE_SIZE {
+            unsafe {
+                (*page_ref.page)[i] = 0;
+            }
+        }
+
+        page_ref
     }
 
     pub fn allocate_page(&self) -> PageRef {
