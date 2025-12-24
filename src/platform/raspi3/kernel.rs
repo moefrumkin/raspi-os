@@ -26,7 +26,7 @@ use crate::{
     },
     platform::{
         framebuffer::FrameBuffer,
-        kernel_object::FileObject,
+        kernel_object::{FileObject, Stdio},
         page_table::PageTable,
         platform_devices::{get_platform, PLATFORM},
         raspi3::exception::InterruptFrame,
@@ -137,6 +137,9 @@ impl<'a> Kernel<'a> {
             Syscall::Read => self.read_object(args[0] as u64, unsafe {
                 slice::from_raw_parts_mut(args[1] as *mut u8, args[2])
             }),
+            Syscall::Write => self.write_object(args[0] as u64, unsafe {
+                slice::from_raw_parts_mut(args[1] as *mut u8, args[2])
+            }),
             _ => panic!("Unsupported Syscall"),
         }
     }
@@ -186,10 +189,9 @@ impl<'a> Kernel<'a> {
     pub fn open_object(&mut self, name: &str) {
         let mut split = name.split(":");
         let prefix = split.next().unwrap();
-        let body = split.next().unwrap();
 
         if prefix == "file" {
-            let path = body;
+            let path = split.next().unwrap();
             let entry = self.filesystem.lock().search_item(path);
 
             if let Some(entry) = entry {
@@ -202,11 +204,20 @@ impl<'a> Kernel<'a> {
             } else {
                 self.scheduler.set_current_thread_return(0);
             }
+        } else if prefix == "stdio" {
+            let id = self.object_id_allocator.allocate_id();
+            self.scheduler
+                .add_object_to_current_thread(Box::new(Stdio::new()), id);
+            self.scheduler.set_current_thread_return(id);
         }
     }
 
     pub fn read_object(&mut self, handle: ObjectHandle, buffer: &mut [u8]) {
         self.scheduler.read(handle, buffer);
+    }
+
+    pub fn write_object(&mut self, handle: ObjectHandle, buffer: &mut [u8]) {
+        self.scheduler.write(handle, buffer);
     }
 
     pub fn read(&self, entry: FAT32DirectoryEntry, buffer: &mut [u8]) -> usize {

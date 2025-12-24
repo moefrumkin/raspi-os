@@ -531,4 +531,22 @@ impl<'a> Scheduler<'a> {
 
         self.set_current_thread_return(return_value as u64);
     }
+
+    pub fn write(&mut self, handle: ObjectHandle, buffer: &mut [u8]) {
+        let mut return_value = 0;
+        {
+            let objects = self.current_thread.objects.lock();
+
+            for i in 0..objects.len() {
+                let (id, o) = &objects[i];
+
+                if *id == handle {
+                    return_value = o.write(buffer);
+                    break;
+                }
+            }
+        }
+
+        self.set_current_thread_return(return_value as u64);
+    }
 }

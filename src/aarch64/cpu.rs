@@ -113,13 +113,13 @@ pub fn open_object(name: &str) -> u64 {
             mov x0, {}
             mov x1, {}
         ", 
-        in(reg) ptr,
-        in(reg) size
-    );
+            in(reg) ptr,
+            in(reg) size
+        );
 
-    asm!("svc {}", const Syscall::Open as usize);
+        asm!("svc {}", const Syscall::Open as usize);
 
-    asm!("mov {}, x0", out(reg) object_handle);
+        asm!("mov {}, x0", out(reg) object_handle);
     }
 
     object_handle
@@ -156,4 +156,29 @@ pub fn read_object(handle: u64, buffer: &mut [u8]) -> usize {
     }
 
     bytes_read
+}
+
+pub fn write_object(handle: u64, buffer: &[u8]) -> usize {
+    unsafe {
+        asm!(
+            "mov x0, {}
+            mov x1, {}
+            mov x2, {}",
+            in(reg) handle,
+            in(reg) buffer.as_ptr() as usize,
+            in(reg) buffer.len()
+        );
+    }
+
+    unsafe {
+        asm!("svc {}", const Syscall::Write as usize);
+    }
+
+    let bytes_written;
+
+    unsafe {
+        asm!("mov {}, x0", out(reg) bytes_written);
+    }
+
+    bytes_written
 }
