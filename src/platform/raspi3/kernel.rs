@@ -184,17 +184,24 @@ impl<'a> Kernel<'a> {
     }
 
     pub fn open_object(&mut self, name: &str) {
-        let entry = self.filesystem.lock().search_item(name);
+        let mut split = name.split(":");
+        let prefix = split.next().unwrap();
+        let body = split.next().unwrap();
 
-        if let Some(entry) = entry {
-            let id = self.object_id_allocator.allocate_id();
+        if prefix == "file" {
+            let path = body;
+            let entry = self.filesystem.lock().search_item(path);
 
-            self.scheduler
-                .add_object_to_current_thread(Box::new(FileObject::from_entry(entry)), id);
+            if let Some(entry) = entry {
+                let id = self.object_id_allocator.allocate_id();
 
-            self.scheduler.set_current_thread_return(id);
-        } else {
-            self.scheduler.set_current_thread_return(0);
+                self.scheduler
+                    .add_object_to_current_thread(Box::new(FileObject::from_entry(entry)), id);
+
+                self.scheduler.set_current_thread_return(id);
+            } else {
+                self.scheduler.set_current_thread_return(0);
+            }
         }
     }
 

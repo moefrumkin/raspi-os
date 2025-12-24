@@ -1,5 +1,6 @@
 use super::kernel::Kernel;
 use super::kernel::TICK;
+use super::programs::ls;
 use super::programs::{counter, readelf};
 use crate::aarch64::interrupt::IRQLock;
 use crate::aarch64::{cpu, interrupt, mmu, syscall::Syscall};
@@ -158,6 +159,8 @@ pub extern "C" fn main(heap_start: usize, heap_size: usize, table_start: usize) 
     //cpu::create_thread(counter::run_count, String::from("Counters"), 20);
 
     cpu::create_thread(readelf::readelf, String::from("readelf"), 0);
+
+    //cpu::create_thread(ls::ls, String::from("ls"), 0);
 
     PLATFORM.set_kernel_timeout(TICK);
 

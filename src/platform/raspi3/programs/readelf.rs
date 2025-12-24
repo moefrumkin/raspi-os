@@ -9,7 +9,7 @@ use alloc::vec::Vec;
 pub extern "C" fn readelf(_: usize) {
     println!("Running Exit.elf");
 
-    PLATFORM.exec("USERS./MOE./EXIT.ELF");
+    PLATFORM.exec("file:USERS./MOE./EXIT.ELF");
 
     cpu::exit_thread(0);
 }

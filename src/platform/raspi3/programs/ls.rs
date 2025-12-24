@@ -6,7 +6,7 @@ use crate::println;
 pub extern "C" fn ls(_: usize) {
     println!("Opening object");
 
-    let fixup_handle = cpu::open_object("USERS./MOE./EXIT.ELF");
+    let fixup_handle = cpu::open_object("file:USERS./MOE./EXIT.ELF");
 
     println!("Opened with handle: {}", fixup_handle);
 
