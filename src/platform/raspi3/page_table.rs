@@ -18,20 +18,14 @@ impl PageTable {
     const TABLE_LENGTH: usize = 512;
 
     pub fn new_unmapped() -> Self {
-        let page = PLATFORM.allocate_page();
+        let page = PLATFORM.allocate_zeroed_page();
         let page_ptr = page.page as usize as *mut [usize; Self::TABLE_LENGTH];
-
-        for i in 0..Self::TABLE_LENGTH {
-            unsafe {
-                (*page_ptr)[i] = 0;
-            }
-        }
 
         Self { pgd: page_ptr }
     }
 
     pub fn get_ttbr(&self) -> usize {
-        (self.pgd) as usize
+        (self.pgd) as usize & 0xFFFF_FFFF_FFFF
     }
 
     pub fn kernel_mapped() -> Self {
@@ -68,14 +62,15 @@ impl PageTable {
         let pud;
 
         if pgd_entry.is_valid() {
-            pud = unsafe { pgd_entry.get_next_table_address() as *mut Table }
+            pud = (pgd_entry.get_next_table_address() | 0xFFFF_0000_0000_0000) as *mut Table
         } else {
             let page = PLATFORM.allocate_zeroed_page();
 
             let pud_addr = page.page as usize;
             pud = page.page as *mut Table;
 
-            let descriptor = TableDescriptor::new(pud_addr as u64);
+            let descriptor =
+                TableDescriptor::new(pud_addr as u64 & 0xFFFF_FFFF_FFFF).set_identifier(0b11);
 
             unsafe {
                 (*self.pgd)[pgd_index] = descriptor.get_value() as usize;
@@ -87,30 +82,32 @@ impl PageTable {
         let pld;
 
         if pud_entry.is_valid() {
-            pld = pgd_entry.get_next_table_address() as *mut Table;
+            pld = (pud_entry.get_next_table_address() | 0xFFFF_0000_0000_0000) as *mut Table;
         } else {
             let page = PLATFORM.allocate_zeroed_page();
 
             let pld_addr = page.page as usize;
             pld = pld_addr as *mut Table;
 
-            let descriptor = TableDescriptor::new(pld_addr as u64);
+            let descriptor =
+                TableDescriptor::new(pld_addr as u64 & 0xFFFF_FFFF_FFFF).set_identifier(0b11);
 
             unsafe { (*pud)[pud_index] = descriptor.get_value() as usize };
         }
 
-        let pld_entry = TableDescriptor::new(unsafe { (*pld)[pld_index] } as u64);
+        let pld_entry = TableDescriptor::new(unsafe { (*pld)[pld_index] as u64 });
 
         let pte;
         if pld_entry.is_valid() {
-            pte = pld_entry.get_next_table_address() as *mut Table;
+            pte = (pld_entry.get_next_table_address() | 0xFFFF_0000_0000_0000) as *mut Table;
         } else {
             let page = PLATFORM.allocate_zeroed_page();
 
             let pte_addr = page.page as usize;
             pte = pte_addr as *mut Table;
 
-            let descriptor = TableDescriptor::new(pte_addr as u64);
+            let descriptor =
+                TableDescriptor::new(pte_addr as u64 & 0xFFFF_FFFF_FFFF).set_identifier(0b11);
 
             unsafe { (*pld)[pld_index] = descriptor.get_value() as usize };
         }
@@ -118,12 +115,55 @@ impl PageTable {
         //let pte_entry = TableEntry::from(unsafe { (*pte)[pte_index] });
 
         // TODO: should we overwrite previous mappings?
-        let pte_entry = TableEntry::from(paddr.get_pte_entry())
+        let entry = paddr.get_pte_entry();
+        let pte_entry = TableEntry::from(entry & 0xFFFF_FFFF_FFFF)
             .set_id(0b11)
+            .set_access_permission(0b01)
             .set_access_flag(1);
 
         unsafe {
             (*pte)[pte_index] = pte_entry.get_value() as usize;
+        }
+    }
+
+    pub fn is_addr_mapped(&self, addr: u64) -> bool {
+        let addr = Address::new(addr);
+
+        let pgd_index = addr.get_pgd() as usize;
+        let pud_index = addr.get_pud() as usize;
+        let pld_index = addr.get_pld() as usize;
+        let pte_index = addr.get_pte() as usize;
+
+        let pgd_entry = TableDescriptor::new(unsafe { (*self.pgd)[pgd_index] as u64 });
+
+        if !pgd_entry.is_valid() {
+            return false;
+        }
+
+        let pud = (pgd_entry.get_next_table_address() | 0xFFFF_0000_0000_0000) as *mut Table;
+
+        let pud_entry = TableDescriptor::new(unsafe { (*pud)[pud_index] } as u64);
+
+        if !pud_entry.is_valid() {
+            return false;
+        }
+
+        let pld = (pud_entry.get_next_table_address() | 0xFFFF_0000_0000_0000) as *mut Table;
+
+        let pld_entry = TableDescriptor::new(unsafe { (*pld)[pld_index] } as u64);
+
+        if !pld_entry.is_valid() {
+            return false;
+        }
+
+        let pte = (pld_entry.get_next_table_address() | 0xFFFF_0000_0000_0000) as *mut Table;
+
+        let pte_entry = TableDescriptor::new(unsafe { (*pte)[pte_index] } as u64);
+
+        if !pte_entry.is_valid() {
+            return false;
+        } else {
+            return true;
         }
     }
 }

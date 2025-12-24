@@ -121,7 +121,7 @@ pub extern "C" fn main(heap_start: usize, heap_size: usize, table_start: usize) 
 
     println!("Root directory: {}", root_dir);
 
-    let page_allocator: RefCell<PageAllocator>;
+    let page_allocator: IRQLock<PageAllocator>;
 
     unsafe {
         let page_start: usize = &PAGE_SECTION_START as *const usize as usize;
@@ -131,7 +131,7 @@ pub extern "C" fn main(heap_start: usize, heap_size: usize, table_start: usize) 
             page_start, page_size
         );
 
-        page_allocator = RefCell::new(PageAllocator::with_start_and_length(page_start, page_size));
+        page_allocator = IRQLock::new(PageAllocator::with_start_and_length(page_start, page_size));
     }
 
     let kernel =

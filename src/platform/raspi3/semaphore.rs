@@ -6,6 +6,7 @@ use core::{
 
 use crate::{aarch64::cpu, sync::SpinMutexGuard};
 
+#[derive(Debug)]
 struct Semaphore {
     value: AtomicU64,
 }
@@ -52,6 +53,7 @@ impl Semaphore {
     }
 }
 
+#[derive(Debug)]
 pub struct SemMutex<T> {
     semaphore: Semaphore,
     data: UnsafeCell<T>,

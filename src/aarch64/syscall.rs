@@ -8,7 +8,9 @@ pub enum Syscall {
     Open = 0x6,
     Close = 0x7,
     Read = 0x8,
-    Write = 0x9
+    Write = 0x9,
+
+    Exec = 0xa,
 }
 
 pub type SyscallArgs = [usize; 3];
@@ -26,6 +28,7 @@ impl Syscall {
             0x7 => Some(Syscall::Close),
             0x8 => Some(Syscall::Read),
             0x9 => Some(Syscall::Write),
+            0xa => Some(Syscall::Exec),
             _ => None,
         }
     }

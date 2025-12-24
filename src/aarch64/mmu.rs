@@ -128,11 +128,14 @@ bitfield! {
         pte: 12-20,
         pld: 21-29,
         pud: 30-38,
-        pgd: 39-47,
-        pte_entry: 12-47
+        pgd: 39-47
     } with {
         pub fn new (value: u64) -> Self {
             Self {value}
+        }
+
+        pub fn get_pte_entry(self) -> u64 {
+            self.value & 0x0000_FFFF_FFFF_F000
         }
     }
 }
@@ -141,7 +144,7 @@ bitfield! {
     TableDescriptor(u64) {
         valid: 0-0,
         identifier: 0-1,
-        next_table_address: 3-51,
+        address: 12-51,
         attributes: 52-63 // TODO: check bits
     } with {
         pub fn new(value: u64) -> Self {
@@ -155,6 +158,10 @@ bitfield! {
         pub fn get_value(self) -> u64 {
             self.value
         }
+
+        pub fn get_next_table_address(self) -> u64 {
+            self.get_address() << 12
+        }
     }
 }
 
@@ -162,6 +169,7 @@ bitfield! {
     TableEntry(u64) {
         id: 0-1,
         attribute_index: 2-4,
+        access_permission: 6-7,
         access_flag: 10-10,
         address: 12-47
     } with {

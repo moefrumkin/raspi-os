@@ -7,7 +7,7 @@ pub struct ELF64Header {
     object_file_type: ObjectFileType,
     e_machine: u16,
     e_version: u32,
-    program_entry_address: u64, // Address to first transfer execution to
+    pub program_entry_address: u64, // Address to first transfer execution to
     pub program_header_offset: u64,
     section_header_offset: u64,
     e_flags: u32,
@@ -143,18 +143,18 @@ impl TryFrom<u8> for ELFFileClass {
 #[repr(C)]
 #[derive(Debug, Clone, Copy)]
 pub struct ProgramHeader {
-    program_type: ProgramType,
+    pub program_type: ProgramType,
     flags: u32,
-    offset: u64,
-    virtual_address: u64,
+    pub offset: u64,
+    pub virtual_address: u64,
     physical_address: u64,
-    file_size: u64,
-    memory_size: u64,
+    pub file_size: u64,
+    pub memory_size: u64,
     alignment: u64,
 }
 
 #[repr(u32)]
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ProgramType {
     Ignored = 0x0,
     Loadable = 0x1,

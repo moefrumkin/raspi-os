@@ -14,7 +14,9 @@ use alloc::boxed::Box;
 
 use super::kernel_object::{KernelObject, ObjectHandle};
 use crate::aarch64::interrupt::IRQLock;
-use crate::aarch64::mmu;
+use crate::aarch64::{cpu, mmu};
+use crate::allocator::page_allocator::PAGE_SIZE;
+use crate::elf::{ELF64Header, ProgramHeader, ProgramType};
 use crate::platform::page_table::PageTable;
 use crate::platform::platform_devices::PLATFORM;
 use crate::platform::raspi3::exception::InterruptFrame;
@@ -40,8 +42,8 @@ pub struct Thread<'a> {
     pub id: u64,
     pub children: IRQLock<Vec<Arc<Thread<'a>>>>,
     pub objects: IRQLock<Vec<(ObjectHandle, Box<dyn KernelObject>)>>, // TODO: find a more efficient way of doing this
-    pub kernel_table: PageTable,
-    pub user_table: PageTable,
+    pub kernel_table: IRQLock<PageTable>,
+    pub user_table: IRQLock<PageTable>,
 }
 
 impl<'a> Thread<'a> {
@@ -54,24 +56,24 @@ impl<'a> Thread<'a> {
             id: 0,
             children: IRQLock::new(vec![]),
             objects: IRQLock::new(vec![]),
-            kernel_table: PageTable::from(mmu::get_kernel_table()),
-            user_table: PageTable::from(mmu::get_user_table()),
+            kernel_table: IRQLock::new(PageTable::from(mmu::get_kernel_table())),
+            user_table: IRQLock::new(PageTable::from(mmu::get_user_table())),
         }
     }
 
     pub fn return_to(&self) -> ! {
         unsafe {
-            let user_table = self.user_table.get_ttbr();
-
-            asm!(
-                "mov sp, {sp}", sp = in(reg) *self.stack_pointer.lock()
-            );
+            let user_table = self.user_table.lock().get_ttbr();
 
             // See the Armv8-A address translation manual
             asm!("msr ttbr0_el1, {ttbr0}", ttbr0 = in(reg) user_table);
             asm!("dsb ishst");
             //asm!("tlbi alle1");
             asm!("dsb ish", "isb");
+
+            asm!(
+                "mov sp, {sp}", sp = in(reg) *self.stack_pointer.lock()
+            );
 
             asm!(
                 "
@@ -130,6 +132,138 @@ impl<'a> Thread<'a> {
         unsafe {
             let frame = &mut *(*self.stack_pointer.lock() as *mut InterruptFrame);
             frame.regs[0] = value;
+        }
+    }
+
+    pub fn exec(&self, program: &str) {
+        let handle = cpu::open_object(program);
+
+        let mut buffer: [u8; 840] = [b'\0'; 840];
+
+        crate::println!("Reading program {}", program);
+
+        let bytes_read = cpu::read_object(handle, &mut buffer);
+
+        crate::println!("Parsing ELF");
+
+        let header = ELF64Header::try_from(&buffer[0..bytes_read]).expect("Error parsing elf");
+
+        let entry_address = header.program_entry_address;
+
+        crate::println!("Header {:#?}", header);
+
+        crate::println!("Entry: {:#x}", entry_address);
+
+        let mut pheaders = vec![];
+
+        let pheader_start = header.program_header_offset;
+
+        for i in 0..header.program_header_number {
+            let pheader_offset = pheader_start + ((header.program_header_entry_size * i) as u64);
+
+            let phdr = unsafe {
+                let buffer_offest = buffer.as_ptr().offset(pheader_offset as isize);
+
+                *(buffer_offest as *const ProgramHeader)
+            };
+
+            crate::println!("Header: {:?}\n", phdr);
+
+            pheaders.push(phdr);
+        }
+
+        for pheader in pheaders
+            .iter()
+            .filter(|header| header.program_type == ProgramType::Loadable)
+        {
+            let vaddr = pheader.virtual_address;
+            let offset = pheader.offset;
+
+            let file_size = pheader.file_size;
+            let memory_size = pheader.memory_size;
+
+            let start_page = vaddr & !(0xFFF);
+            let end_page = (vaddr + memory_size) & !(0xFFF);
+
+            let number_of_pages = (start_page - end_page) / (PAGE_SIZE as u64) + 1;
+
+            // Page we are currently reading
+            let mut current_page = start_page;
+
+            // Offset in the read buffer
+            let mut buffer_offset = offset;
+
+            // Address of page we are writing to
+            let mut virtual_address = current_page;
+
+            // Bytes left to read
+            let mut to_read = file_size;
+
+            crate::println!("Number of pages: {}", number_of_pages);
+
+            let mut offset_in_page = vaddr & 0xFFF;
+
+            crate::println!("OFfset in page: {}", offset_in_page);
+
+            for _ in 0..number_of_pages {
+                crate::println!("Vaddr: {:#x}", virtual_address);
+                if !self.user_table.lock().is_addr_mapped(virtual_address) {
+                    let page = PLATFORM.allocate_zeroed_page();
+
+                    self.user_table
+                        .lock()
+                        .map_user_address(virtual_address, page.page as u64);
+                    crate::println!("Mapping {:#x} to {:#x}", virtual_address, page.page as u64);
+                    // TODO: data and istruction buffer?
+
+                    // TODO currect buffering?
+                    let read_length = core::cmp::min(to_read, PAGE_SIZE as u64 - offset_in_page);
+
+                    for i in offset_in_page..offset_in_page + read_length {
+                        unsafe {
+                            (*(page.page as *mut [u8; PAGE_SIZE]))[i as usize] =
+                                buffer[buffer_offset as usize];
+                        }
+
+                        buffer_offset += 1
+                    }
+
+                    to_read -= read_length;
+
+                    virtual_address += PAGE_SIZE as u64;
+                    current_page += PAGE_SIZE as u64;
+
+                    offset_in_page = 0;
+                }
+            }
+        }
+
+        // Could we do this earlier?
+        //cpu::close_object(handle);
+
+        let spsr_el1 = 0;
+
+        crate::println!("Entry: {:#x}", entry_address);
+
+        let stack_page = PLATFORM.allocate_zeroed_page();
+        let sp = (0x80_000 /*(stack_page.page as usize)*/ + PAGE_SIZE - 8) & (0xFFFF_FFFF_FFFF);
+
+        // TODO: how to choose base stack pointer
+        self.user_table
+            .lock()
+            .map_user_address(0x80_000, stack_page.page as u64);
+
+        unsafe {
+            asm!("dsb ishst");
+            //asm!("tlbi alle1");
+            asm!("dsb ish", "isb");
+        }
+
+        unsafe {
+            asm!("msr spsr_el1, {0:x}", in (reg) spsr_el1);
+            asm!("msr elr_el1, {0:x}", in (reg) entry_address);
+            asm!("msr sp_el0, {}", in (reg) sp);
+            asm!("eret");
         }
     }
 }

@@ -43,7 +43,7 @@ pub const TICK: u32 = 1_000;
 
 pub struct Kernel<'a> {
     pub scheduler: Scheduler<'a>,
-    pub page_allocator: RefCell<PageAllocator<'a>>,
+    pub page_allocator: IRQLock<PageAllocator<'a>>,
     pub thread_id_allocator: IDAllocator,
     pub object_id_allocator: IDAllocator,
     filesystem: Arc<IRQLock<FAT32Filesystem<'a>>>, // TODO: should this be here or on the platform?
@@ -51,7 +51,7 @@ pub struct Kernel<'a> {
 
 impl<'a> Kernel<'a> {
     pub fn with_page_allocator_and_filesystem(
-        page_allocator: RefCell<PageAllocator<'a>>,
+        page_allocator: IRQLock<PageAllocator<'a>>,
         filesystem: IRQLock<FAT32Filesystem<'a>>,
     ) -> Self {
         Self {
@@ -65,7 +65,7 @@ impl<'a> Kernel<'a> {
 
     pub fn allocate_page(&mut self) -> PageRef {
         self.page_allocator
-            .borrow_mut()
+            .lock()
             .allocate_page()
             .expect("Error allocationg page")
     }
@@ -73,7 +73,7 @@ impl<'a> Kernel<'a> {
     pub fn create_thread(&mut self, entry: usize, args: SyscallArgs) {
         let page_ref = self
             .page_allocator
-            .borrow_mut()
+            .lock()
             .allocate_page()
             .expect("Unable to Allocate Page");
 
@@ -103,6 +103,8 @@ impl<'a> Kernel<'a> {
 
         let id = self.thread_id_allocator.allocate_id();
 
+        let kernel_table = IRQLock::new(*self.scheduler.current_thread.kernel_table.lock());
+
         self.scheduler.add_thread(Thread {
             stack_pointer,
             parent: Some(self.scheduler.current_thread.clone()),
@@ -111,8 +113,8 @@ impl<'a> Kernel<'a> {
             id,
             children: IRQLock::new(vec![]),
             objects: IRQLock::new(vec![]),
-            kernel_table: self.scheduler.current_thread.kernel_table, // Currently all kernel threads have the same mapping
-            user_table: PageTable::new_unmapped(),
+            kernel_table, // Currently all kernel threads have the same mapping
+            user_table: IRQLock::new(PageTable::new_unmapped()),
         });
 
         self.scheduler.set_current_thread_return(id);
@@ -137,6 +139,10 @@ impl<'a> Kernel<'a> {
             }),
             _ => panic!("Unsupported Syscall"),
         }
+    }
+
+    pub fn exec(&mut self, program_name: &str) {
+        self.scheduler.current_thread.exec(program_name);
     }
 
     pub fn tick(&mut self) {
@@ -198,41 +204,5 @@ impl<'a> Kernel<'a> {
 
     pub fn read(&self, entry: FAT32DirectoryEntry, buffer: &mut [u8]) -> usize {
         self.filesystem.lock().read_file(entry, buffer)
-    }
-
-    pub fn exec(&mut self, program: &str) {
-        let handle = cpu::open_object(program);
-
-        let mut buffer: [u8; 8192] = [b'\0'; 8192];
-
-        crate::println!("Reading program {}", program);
-
-        let bytes_read = cpu::read_object(handle, &mut buffer);
-
-        crate::println!("Parsing ELF");
-
-        let header = ELF64Header::try_from(&buffer[0..bytes_read]).expect("Error parsing elf");
-
-        let mut pheaders = vec![];
-
-        let pheader_start = header.program_header_offset;
-
-        for i in 0..header.program_header_number {
-            let pheader_offset = pheader_start + ((header.program_header_entry_size * i) as u64);
-
-            let phdr = unsafe {
-                let buffer_offest = buffer.as_ptr().offset(pheader_offset as isize);
-
-                *(buffer_offest as *const ProgramHeader)
-            };
-
-            crate::println!("Header: {:?}\n", phdr);
-
-            pheaders.push(phdr);
-        }
-
-        for ref pheader in pheaders {}
-
-        cpu::close_object(handle);
     }
 }

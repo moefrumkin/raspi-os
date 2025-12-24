@@ -20,10 +20,12 @@ pub struct PageRef {
 
 impl<'a> PageAllocator<'a> {
     pub fn allocate_page(&mut self) -> Option<PageRef> {
-        for i in 0..self.free_list.len() {
+        //TODO: skipping first page now because of possible stack underflow
+        for i in 1..self.free_list.len() {
             // TODO: check edge cases to make sure we don't go over the number of pages allocated
-            for j in 0..16 {
-                let j = 4 * j;
+            for j in 0..4 {
+                // TODO n * j is hacky to prevent overflow
+                let j = 16 * j;
                 let is_allocated = self.free_list[i].get_bit(j);
 
                 if is_allocated == 0 {
