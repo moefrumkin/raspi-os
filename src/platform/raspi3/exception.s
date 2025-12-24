@@ -17,7 +17,13 @@
 .align 11
 _exception_vector:
 .org 0x0
+    msr daifset, 0b1111
+    str lr, [sp, #-16]!
+    bl push_frame
+    mov x3, sp
     bl handle_synchronous_exception
+    bl pop_frame
+    ldr lr, [sp], #16
     eret
 .org 0x80
     call_handler handle_exception 0 1
@@ -30,7 +36,7 @@ _exception_vector:
     msr daifset, 0b1111 // Disable interrupts
     str lr, [sp, #-16]!
     bl push_frame
-    mov x3, sp
+    mov x3, sp // third arg is sp?
     bl handle_synchronous_exception
     bl pop_frame
     ldr lr, [sp], #16
@@ -44,7 +50,14 @@ _exception_vector:
     call_handler handle_exception 1 3
 
 .org 0x400
-    call_handler handle_exception 2 0
+    msr daifset, 0b1111 // Disable interrupts
+    str lr, [sp, #-16]!
+    bl push_frame
+    mov x3, sp // third arg is sp?
+    bl handle_synchronous_exception
+    bl pop_frame
+    ldr lr, [sp], #16
+    //msr daifclr, 0b10 // Enable Interrupts
 .org 0x480
     call_handler handle_exception 2 1
 .org 0x500

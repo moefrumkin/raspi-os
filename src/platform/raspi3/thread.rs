@@ -140,19 +140,11 @@ impl<'a> Thread<'a> {
 
         let mut buffer: [u8; 840] = [b'\0'; 840];
 
-        crate::println!("Reading program {}", program);
-
         let bytes_read = cpu::read_object(handle, &mut buffer);
-
-        crate::println!("Parsing ELF");
 
         let header = ELF64Header::try_from(&buffer[0..bytes_read]).expect("Error parsing elf");
 
         let entry_address = header.program_entry_address;
-
-        crate::println!("Header {:#?}", header);
-
-        crate::println!("Entry: {:#x}", entry_address);
 
         let mut pheaders = vec![];
 
@@ -166,8 +158,6 @@ impl<'a> Thread<'a> {
 
                 *(buffer_offest as *const ProgramHeader)
             };
-
-            crate::println!("Header: {:?}\n", phdr);
 
             pheaders.push(phdr);
         }
@@ -199,21 +189,15 @@ impl<'a> Thread<'a> {
             // Bytes left to read
             let mut to_read = file_size;
 
-            crate::println!("Number of pages: {}", number_of_pages);
-
             let mut offset_in_page = vaddr & 0xFFF;
 
-            crate::println!("OFfset in page: {}", offset_in_page);
-
             for _ in 0..number_of_pages {
-                crate::println!("Vaddr: {:#x}", virtual_address);
                 if !self.user_table.lock().is_addr_mapped(virtual_address) {
                     let page = PLATFORM.allocate_zeroed_page();
 
                     self.user_table
                         .lock()
                         .map_user_address(virtual_address, page.page as u64);
-                    crate::println!("Mapping {:#x} to {:#x}", virtual_address, page.page as u64);
                     // TODO: data and istruction buffer?
 
                     // TODO currect buffering?
@@ -242,8 +226,6 @@ impl<'a> Thread<'a> {
         //cpu::close_object(handle);
 
         let spsr_el1 = 0;
-
-        crate::println!("Entry: {:#x}", entry_address);
 
         let stack_page = PLATFORM.allocate_zeroed_page();
         let sp = (0x80_000 /*(stack_page.page as usize)*/ + PAGE_SIZE - 8) & (0xFFFF_FFFF_FFFF);
