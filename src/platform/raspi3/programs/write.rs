@@ -1,12 +1,11 @@
 use crate::aarch64::cpu::{self, close_object, exit_thread, write_object};
+use crate::platform::platform_devices::PLATFORM;
+use crate::println;
 
 pub extern "C" fn write(_: usize) {
-    let stdio = cpu::open_object("stdio");
+    println!("Running Write.elf");
 
-    let message = "Hello, World\n";
-    write_object(stdio, message.as_bytes());
+    PLATFORM.exec("file:USERS./MOE./WRITE.ELF");
 
-    close_object(stdio);
-
-    exit_thread(0);
+    cpu::exit_thread(0);
 }
