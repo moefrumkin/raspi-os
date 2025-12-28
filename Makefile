@@ -84,3 +84,15 @@ doc-noopen:
 
 test:
 	cargo test --features=$(PLATFORM) -- --nocapture
+
+DISK_IMG = raspi.img
+IMG_MOUNT_PT = /Volumes/BOOT
+
+attach-fs:
+	hdiutil attach -section 8193 $(DISK_IMG)
+
+detach-fs:
+	hdiutil detach $(IMG_MOUNT_PT)
+
+copy-programs:
+	cp programs/*.elf $(IMG_MOUNT_PT)/users/moe
