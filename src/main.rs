@@ -5,10 +5,11 @@
 #![feature(alloc_error_handler)]
 #![feature(allocator_api)]
 #![feature(slice_ptr_get)]
-
 //TODO: temporary, just to make development easier
 #![allow(dead_code)]
 #![allow(unused_imports)]
+#![feature(ptr_as_ref_unchecked)]
+#![feature(str_from_raw_parts)]
 
 extern crate alloc;
 
@@ -21,7 +22,6 @@ use sync::SpinMutex;
 #[global_allocator]
 static ALLOCATOR: SpinMutex<LinkedListAllocator> = SpinMutex::new(LinkedListAllocator::new());
 
-#[cfg(not(test))]
 mod aarch64;
 mod allocator;
 mod canvas;
@@ -35,6 +35,8 @@ mod volatile;
 
 mod device;
 mod filesystem;
+
+mod elf;
 
 #[cfg(not(test))]
 #[lang = "eh_personality"]

@@ -1,5 +1,6 @@
 /target
 *.img
+*.fs
 
 # Swap
 [._]*.s[a-v][a-z]
@@ -20,3 +21,14 @@ Sessionx.vim
 tags
 # Persistent undo
 [._]*.un~
+
+gdb.txt
+
+traces
+traces/*
+
+programs/*.elf
+
+*.bin
+
+dump

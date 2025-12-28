@@ -7,3 +7,5 @@ pub mod math;
 pub mod bitfield;
 
 pub mod fat_name;
+
+pub mod bit_array;

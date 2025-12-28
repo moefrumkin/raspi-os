@@ -1,7 +1,10 @@
+use core::cell::RefCell;
+use alloc::rc::Rc;
+
 use crate::{device::sector_device::{Sector, SectorAddress, SectorDevice}, filesystem::master_boot_record};
 
 #[repr(C)]
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct MasterBootRecord {
     bootstrap_code_area: [u8; 446],
     pub partition_entries: [MastBootRecordPartitionEntry; 4],
@@ -19,10 +22,10 @@ pub struct MastBootRecordPartitionEntry {
     sectors_in_partition: u32
 }
 
-impl MasterBootRecord {
+impl<'a> MasterBootRecord {
     const BOOT_SIGNATURE: u16 = 0xAA55;
 
-    pub fn scan_device_for_mbr(sector_device: &mut dyn SectorDevice, start: SectorAddress, end: SectorAddress) -> 
+    pub fn scan_device_for_mbr(sector_device: &'a dyn SectorDevice<'a>, start: SectorAddress, end: SectorAddress) -> 
         Result<(SectorAddress, MasterBootRecord), ()> 
     {
         for address in start..end {

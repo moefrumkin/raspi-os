@@ -71,6 +71,6 @@ mod tests {
         let all_out = Line(Vector(-500.0, -500.0), Vector(-400.0, 100.0));
 
         assert_eq!(all_out.clip(0.0, 0.0, 100.0, 100.0), None);
-        //assert_eq!(all_in.clip(0.0, 0.0, 100.0, 100.0), Some(all_in));
+        assert_eq!(all_in.clip(0.0, 0.0, 100.0, 100.0), Some(all_in));
     }
 }

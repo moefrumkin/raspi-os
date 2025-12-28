@@ -7,7 +7,8 @@ use super::{
     },
 };
 
-use core::fmt;
+use core::{cell::RefCell, fmt};
+use alloc::rc::Rc;
  
 
 
@@ -15,7 +16,7 @@ pub struct HardwareConfig {
     firmware_revision: u32,
     board_model: u32,
     board_revision: u32,
-    MAC_address: MACAddress,
+    mac_address: MACAddress,
     board_serial: u64
 }
 
@@ -30,7 +31,7 @@ impl fmt::Display for HardwareConfig {
             self.firmware_revision,
             self.board_model,
             self.board_revision,
-            self.MAC_address,
+            self.mac_address,
             self.board_serial
         )
     }
@@ -49,7 +50,7 @@ impl fmt::Display for MACAddress {
 
 
 impl HardwareConfig {
-    pub fn from_mailbox(mailbox: &mut MailboxController) -> Self {
+    pub fn from_mailbox(mailbox: &dyn MailboxController) -> Self {
         let mut firmware_revision = GetFirmwareRevision::new();
         let mut board_model = GetBoardModel::new();
         let mut board_revision = GetBoardRevision::new();
@@ -70,7 +71,7 @@ impl HardwareConfig {
             firmware_revision: firmware_revision.get_response(),
             board_model: board_revision.get_response(),
             board_revision: board_revision.get_response(),
-            MAC_address: mac_address.get_address(),
+            mac_address: mac_address.get_address(),
             board_serial: board_serial.get_response()
         }
     }

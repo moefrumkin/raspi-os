@@ -1,21 +1,32 @@
-use crate::{bitfield, device::sector_device::{Sector, SectorAddress, SectorDevice}, utils::fat_name::fat_name_from_chars};
-use core::fmt::{Display, Formatter, self};
+use crate::{
+    aarch64::interrupt::IRQLock,
+    bitfield,
+    device::sector_device::{Sector, SectorAddress, SectorDevice},
+    utils::fat_name::fat_name_from_chars,
+};
+use alloc::rc::Rc;
+use alloc::sync::Arc;
 use alloc::vec::Vec;
+use core::{
+    cell::RefCell,
+    cmp::min,
+    fmt::{self, Display, Formatter},
+};
 
+#[derive(Debug)]
 pub struct FAT32Filesystem<'a> {
-    sector_device: &'a mut dyn SectorDevice,
+    sector_device: &'a dyn SectorDevice<'a>,
 
     config: FAT32Config,
 
     boot_sector: SectorAddress,
     fat_start: SectorAddress,
     data_start: SectorAddress,
-    number_of_sectors: SectorAddress
+    number_of_sectors: SectorAddress,
 }
 
 #[repr(C)]
-#[derive(Copy, Clone)]
-#[derive(Debug)]
+#[derive(Copy, Clone, Debug)]
 pub struct FAT32BootSector {
     jmp_boot: [u8; 3],
     oem_name: [u8; 8],
@@ -49,6 +60,7 @@ pub struct FAT32BootSector {
     signature_word: [u8; 2],
 }
 
+#[derive(Debug)]
 pub struct FAT32Config {
     pub bytes_per_sector: u16,
     pub sectors_per_cluster: u8,
@@ -58,32 +70,32 @@ pub struct FAT32Config {
     pub total_sectors: u32,
     pub sectors_per_fat: u32,
     pub root_cluster: u32,
-    pub fs_info_sector: u16
+    pub fs_info_sector: u16,
 }
 
 #[repr(transparent)]
 pub struct FAT32FATSector {
-    fat_entries: [u32; 128]
+    fat_entries: [u32; 128],
 }
 
 #[derive(Debug)]
-enum FAT32Entry {
+enum FAT32TableEntry {
     Free,
     Allocated(u32),
     Defective,
     Reserved,
-    EndOfFile
+    EndOfFile,
 }
 
 pub struct FAT32Directory<'a> {
     name: &'a str,
 
-    entries: Vec<FAT32DirectoryEntry>
+    entries: Vec<FAT32DirectoryEntry>,
 }
 
 #[repr(transparent)]
-pub struct FAT32DirectorySector  {
-    pub directory_entries: [FAT32DirectoryEntry; 16]
+pub struct FAT32DirectorySector {
+    pub directory_entries: [FAT32DirectoryEntry; 16],
 }
 
 #[repr(packed)]
@@ -100,7 +112,7 @@ pub struct FAT32DirectoryEntry {
     last_write_time: u16,
     last_write_date: u16,
     first_cluster_low_word: u16,
-    file_size: u32
+    file_size: u32,
 }
 
 bitfield! {
@@ -115,10 +127,14 @@ bitfield! {
 }
 
 impl<'a> FAT32Filesystem<'a> {
-    pub fn load_in_partition(sector_device: &'a mut dyn SectorDevice, start: SectorAddress, end: SectorAddress) ->
-        Result<Self, ()>
-    {
-        if let Ok((boot_sector_number, boot_sector)) = FAT32BootSector::scan_for_boot_sector(sector_device, start, end) {
+    pub fn load_in_partition(
+        sector_device: &'a dyn SectorDevice<'a>,
+        start: SectorAddress,
+        end: SectorAddress,
+    ) -> Result<Self, ()> {
+        if let Ok((boot_sector_number, boot_sector)) =
+            FAT32BootSector::scan_for_boot_sector(sector_device, start, end)
+        {
             let config = FAT32Config::from(boot_sector);
             let fat_start = boot_sector_number + config.reserved_sectors as u32;
             let data_start = fat_start + config.number_of_fats as u32 * config.sectors_per_fat;
@@ -131,14 +147,14 @@ impl<'a> FAT32Filesystem<'a> {
 
                 fat_start,
                 data_start,
-                number_of_sectors
+                number_of_sectors,
             });
         } else {
             return Err(());
         }
     }
-    
-    pub fn read_directory(&mut self, cluster_number: u32) -> FAT32Directory {
+
+    pub fn read_directory(&self, cluster_number: u32) -> FAT32Directory<'_> {
         let mut entries = Vec::new();
 
         let mut current_cluster = cluster_number;
@@ -151,28 +167,71 @@ impl<'a> FAT32Filesystem<'a> {
                 let fat_entry = self.get_fat_entry(current_cluster);
 
                 match fat_entry {
-                    FAT32Entry::Free | FAT32Entry::Defective | FAT32Entry::Reserved => panic!("Unexpected FAT entry"),
-                    FAT32Entry::Allocated(next_cluster) => current_cluster = next_cluster,
-                    FAT32Entry::EndOfFile => keep_reading = false
+                    FAT32TableEntry::Free
+                    | FAT32TableEntry::Defective
+                    | FAT32TableEntry::Reserved => panic!("Unexpected FAT entry"),
+                    FAT32TableEntry::Allocated(next_cluster) => current_cluster = next_cluster,
+                    FAT32TableEntry::EndOfFile => keep_reading = false,
                 }
             }
         }
 
-        FAT32Directory {
-            name: "",
-
-            entries
-        } 
+        FAT32Directory { name: "", entries }
     }
 
-    pub fn get_root_directory(&mut self) -> FAT32Directory {
+    pub fn get_root_directory(&self) -> FAT32Directory<'_> {
         self.read_directory(self.config.root_cluster)
     }
-    
-    fn read_directory_cluster(&mut self, cluster: u32, entries: &mut Vec<FAT32DirectoryEntry>) -> bool {
+
+    // Create a dummy Entry object for the root directory
+    pub fn get_root_directory_entry(&self) -> FAT32DirectoryEntry {
+        FAT32DirectoryEntry {
+            name: ['/' as u8; 11], // TODO: this was lazy
+            attributes: FAT32DirectoryAttributes { value: 0b1_0000 },
+            res0: 0,
+            creation_time_tenth: 0,
+            creation_time: 0,
+            creation_date: 0,
+            last_access_date: 0,
+            first_cluster_high_word: (self.config.root_cluster >> 16) as u16,
+            last_write_time: 0,
+            last_write_date: 0,
+            first_cluster_low_word: (self.config.root_cluster & 0xFF_FF) as u16,
+            file_size: 0, // TODO: is this ok?
+        }
+    }
+
+    pub fn search_item(&mut self, item: &str) -> Option<FAT32DirectoryEntry> {
+        let mut current_entry = self.get_root_directory_entry();
+
+        for path_component in item.split("/").filter(|s| !s.is_empty()) {
+            if !current_entry.is_directory_entry() {
+                return None;
+            }
+
+            let mut found = false;
+
+            for entry in &self.read_directory(current_entry.first_cluster()).entries {
+                // TODO: get name more efficiently
+                if entry.get_name().unwrap() == path_component {
+                    current_entry = *entry;
+                    found = true;
+                    break;
+                }
+            }
+
+            if !found {
+                return None;
+            }
+        }
+
+        Some(current_entry)
+    }
+
+    fn read_directory_cluster(&self, cluster: u32, entries: &mut Vec<FAT32DirectoryEntry>) -> bool {
         let first_sector = self.cluster_number_to_sector_number(cluster);
 
-        for sector_number in first_sector..first_sector + self.config.sectors_per_cluster as u32{
+        for sector_number in first_sector..first_sector + self.config.sectors_per_cluster as u32 {
             let sector = FAT32DirectorySector::from(self.sector_device.read_sector(sector_number));
 
             for entry_number in 0..16 {
@@ -190,25 +249,88 @@ impl<'a> FAT32Filesystem<'a> {
 
         true
     }
-    
+
     fn cluster_number_to_sector_number(&self, cluster_number: u32) -> u32 {
         self.data_start + (cluster_number - 2) * self.config.sectors_per_cluster as u32
     }
 
-    fn get_fat_entry(&mut self, cluster_number: u32) -> FAT32Entry {
+    fn get_fat_entry(&self, cluster_number: u32) -> FAT32TableEntry {
         let fat_offset = cluster_number * 4; // FAT32 specific
         let fat_sector_number = self.fat_start + (fat_offset / self.config.bytes_per_sector as u32);
-        let fat_sector_offset = cluster_number % self.config.bytes_per_sector as u32;
+
+        // TODO: is this correct?
+        let fat_sector_offset = (cluster_number / 4) % self.config.bytes_per_sector as u32;
 
         let fat_sector = FAT32FATSector::from(self.sector_device.read_sector(fat_sector_number));
 
         fat_sector.get_fat32_entry(fat_sector_offset)
     }
+
+    pub fn read_file(&self, file: FAT32DirectoryEntry, buffer: &mut [u8]) -> usize {
+        if file.attributes.get_directory() == 1 {
+            0
+        } else {
+            let mut read_so_far = 0;
+            let file_size = file.file_size;
+
+            let to_read = min(file_size as usize, buffer.len());
+
+            let mut current_cluster = file.first_cluster();
+            while read_so_far < to_read {
+                let part_to_read = min(
+                    Sector::SECTOR_SIZE * self.config.sectors_per_cluster as usize,
+                    to_read - read_so_far,
+                );
+
+                self.read_cluster(
+                    current_cluster,
+                    &mut buffer[read_so_far..(read_so_far + part_to_read)],
+                );
+
+                read_so_far += part_to_read;
+
+                let current_fat_entry = self.get_fat_entry(current_cluster);
+
+                if let FAT32TableEntry::Allocated(next) = current_fat_entry {
+                    current_cluster = next;
+                } else {
+                    return read_so_far;
+                }
+            }
+
+            read_so_far
+        }
+    }
+
+    fn read_cluster(&self, cluster: u32, buffer: &mut [u8]) {
+        let mut read_so_far = 0;
+        let to_read = buffer.len();
+
+        let mut sector_number = self.cluster_number_to_sector_number(cluster);
+        let mut iteration = 0;
+
+        while read_so_far < to_read {
+            let amount_to_read = min(Sector::SECTOR_SIZE, to_read - read_so_far);
+            let sector = self.sector_device.read_sector(sector_number);
+
+            for i in 0..amount_to_read {
+                buffer[(iteration as usize * Sector::SECTOR_SIZE as usize + i as usize) as usize] =
+                    sector.values[i];
+            }
+
+            read_so_far += amount_to_read;
+
+            iteration += 1;
+            sector_number += 1;
+        }
+    }
 }
 
 impl Display for FAT32Config {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "\n\
+        write!(
+            f,
+            "\n\
             \t-bytes per sector: {} \n\
             \t-sectors per cluster: {} \n\
             \t-reserved sectors: {}\n\
@@ -231,7 +353,6 @@ impl Display for FAT32Config {
     }
 }
 
-
 impl From<FAT32BootSector> for FAT32Config {
     fn from(value: FAT32BootSector) -> Self {
         Self {
@@ -243,7 +364,7 @@ impl From<FAT32BootSector> for FAT32Config {
             total_sectors: value.get_total_sectors32(),
             sectors_per_fat: value.get_sectors_per_fat(),
             root_cluster: value.get_root_cluster_sector(),
-            fs_info_sector: value.get_fs_info_cluster_sector()
+            fs_info_sector: value.get_fs_info_cluster_sector(),
         }
     }
 }
@@ -252,20 +373,24 @@ impl TryFrom<Sector> for FAT32BootSector {
     type Error = ();
 
     fn try_from(value: Sector) -> Result<Self, Self::Error> {
-        let candidate_boot_sector: Self = unsafe {
-            core::mem::transmute(value)
-        };
+        let candidate_boot_sector: Self = unsafe { core::mem::transmute(value) };
 
-        if candidate_boot_sector.signature_word[0] != 0x55 { return Err(()); }
-        if candidate_boot_sector.signature_word[1] != 0xAA { return Err(()); }
+        if candidate_boot_sector.signature_word[0] != 0x55 {
+            return Err(());
+        }
+        if candidate_boot_sector.signature_word[1] != 0xAA {
+            return Err(());
+        }
 
         let bytes_per_sector = candidate_boot_sector.get_bytes_per_sector();
 
         if !(bytes_per_sector == 512
             || bytes_per_sector == 1024
             || bytes_per_sector == 2048
-            || bytes_per_sector == 4096
-        ) { return Err(()); }
+            || bytes_per_sector == 4096)
+        {
+            return Err(());
+        }
 
         let sectors_per_cluster = candidate_boot_sector.get_sectors_per_cluster();
 
@@ -290,26 +415,29 @@ impl TryFrom<Sector> for FAT32BootSector {
         }
 
         // For Fat 32 only
-        if candidate_boot_sector.get_total_sectors16() != 0 { return Err(()); }
+        if candidate_boot_sector.get_total_sectors16() != 0 {
+            return Err(());
+        }
 
         // TODO: check media value
 
         // TODO: For Fat 32 only check fat_size
 
         // For Fat 32 only
-        if candidate_boot_sector.get_total_sectors32() == 0 { return Err(()); }
+        if candidate_boot_sector.get_total_sectors32() == 0 {
+            return Err(());
+        }
 
         return Ok(candidate_boot_sector);
     }
 }
 
-impl FAT32BootSector {
+impl<'a> FAT32BootSector {
     pub fn scan_for_boot_sector(
-        sector_device: &mut dyn SectorDevice,
+        sector_device: &'a dyn SectorDevice<'a>,
         start: SectorAddress,
-        end: SectorAddress
-    ) -> Result<(SectorAddress, Self), ()> 
-    {
+        end: SectorAddress,
+    ) -> Result<(SectorAddress, Self), ()> {
         for address in start..end {
             let sector = sector_device.read_sector(address);
 
@@ -381,29 +509,27 @@ impl FAT32BootSector {
 
 impl From<Sector> for FAT32FATSector {
     fn from(value: Sector) -> Self {
-        unsafe {
-            core::mem::transmute(value)
-        }
+        unsafe { core::mem::transmute(value) }
     }
 }
 
 impl FAT32FATSector {
     const FAT_ENTRY_MASK: u32 = 0x0FFF_FFFF;
 
-    fn get_fat32_entry(&self, number: SectorAddress) -> FAT32Entry {
-        FAT32Entry::from(self.fat_entries[number as usize] & Self::FAT_ENTRY_MASK)
+    fn get_fat32_entry(&self, number: SectorAddress) -> FAT32TableEntry {
+        FAT32TableEntry::from(self.fat_entries[number as usize] & Self::FAT_ENTRY_MASK)
     }
 }
 
-impl From<u32> for FAT32Entry {
+impl From<u32> for FAT32TableEntry {
     fn from(value: u32) -> Self {
         match value {
-            0 => FAT32Entry::Free,
-            x if (1..0xFFF_FFF7).contains(&x) => FAT32Entry::Allocated(x),
-            0xFFF_FFF7 => FAT32Entry::Defective,
-            0xFFF_FFF8..=0xFFF_FFFE => FAT32Entry::Reserved,
-            0xFFF_FFFF => FAT32Entry::EndOfFile,
-            _ => FAT32Entry::Reserved
+            0 => FAT32TableEntry::Free,
+            x if (1..0xFFF_FFF7).contains(&x) => FAT32TableEntry::Allocated(x),
+            0xFFF_FFF7 => FAT32TableEntry::Defective,
+            0xFFF_FFF8..=0xFFF_FFFE => FAT32TableEntry::Reserved,
+            0xFFF_FFFF => FAT32TableEntry::EndOfFile,
+            _ => FAT32TableEntry::Reserved,
         }
     }
 }
@@ -422,9 +548,7 @@ impl Display for FAT32Directory<'_> {
 
 impl From<Sector> for FAT32DirectorySector {
     fn from(value: Sector) -> Self {
-        unsafe {
-            core::mem::transmute(value)
-        }
+        unsafe { core::mem::transmute(value) }
     }
 }
 
@@ -435,14 +559,13 @@ impl FAT32DirectoryEntry {
 
     pub fn is_directory_entry(&self) -> bool {
         !self.is_free()
-        && !self.is_directory_end()
-        && !self.is_long_name()
-        && !self.is_type_volume_id()
+            && !self.is_directory_end()
+            && !self.is_long_name()
+            && !self.is_type_volume_id()
     }
 
     pub fn is_free(&self) -> bool {
-        self.name[0] == 0xE5
-            || self.name[0] == 0x0
+        self.name[0] == 0xE5 || self.name[0] == 0x0
     }
 
     pub fn is_directory_end(&self) -> bool {
@@ -462,7 +585,7 @@ impl FAT32DirectoryEntry {
         self.attributes.get_volume_id() == 1
     }
 
-    pub fn first_sector(&self) -> u32 {
+    pub fn first_cluster(&self) -> u32 {
         self.first_cluster_low_word as u32 | ((self.first_cluster_high_word as u32) << 16)
     }
 }
@@ -472,19 +595,19 @@ impl Display for FAT32DirectoryEntry {
         let entry_type = match self.attributes.get_directory() {
             0 => "File",
             1 => "Directory",
-            _ => panic!("")
+            _ => panic!(""),
         };
         write!(f, "{}: {}", entry_type, self.get_name().unwrap())?;
 
         if self.attributes.get_read_only() != 0 {
             write!(f, " read only")?;
         }
-        
+
         let size = self.file_size;
 
         write!(f, " {} sectors", size)?;
 
-        write!(f, " starting at cluster {}", self.first_sector())?;
+        write!(f, " starting at cluster {}", self.first_cluster())?;
 
         Ok(())
     }

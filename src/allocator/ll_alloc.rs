@@ -1,7 +1,9 @@
-use core::mem;
-use core::fmt::{Debug, Formatter, Error};
-use alloc::alloc::{GlobalAlloc, Layout};
+use crate::aarch64::interrupt::{pop_irq_state, set_irq_state};
+use crate::aarch64::{cpu, interrupt};
 use crate::sync::SpinMutex;
+use alloc::alloc::{GlobalAlloc, Layout};
+use core::fmt::{Debug, Error, Formatter};
+use core::mem;
 
 #[derive(Debug)]
 pub struct LinkedListAllocator {
@@ -11,6 +13,8 @@ pub struct LinkedListAllocator {
     /// The amont of memory managed by this allocator
     size: usize,
 
+    free_space: usize,
+
     stats: AllocatorStats,
 }
 
@@ -19,7 +23,7 @@ pub struct AllocatorStats {
     pub free_space: usize,
     pub blocks: usize,
     pub allocs: usize,
-    pub frees: usize
+    pub frees: usize,
 }
 
 impl AllocatorStats {
@@ -28,7 +32,7 @@ impl AllocatorStats {
             free_space: 0,
             blocks: 0,
             allocs: 0,
-            frees: 0
+            frees: 0,
         }
     }
 }
@@ -39,22 +43,29 @@ impl Default for AllocatorStats {
             free_space: 0,
             blocks: 0,
             allocs: 0,
-            frees: 0
+            frees: 0,
         }
     }
 }
 
 unsafe impl GlobalAlloc for SpinMutex<LinkedListAllocator> {
     unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
+        let interrupt_state = pop_irq_state();
         let allocator = &mut self.lock();
 
-        allocator.allocate(layout)
-            .map_or(core::ptr::null_mut(), |b| b as *const FreeBlock as *mut u8)
+        let allocation = allocator
+            .allocate(layout)
+            .map_or(core::ptr::null_mut(), |b| b as *const FreeBlock as *mut u8);
 
+        set_irq_state(interrupt_state);
+
+        allocation
     }
 
     unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
+        let interrupt_state = pop_irq_state();
         self.lock().free(ptr as usize, layout.size());
+        set_irq_state(interrupt_state);
     }
 }
 
@@ -75,9 +86,13 @@ impl LinkedListAllocator {
     pub const fn new() -> Self {
         Self {
             // The first block is a sentinel
-            free_list: FreeBlock {size: 0, next: None},
+            free_list: FreeBlock {
+                size: 0,
+                next: None,
+            },
             size: 0,
-            stats: AllocatorStats::new()
+            free_space: 0,
+            stats: AllocatorStats::new(),
         }
     }
 
@@ -98,7 +113,7 @@ impl LinkedListAllocator {
         unsafe {
             let val = FreeBlock::from_components(size, None);
             block_ptr.write_volatile(val);
-            //self.free_list = None; 
+            //self.free_list = None;
             //self.size = size;
         }
     }
@@ -107,6 +122,7 @@ impl LinkedListAllocator {
     fn allocate(&mut self, layout: Layout) -> Option<&mut FreeBlock> {
         self.stats.allocs += 1;
         let (size, align) = Self::expand_to_min(layout);
+        self.free_space -= size;
         // TODO: is it safe to discard next?
         if let Ok((free, _)) = self.free_list.fit_in_block(size, align) {
             Some(free)
@@ -115,9 +131,9 @@ impl LinkedListAllocator {
         }
     }
 
-
     //TODO coalesce neighboring blocks
     fn free(&mut self, start: usize, size: usize) {
+        self.free_space += size;
         self.stats.frees += 1;
 
         // TODO: should be a single source of truth for expanding blocks
@@ -144,7 +160,7 @@ impl LinkedListAllocator {
         }
     }
 
-    /// Expands a layout to the minimum size required to fit a FreeBlock instance 
+    /// Expands a layout to the minimum size required to fit a FreeBlock instance
     fn expand_to_min(layout: Layout) -> (usize, usize) {
         if layout.align() == 0 {
             panic!("Layout must have non zero alignment");
@@ -159,30 +175,28 @@ impl LinkedListAllocator {
             .unwrap()
             .pad_to_align();
 
-        ( layout.size().max(mem::size_of::<FreeBlock>()), layout.align() )
+        (
+            layout.size().max(mem::size_of::<FreeBlock>()),
+            layout.align(),
+        )
     }
 }
 
 #[derive(Debug)]
+#[repr(align(16))]
 struct FreeBlock {
     size: usize,
-    next: Option<&'static mut FreeBlock>
+    next: Option<&'static mut FreeBlock>,
 }
 
 impl FreeBlock {
     #[allow(dead_code)]
     const fn new(size: usize) -> Self {
-        Self {
-            size,
-            next: None
-        }
+        Self { size, next: None }
     }
 
     fn from_components(size: usize, next: Option<&'static mut FreeBlock>) -> Self {
-        Self {
-            size,
-            next
-        }
+        Self { size, next }
     }
 
     fn start(&self) -> usize {
@@ -193,12 +207,16 @@ impl FreeBlock {
         self.start() + self.size
     }
 
-   /// Finds an appropriate start within a block for a given alignment and size
+    /// Finds an appropriate start within a block for a given alignment and size
     /// If a block is found, it is returned
     /// A block may be allocated from within an existing block. In this case, it creates a sub
     /// block and relinks the remaining blocks appropriately
     /// Returns the freed block and boolean whether the caller needs to relink the blocks
-    fn fit_in_block(&mut self, size: usize, align: usize) -> Result<(&mut FreeBlock, Option<&mut FreeBlock>), ()> {
+    fn fit_in_block(
+        &mut self,
+        size: usize,
+        align: usize,
+    ) -> Result<(&mut FreeBlock, Option<&mut FreeBlock>), ()> {
         // The first address in this block with the required alignment
         // Candidate for offset of start of allocated area
         let start_candidate = super::align(self.start(), align);
@@ -218,7 +236,8 @@ impl FreeBlock {
         let trim_start_fits = start_offset_candidate >= mem::size_of::<FreeBlock>();
         let trim_end_fits = end_offset_candidate >= mem::size_of::<FreeBlock>();
 
-        let can_allocate = fits && !(trim_start && !trim_start_fits) && !(trim_end && !trim_end_fits);
+        let can_allocate =
+            fits && !(trim_start && !trim_start_fits) && !(trim_end && !trim_end_fits);
 
         if !can_allocate {
             if let Some(next) = self.next.take() {
@@ -232,11 +251,13 @@ impl FreeBlock {
         }
 
         if trim_end {
-            self.partition(end_offset_candidate);
+            self.partition(end_offset_candidate)
+                .expect("error partitioning end");
         }
 
         if trim_start {
-            self.partition(start_offset_candidate);
+            self.partition(start_offset_candidate)
+                .expect("Error partitioning start");
             let next = self.next.take().expect("Block improperly partitioned");
 
             if let Ok((freed_block, next_block)) = next.fit_in_block(size, align) {
@@ -264,7 +285,7 @@ impl FreeBlock {
 
         *new_block = FreeBlock {
             size: (*self).size - size,
-            next: (*self).next.take()
+            next: (*self).next.take(),
         };
 
         (*self).size = size;
@@ -274,61 +295,58 @@ impl FreeBlock {
     }
 
     fn stats(&self) -> AllocatorStats {
-        let mut stats = self.next.as_ref().map_or_else(AllocatorStats::default, |next| next.stats());
+        let mut stats = self
+            .next
+            .as_ref()
+            .map_or_else(AllocatorStats::default, |next| next.stats());
 
         stats.blocks += 1;
         stats.free_space += self.size;
 
         stats
     }
-} 
-
-
+}
 
 #[cfg(test)]
 mod tests {
-    use std::alloc::Layout;
     use super::*;
     use crate::sync::SpinMutex;
+    use std::alloc::Layout;
 
     const HEAP_SIZE: usize = 4096;
 
     //TODO Check alignment
     #[repr(C, align(4096))]
     struct Heap {
-        memory: [u64; HEAP_SIZE]
+        memory: [u64; HEAP_SIZE],
     }
 
-    static ALIGNED_HEAP: Heap = Heap{
-        memory: [0; 4096]
-    };
+    static ALIGNED_HEAP: Heap = Heap { memory: [0; 4096] };
 
-    fn initialize_allocator(HEAP: Heap) -> SpinMutex<LinkedListAllocator> {
+    fn initialize_allocator(heap: Heap) -> SpinMutex<LinkedListAllocator> {
         let alloc = SpinMutex::new(LinkedListAllocator::new());
-        unsafe {
-            let ptr = HEAP.memory.as_ptr() as usize;
-            assert_eq!(super::super::align(ptr, mem::align_of::<FreeBlock>()), ptr, "The heap pointer is misaligned");
-            alloc.lock().init(ptr, 8 * HEAP.memory.len());
-        }
-        return alloc
+        let ptr = heap.memory.as_ptr() as usize;
+        assert_eq!(
+            super::super::align(ptr, mem::align_of::<FreeBlock>()),
+            ptr,
+            "The heap pointer is misaligned"
+        );
+        alloc.lock().init(ptr, 8 * heap.memory.len());
+        return alloc;
     }
 
     #[test]
     fn test_initialize_allocator() {
-        let HEAP = Heap {
-            memory: [0; 4096]
-        };
+        let heap = Heap { memory: [0; 4096] };
 
-        initialize_allocator(HEAP);
+        initialize_allocator(heap);
     }
 
     #[test]
     fn test_allocate_small() {
-        let HEAP = Heap {
-            memory: [0; 4096]
-        };
+        let heap = Heap { memory: [0; 4096] };
 
-        let alloc = initialize_allocator(HEAP);
+        let alloc = initialize_allocator(heap);
 
         let layout = Layout::from_size_align(128, 128).unwrap();
 
@@ -337,19 +355,22 @@ mod tests {
 
             assert_ne!(ptr, std::ptr::null_mut(), "Failed to allocate\n");
 
-            assert_eq!(ptr as usize % layout.align(), 0, "Allocated block has incorrect alignment. Pointer: {:p}, required alignment is {}", ptr, layout.align());
+            assert_eq!(
+                ptr as usize % layout.align(),
+                0,
+                "Allocated block has incorrect alignment. Pointer: {:p}, required alignment is {}",
+                ptr,
+                layout.align()
+            );
         }
     }
 
     #[test]
     fn test_allocate_large() {
         unsafe {
+            let heap = Heap { memory: [0; 4096] };
 
-            let HEAP = Heap {
-                memory: [0; 4096]
-            };
-
-            let alloc = initialize_allocator(HEAP);
+            let alloc = initialize_allocator(heap);
 
             let layout = Layout::from_size_align(4096, 1024).unwrap();
 
@@ -357,7 +378,13 @@ mod tests {
 
             assert_ne!(ptr, std::ptr::null_mut(), "Failed to allocated whole heap");
 
-            assert_eq!(ptr as usize % layout.align(), 0,  "Allocated block has incorrect allignment. Pointer: {:p}, required alignment is {}", ptr, layout.align());
+            assert_eq!(
+                ptr as usize % layout.align(),
+                0,
+                "Allocated block has incorrect allignment. Pointer: {:p}, required alignment is {}",
+                ptr,
+                layout.align()
+            );
         }
     }
 
@@ -365,12 +392,10 @@ mod tests {
     fn test_allocate_many() {
         const ITERATIONS: usize = 64;
 
-        let HEAP = Heap {
-            memory: [0; 4096]
-        };
+        let heap = Heap { memory: [0; 4096] };
 
         unsafe {
-            let alloc = initialize_allocator(HEAP);
+            let alloc = initialize_allocator(heap);
 
             let layout = Layout::from_size_align(64, 64).unwrap();
 
@@ -382,7 +407,7 @@ mod tests {
                 assert_ne!(ptr, std::ptr::null_mut(), "Failed to allocate\n");
 
                 assert_eq!(ptr as usize % layout.align(), 0,  "Allocated block has incorrect allignment. Pointer: {:p}, required alignment is {}", ptr, layout.align());
-                
+
                 allocations[i] = ptr;
             }
 
@@ -397,12 +422,10 @@ mod tests {
     #[test]
     fn test_allocate_and_free() {
         const ITERATIONS: usize = 64;
-        let HEAP = Heap {
-            memory: [0; 4096]
-        };
+        let heap = Heap { memory: [0; 4096] };
 
         unsafe {
-            let alloc = initialize_allocator(HEAP);
+            let alloc = initialize_allocator(heap);
 
             let layout = Layout::from_size_align(64, 64).unwrap();
 
@@ -414,7 +437,7 @@ mod tests {
                 assert_ne!(ptr, std::ptr::null_mut(), "Failed to allocate\n");
 
                 assert_eq!(ptr as usize % layout.align(), 0,  "Allocated block has incorrect allignment. Pointer: {:p}, required alignment is {}", ptr, layout.align());
-                
+
                 allocations[i] = ptr;
             }
 
@@ -425,10 +448,15 @@ mod tests {
             for i in 0..ITERATIONS {
                 let ptr = alloc.alloc(layout);
 
-                assert_ne!(ptr, std::ptr::null_mut(), "Failed to allocate, iteration {}\n", i);
+                assert_ne!(
+                    ptr,
+                    std::ptr::null_mut(),
+                    "Failed to allocate, iteration {}\n",
+                    i
+                );
 
                 assert_eq!(ptr as usize % layout.align(), 0,  "Allocated block has incorrect allignment. Pointer: {:p}, required alignment is {}", ptr, layout.align());
-                
+
                 allocations[i] = ptr;
             }
         }
@@ -439,22 +467,28 @@ mod tests {
         const ITERATIONS: usize = 16;
         const ALLOCS_PER_ITER: usize = 3;
 
-        let HEAP = Heap {
-            memory: [0; 4096]
-        };
+        let heap = Heap { memory: [0; 4096] };
 
         unsafe {
-            let alloc = initialize_allocator(HEAP);
+            let alloc = initialize_allocator(heap);
 
             let layout = Layout::from_size_align(64, 64).unwrap();
 
-            let mut allocations: [*mut u8; ITERATIONS * ALLOCS_PER_ITER] = [std::ptr::null_mut(); ITERATIONS * ALLOCS_PER_ITER];
+            let mut allocations: [*mut u8; ITERATIONS * ALLOCS_PER_ITER] =
+                [std::ptr::null_mut(); ITERATIONS * ALLOCS_PER_ITER];
 
             for i in 0..ITERATIONS {
                 for j in 0..ALLOCS_PER_ITER {
                     let ptr = alloc.alloc(layout);
 
-                    assert_ne!(ptr, std::ptr::null_mut(), "Failed to allocate, {:?}, at iteration {}, allocation {}\n", alloc, i, j);
+                    assert_ne!(
+                        ptr,
+                        std::ptr::null_mut(),
+                        "Failed to allocate, {:?}, at iteration {}, allocation {}\n",
+                        alloc,
+                        i,
+                        j
+                    );
 
                     assert_eq!(ptr as usize % layout.align(), 0,  "Allocated block has incorrect allignment. Pointer: {:p}, required alignment is {}", ptr, layout.align());
 
@@ -486,10 +520,25 @@ mod tests {
     fn expand_to_min() {
         let size = mem::size_of::<FreeBlock>();
         let align = mem::align_of::<FreeBlock>();
-        assert_eq!(LinkedListAllocator::expand_to_min(Layout::from_size_align(8, 1).unwrap()), (size, align));
-        assert_eq!(LinkedListAllocator::expand_to_min(Layout::from_size_align(160, 4).unwrap()), (160, align));
-        assert_eq!(LinkedListAllocator::expand_to_min(Layout::from_size_align(4, 16).unwrap()), (size, 16));
-        assert_eq!(LinkedListAllocator::expand_to_min(Layout::from_size_align(160, 32).unwrap()), (160, 32));
-        assert_eq!(LinkedListAllocator::expand_to_min(Layout::from_size_align(4096, 1024).unwrap()), (4096, 1024));
+        assert_eq!(
+            LinkedListAllocator::expand_to_min(Layout::from_size_align(8, 1).unwrap()),
+            (size, align)
+        );
+        assert_eq!(
+            LinkedListAllocator::expand_to_min(Layout::from_size_align(160, 4).unwrap()),
+            (160, align)
+        );
+        assert_eq!(
+            LinkedListAllocator::expand_to_min(Layout::from_size_align(4, 16).unwrap()),
+            (size, 16)
+        );
+        assert_eq!(
+            LinkedListAllocator::expand_to_min(Layout::from_size_align(160, 32).unwrap()),
+            (160, 32)
+        );
+        assert_eq!(
+            LinkedListAllocator::expand_to_min(Layout::from_size_align(4096, 1024).unwrap()),
+            (4096, 1024)
+        );
     }
 }

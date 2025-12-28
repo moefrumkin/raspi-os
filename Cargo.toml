@@ -18,7 +18,7 @@ paste = "1.0.8"
 [profile.dev]
 
 [profile.release]
-panic="abort"
+panic="unwind"
 
 [target.aarch64-unknown-none]
 rustflags = ["-C", "link-arg=-Taarch64-raspi3.ld"]

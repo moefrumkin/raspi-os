@@ -27,10 +27,10 @@ QEMU_CMD = $(QEMU_ARCH) \
 #	-smp $(CORES) \
 #	-d int,mmu,guest_errors,page \
 
-OBJDUMP = llvm-objdump
-OBJDUMP_CMD = $(OBJDUMP) --disassemble-all $(KERNEL_ELF)
+OBJDUMP = objdump
+OBJDUMP_CMD = $(OBJDUMP) -C --disassemble-all $(KERNEL_ELF)
 
-GDB = gdb-multiarch #rust-gdb
+GDB = gdb #rust-gdb
 #gdb-multiarch
 GDB_SCRIPT = debug.gdb
 GDB_CMD = $(GDB) -x $(GDB_SCRIPT)
@@ -42,6 +42,9 @@ all: build doc-noopen
 qemu:
 	$(QEMU_CMD) -S -s
 
+qemu-nogui:
+	$(QEMU_CMD) -S -s -nographic
+
 build:
 	$(BUILD_CMD)
 
@@ -50,6 +53,12 @@ image:
 
 run: $(KERNEL_ELF)
 	$(QEMU_CMD)
+
+run-trace: $(KERNEL_ELF)
+	$(QEMU_CMD) --trace "exec_tb,file=trace.log"
+
+run-nogui: $(KERNEL_ELF)
+	$(QEMU_CMD) -nographic
 
 dump:
 	$(OBJDUMP_CMD)
@@ -60,12 +69,12 @@ nm:
 readelf:
 	aarch64-none-elf-readelf --header $(KERNEL_ELF)
 
-gdb:
+gdb: 
 	$(GDB_CMD)
 
 clean:
 	cargo clean
-	rm -f *.img
+	rm -f kernel8.img
 
 doc:
 	cargo doc --features=$(PLATFORM) --open
@@ -75,3 +84,15 @@ doc-noopen:
 
 test:
 	cargo test --features=$(PLATFORM) -- --nocapture
+
+DISK_IMG = raspi.img
+IMG_MOUNT_PT = /Volumes/BOOT
+
+attach-fs:
+	hdiutil attach -section 8193 $(DISK_IMG)
+
+detach-fs:
+	hdiutil detach $(IMG_MOUNT_PT)
+
+copy-programs:
+	cp programs/*.elf $(IMG_MOUNT_PT)/users/moe

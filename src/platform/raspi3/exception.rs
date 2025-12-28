@@ -1,48 +1,141 @@
+use super::gpio::{GPIOController, OutputLevel, StatusLight};
 use core::arch::global_asm;
-use super::{mmio::MMIOController, gpio::{GPIOController, StatusLight, OutputLevel}, timer::Timer};
+
+use crate::{
+    aarch64::{
+        cpu,
+        registers::{ExceptionLinkRegister, ExceptionSyndromeRegister, FaultAddressRegister},
+    },
+    bitfield, elf,
+    platform::platform_devices::{get_platform, PLATFORM},
+    println,
+};
 
 global_asm!(include_str!("exception.s"));
 
+#[derive(Debug)]
+#[repr(u64)]
+pub enum ExceptionSource {
+    CurrentELUserSP = 0,
+    CurrentELCurrentSP = 1,
+    LowerEL64 = 2,
+    LowerEL32 = 3,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+#[repr(u64)]
+pub enum ExceptionType {
+    Synchronous = 0,
+    Interrupt = 1,
+    FastInterrupt = 2,
+    SystemError = 4,
+}
+
 #[no_mangle]
-pub extern "C" fn handle_exception(exception_source: usize, exception_type: usize, esr: usize, elr: usize, _spsr: usize, _far: usize, _sp: usize) {
-    let mmio = MMIOController::default();
-    let gpio = GPIOController::new(&mmio);
-    let timer = Timer::new(&mmio);
-    let status_light = StatusLight::init(&gpio);
+pub extern "C" fn handle_exception(
+    exception_source: ExceptionSource,
+    exception_type: ExceptionType,
+    frame: &mut InterruptFrame,
+) {
+    /*if let Some(thread) = PLATFORM.get_current_thread() {
+        println!("\n\n {}", thread.name);
+    }
+    println!("{:#?}", frame);*/
+    /*println!(
+        "Exception returning to {:#x}, of type {:?}, with source {:?}",
+        frame.elr, exception_type, exception_source
+    );*/
 
-    const LONG_WAIT: u64 = 1500;
-    const SHORT_WAIT: u64 = 750;
+    let platform = get_platform();
+    platform.update_frame(frame);
 
-    loop {
-        for _i in 0..exception_source + 5{
-            status_light.set_blue(OutputLevel::High);
-            timer.delay(SHORT_WAIT);
-            status_light.set_blue(OutputLevel::Low);
-            timer.delay(SHORT_WAIT);
+    if exception_type == ExceptionType::Interrupt {
+        platform.handle_interrupt();
+    } else {
+        println!(
+            "Received Exception Type {:?} from {:?}",
+            exception_type, exception_source
+        );
+
+        if let Some(ref thread) = PLATFORM.get_current_thread() {
+            println!("From thread: {}", thread.name);
+            println!("With sp: {:#p}", *thread.stack_pointer.lock());
         }
 
-        timer.delay(LONG_WAIT);
+        let esr = ExceptionSyndromeRegister::read_to_buffer().value();
+        let far = FaultAddressRegister::read_to_buffer().value();
+        let elr = ExceptionLinkRegister::read_to_buffer().value();
 
-        for _i in 0..exception_type + 5 {
-            status_light.set_red(OutputLevel::High);
-            timer.delay(SHORT_WAIT);
-            status_light.set_red(OutputLevel::Low);
-            timer.delay(SHORT_WAIT);
-        }
+        println!("elr: {:#x}", elr);
+        println!("esr: {:#x}", esr);
+        println!("far: {:#x}", far);
 
-        timer.delay(LONG_WAIT);
+        println!("{:?}", frame);
 
-        blink_out(esr, &timer, &status_light, SHORT_WAIT);
-
-        timer.delay(LONG_WAIT);
-
-        blink_out(elr, &timer, &status_light, SHORT_WAIT);
-
-        timer.delay(LONG_WAIT);
+        loop {}
     }
 }
 
-fn blink_out(n: usize, timer: &Timer, status_light: &StatusLight, wait: u64) {
+#[derive(Debug)]
+#[repr(C)]
+pub struct InterruptFrame {
+    pub regs: [u64; 32],
+    pub elr: u64,
+    pub spsr: u64,
+    pub fp_regs: [u128; 32],
+    pub fpsr: u64,
+}
+
+#[no_mangle]
+pub extern "C" fn handle_synchronous_exception(
+    arg1: usize,
+    arg2: usize,
+    arg3: usize,
+    frame: &mut InterruptFrame,
+) {
+    // println!("Handling synchronous");
+
+    let esr = ExceptionSyndromeRegister::read_to_buffer();
+    let elr = ExceptionLinkRegister::read_to_buffer();
+    let far = FaultAddressRegister::read_to_buffer();
+
+    /* println!(
+        "ESR: {:x}. ELR: {:x}. FAR: {:x}",
+        esr.value(),
+        elr.value(),
+        far.value()
+    ); */
+
+    let exception_class = esr.get_exception_class();
+
+    // println!("Exception class: {:b}", exception_class);
+
+    PLATFORM.update_frame(frame);
+
+    if exception_class == 0b010101 {
+        let syscall_number = esr.get_instruction_number();
+        //println!("Syscall returning to {:#x}", frame.elr);
+
+        // println!("arg1: {}", arg1);
+
+        PLATFORM.handle_syscall(syscall_number, [arg1, arg2, arg3]);
+    } else {
+        println!("Received syncronous exception: {:#x}", esr.value());
+        println!("FAR: {:#x}", far.value());
+        println!("ELR: {:#x}", elr.value());
+
+        if let Some(ref thread) = PLATFORM.get_current_thread() {
+            println!("From thread: {}", thread.name);
+            println!("With sp: {:#p}", *thread.stack_pointer.lock());
+        }
+
+        println!("{:?}", frame);
+
+        loop {}
+    }
+}
+
+/*fn blink_out(n: usize, timer: &Timer, status_light: &StatusLight, wait: u64) {
     for i in 0..64 {
         if (n >> (64 - i)) & 1 == 1 {
             status_light.set_green(OutputLevel::High);
@@ -55,4 +148,4 @@ fn blink_out(n: usize, timer: &Timer, status_light: &StatusLight, wait: u64) {
         }
         timer.delay(wait);
     }
-}
+}*/

@@ -1,142 +1,192 @@
-use core::arch::global_asm;
-use crate::aarch64::{cpu, mmu};
+use super::kernel::Kernel;
+use super::kernel::TICK;
+use super::programs::ls;
+use super::programs::{counter, readelf, write};
+use crate::aarch64::interrupt::IRQLock;
+use crate::aarch64::{cpu, interrupt, mmu, syscall::Syscall};
+use crate::allocator::page_allocator::PageAllocator;
 use crate::canvas::{canvas2d::Canvas2D, line::Line, matrix::Matrix, vector::Vector};
 use crate::ALLOCATOR;
 use crate::{print, println, read, write};
-use alloc::vec::Vec;
+use alloc::boxed::Box;
+use alloc::rc::Rc;
 use alloc::slice;
+use alloc::string::String;
+use alloc::sync::Arc;
+use alloc::vec::Vec;
+use core::arch::global_asm;
+use core::cell::RefCell;
+use core::time::Duration;
+
+use crate::device::timer::Timer;
 
 use crate::{
     device::sector_device::SectorDevice,
-    filesystem::{
-        master_boot_record::{MasterBootRecord},
-        fat32::{FAT32Filesystem}
-    }
+    filesystem::{fat32::FAT32Filesystem, master_boot_record::MasterBootRecord},
 };
 
 use super::{
-    gpio::{GPIOController, OutputLevel, Pin, StatusLight},
-    lcd::LCDController,
-    mailbox::{Channel, MailboxController},
-    mmio::MMIOController,
-    timer::Timer,
-    uart::{LogLevel, UARTController, CONSOLE},
+    clock::{self, Clock, ClockState, CLOCKS},
+    emmc::{EMMCController, EMMCRegisters},
     framebuffer::{
-        FrameBuffer, PixelOrder, Overscan, FrameBufferConfig,
-        Offset,
-        Dimensions,
-        FrameBufferConfigBuilder
+        Dimensions, FrameBuffer, FrameBufferConfig, FrameBufferConfigBuilder, Offset, Overscan,
+        PixelOrder,
     },
+    gpio::{GPIOController, OutputLevel, Pin, StatusLight},
     hardware_config::HardwareConfig,
-    clock::{
-        self,
-        Clock,
-        ClockState,
-        CLOCKS
-    },
-    power::{
-        Device,
-        PowerState,
-        DEVICES
-    },
-    emmc::{
-        EMMCRegisters,
-        EMMCController
-    },
+    interrupt::InterruptController,
+    mailbox::{Channel, MailboxController},
+    platform_devices::{get_platform, PLATFORM},
+    power::{Device, PowerState, DEVICES},
 };
 
-static MMIO: MMIOController = MMIOController::new();
-static GPIO: GPIOController = GPIOController::new(&MMIO);
+unsafe extern "C" {
+    unsafe static PAGE_SECTION_START: usize;
+    unsafe static PAGE_SECTION_SIZE: &'static usize;
+}
 
 global_asm!(include_str!("start.s"));
 
 #[no_mangle]
 pub extern "C" fn main(heap_start: usize, heap_size: usize, table_start: usize) {
-    let mmio = MMIOController::default();
-    let gpio = GPIOController::new(&mmio);
-    let timer = Timer::new(&mmio);
-    
-    let status_light = StatusLight::init(&gpio);
+    ALLOCATOR.lock().init(heap_start, heap_size);
+    let platform = get_platform();
 
-    blink_sequence(&status_light, &timer, 100);
+    platform.init();
+    // let status_light = PLATFORM.get_status_light().unwrap();
 
-    let mut console = UARTController::init(&GPIO, &MMIO);
-    console.set_log_level(LogLevel::Debug);
+    // blink_sequence(&status_light.borrow(), timer, 100);
 
-    unsafe {
-        // TODO: refactor
-        *CONSOLE.lock() = Some(console);
-    }
+    println!("Starting");
 
     println!("Entering Boot Sequence (with new build system?)");
     println!("Initializing Memory Virtualization");
 
-    unsafe { 
+    /*unsafe {
         mmu::init(table_start as *mut usize);
-    };
+    };*/
 
     println!("Memory Virtualization Initialized");
 
-    println!("Initializing Heap Allocator");
-    ALLOCATOR.lock().init(heap_start, heap_size);
-    println!("Heap Allocator initialized at {:#x} with size {}", heap_start, heap_size);
+    println!(
+        "Heap Allocator initialized at {:#x} with size {}",
+        heap_start, heap_size
+    );
 
-    let mut mailbox = MailboxController::new(&mmio);
+    let mailbox = platform.get_mailbox_controller();
 
-    let hardware_config = HardwareConfig::from_mailbox(&mut mailbox);
+    let hardware_config = platform.get_hardware_config();
 
     println!("Hardware Configuration Detected: {}\n", hardware_config);
 
     println!("Devices:");
 
     for device in &DEVICES {
-        println!("\t-{}: Powered: {}, Timing: {}",
+        println!(
+            "\t-{}: Powered: {}, Timing: {}",
             device,
-            device.get_power_state(&mut mailbox).is_on(),
-            device.get_timing(&mut mailbox));
+            device.get_power_state(mailbox).is_on(),
+            device.get_timing(mailbox)
+        );
     }
 
     println!("Clocks:");
 
     for clock in &CLOCKS {
-        println!("\t-{}: On: {}, Set Rate: {}, Min Rate: {}, Max Rate: {}",
+        println!(
+            "\t-{}: On: {}, Set Rate: {}, Min Rate: {}, Max Rate: {}",
             clock,
-            clock.get_clock_state(&mut mailbox).is_on(),
-            clock.get_clock_rate(&mut mailbox),
-            clock.get_min_clock_rate(&mut mailbox),
-            clock.get_max_clock_rate(&mut mailbox)
+            clock.get_clock_state(mailbox).is_on(),
+            clock.get_clock_rate(mailbox),
+            clock.get_min_clock_rate(mailbox),
+            clock.get_max_clock_rate(mailbox)
         );
     }
 
-    println!("Trying to initialize the sd card");
+    let emmc_controller = PLATFORM.get_emmc_controller();
 
-    let mut emmc_regs = EMMCRegisters::get();
-
-    let mut emmc_gpio = GPIOController::new(&mmio);
-    let mut emmc_timer = Timer::new(&mmio);
-
-    let mut emmc_controller = EMMCController::new(&mut emmc_regs, &mut emmc_gpio, &mut emmc_timer);
-
-    emmc_controller.initialize();
-
-    let (mbr_sector_number, master_boot_record) = MasterBootRecord::scan_device_for_mbr(
-        &mut emmc_controller,
-        0,
-        20)
-        .expect("Unable to read Master Boot Record");
+    let (mbr_sector_number, master_boot_record) =
+        MasterBootRecord::scan_device_for_mbr(emmc_controller, 0, 20)
+            .expect("Unable to read Master Boot Record");
 
     let partition = master_boot_record.partition_entries[0];
-    
-    let mut filesystem = FAT32Filesystem::load_in_partition(
-        &mut emmc_controller,
+
+    let filesystem = FAT32Filesystem::load_in_partition(
+        emmc_controller,
         mbr_sector_number + partition.first_sector_address(),
-        mbr_sector_number + partition.last_sector_address())
-        .expect("Unable to initialize a FAT32 filesystem in partition");
+        mbr_sector_number + partition.last_sector_address(),
+    )
+    .expect("Unable to initialize a FAT32 filesystem in partition");
 
     let root_dir = filesystem.get_root_directory();
 
     println!("Root directory: {}", root_dir);
 
+    let page_allocator: IRQLock<PageAllocator>;
+
+    unsafe {
+        let page_start: usize = &PAGE_SECTION_START as *const usize as usize;
+        let page_size: usize = 6553600;
+        println!(
+            "Initializing Page allocator at {:#x} with size {}",
+            page_start, page_size
+        );
+
+        page_allocator = IRQLock::new(PageAllocator::with_start_and_length(page_start, page_size));
+    }
+
+    let kernel =
+        Kernel::with_page_allocator_and_filesystem(page_allocator, IRQLock::new(filesystem));
+
+    PLATFORM.register_kernel(kernel);
+
+    println!("Enabling IRQs");
+
+    interrupt::enable_irq();
+
+    let mut interrupt_controller = InterruptController::new();
+
+    //interrupt_controller.enable_timer_interrupt_3();
+    interrupt_controller.enable_timer_interrupt_1();
+    interrupt_controller.enable_auxiliary_device_interrupts();
+
+    println!("Timer interrupt enabled!");
+
+    //cpu::create_thread(graphics_thread, String::from("Graphics"), 0);
+
+    //cpu::create_thread(long_count, String::from("Long Count"), 0);
+
+    //cpu::create_thread(counter::run_count, String::from("Counters"), 20);
+
+    //cpu::create_thread(readelf::readelf, String::from("readelf"), 0);
+
+    cpu::create_thread(write::write, String::from("write"), 0);
+
+    //cpu::create_thread(ls::ls, String::from("ls"), 0);
+
+    PLATFORM.set_kernel_timeout(TICK);
+
+    //status_light.borrow_mut().set_green(OutputLevel::High);
+
+    loop {
+        cpu::yield_thread();
+    }
+}
+
+pub extern "C" fn long_count(_: usize) {
+    let timer = get_platform().get_timer();
+    println!("Starting long count");
+    loop {
+        cpu::sleep(1_000_000);
+        println!(
+            "Long Count Timer: {:?}",
+            Duration::from_micros(timer.get_micros())
+        );
+    }
+}
+
+pub extern "C" fn graphics_thread(_arg: usize) {
+    let platform = get_platform();
     let resolution = Dimensions::new(1920, 1080);
 
     let fb_config = FrameBufferConfigBuilder::new()
@@ -150,59 +200,59 @@ pub extern "C" fn main(heap_start: usize, heap_size: usize, table_start: usize) 
 
     println!("Initializing Frame Buffer with config {}", fb_config);
 
-    let mut fb = FrameBuffer::from_config(fb_config, &mut mailbox);
+    let mut fb = FrameBuffer::from_config(fb_config, platform.get_mailbox_controller());
 
     println!("Actual config is {}", fb.get_config());
 
-    for i in 0..(1920 * 1080) {
-        fb.write_idx(i, 0xff00ffff);
-    }
+    loop {
+        for i in 0..(1920 * 1080) {
+            fb.write_idx(i, 0xff00ffff);
+        }
 
-    for j in 0..1920 {
-        for i in 0..1080 {
-            fb.write_pixel(j, i, 0xff000000 + ((255 * i / 1080) << 16) + ((255 * j / 1920) << 8) + 0xff);
+        for j in 0..1920 {
+            for i in 0..1080 {
+                fb.write_pixel(
+                    j,
+                    i,
+                    0xff000000 + ((255 * i / 1080) << 16) + ((255 * j / 1920) << 8) + 0xff,
+                );
+            }
         }
     }
-
-    println!("Done!");
-   
-    status_light.set_green(OutputLevel::High);
-
-    loop{}
 }
 
-pub fn blink_sequence(status_light: &StatusLight, timer: &Timer, interval: u64) {
+pub fn blink_sequence(status_light: &mut StatusLight, timer: &dyn Timer, interval: u64) {
     status_light.set_green(OutputLevel::High);
 
-    timer.delay(interval);
+    timer.delay_micros(interval);
 
     status_light.set_green(OutputLevel::Low);
     status_light.set_blue(OutputLevel::High);
 
-    timer.delay(interval);
+    timer.delay_micros(interval);
 
     status_light.set_blue(OutputLevel::Low);
     status_light.set_red(OutputLevel::High);
 
-    timer.delay(interval);
+    timer.delay_micros(interval);
 
     status_light.set_red(OutputLevel::Low);
 }
 
-pub fn test_allocator(limit: usize){
+pub fn test_allocator(limit: usize) {
     let mut vec_vec: Vec<Vec<usize>> = alloc::vec!();
 
     for n in 0..limit {
         let num_vec: Vec<usize> = alloc::vec!();
         vec_vec.push(num_vec);
         for m in 0..n {
-           vec_vec[n].push(m * n);
+            vec_vec[n].push(m * n);
         }
     }
 
-    for n in 1 .. limit {
+    for n in 1..limit {
         for m in 1..n {
-            if vec_vec[n][m] != m * n  {
+            if vec_vec[n][m] != m * n {
                 panic!("Expected {:?}, received {:?}", m * n, vec_vec[n][m]);
             }
         }

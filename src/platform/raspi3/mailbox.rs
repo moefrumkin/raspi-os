@@ -1,57 +1,54 @@
-use core::arch::asm;
-use super::mmio::MMIOController;
+use core::{arch::asm, cell::RefCell};
 use alloc::{vec, vec::Vec};
-use crate::volatile::{AlignedBuffer, Volatile};
+use crate::{aarch64::{self, cpu}, bitfield, volatile::{AlignedBuffer, Volatile}};
+use alloc::rc::Rc;
 
-const MBOX_BASE_OFFSET: usize = 0xB880;
-const MBOX_READ: usize = MBOX_BASE_OFFSET + 0x0;
-#[allow(dead_code)]
-const MBOX_POLL: usize = MBOX_BASE_OFFSET + 0x10;
-#[allow(dead_code)]
-const MBOX_SENDER: usize = MBOX_BASE_OFFSET + 0x14;
-const MBOX_STATUS: usize = MBOX_BASE_OFFSET + 0x18;
-#[allow(dead_code)]
-const MBOX_CONFIG: usize = MBOX_BASE_OFFSET + 0x1c;
-const MBOX_WRITE: usize = MBOX_BASE_OFFSET + 0x20;
+pub trait MailboxController {
+    // TODO: Should buffer be mutable since it is modified by the call?
+    fn send_message_on_channel(&self, buffer: &MailboxBuffer, channel: Channel) -> u32;
 
-pub const MBOX_REQUEST: u32 = 0x0;
-#[allow(dead_code)]
-pub const MBOX_RESPONSE: u32 = 0x80000000;
-const MBOX_FULL: u32 = 0x80000000;
-const MBOX_EMPTY: u32 = 0x40000000;
-
-pub struct MailboxController<'a> {
-    mmio: &'a MMIOController,
+    fn send_property_message(&self, buffer: &MailboxBuffer) {
+        self.send_message_on_channel(buffer, Channel::Prop);
+    }
 }
 
-impl<'a> MailboxController<'a> {
-    pub fn new(mmio: &'a MMIOController) -> Self {
-        return Self { mmio };
+#[repr(C)]
+#[derive(Debug)]
+pub struct MailboxRegisters {
+    read: Volatile<u32>,
+    res0: [u32; 5],
+    status: Volatile<MailboxStatus>,
+    res1: [u32; 1],
+    write: Volatile<MailboxWriteData>
+}
+
+bitfield! {
+    MailboxStatus(u32) {
+        is_empty: 30-30,
+        is_full: 31-31
     }
+}
 
-    /// Send the message to the channel and wait for the response.
-    /// The lower 4 bits of the message must be 0, otherwise things won't be pretty
-    pub fn call(&self, message: u32, channel: Channel) -> u32 {
-        //wait there is space to write
-        while self.mmio.read_at_offset(MBOX_STATUS) & MBOX_FULL != 0 {
-            unsafe {
-                asm!("nop");
-            }
-        }
+bitfield! {
+    MailboxWriteData(u32) {
+        channel: 0-3,
+        data: 4-31
+    }
+}
 
-        self.mmio
-            .write_at_offset(message | channel as u32, MBOX_WRITE);
+impl MailboxRegisters {
+    pub fn send_message(&mut self, message: u32, channel: Channel) -> u32 {
+        self.wait_until_not_full();
 
-        //loop until the message has a response
+        self.write.map_closure(&|write|
+            // TODO: find better way instead of bit shifting data
+            write.set_channel(channel as u32).set_data(message >> 4)
+        );
+
         loop {
-            //wait until the mailbox is not empty
-            while self.mmio.read_at_offset(MBOX_STATUS) & MBOX_EMPTY != 0 {
-                unsafe {
-                    asm!("nop");
-                }
-            }
+            self.wait_until_not_empty();
 
-            let response = self.mmio.read_at_offset(MBOX_READ as usize);
+            let response = self.read.get();
 
             if response & 0b1111 == channel as u32 {
                 return response;
@@ -59,10 +56,17 @@ impl<'a> MailboxController<'a> {
         }
     }
 
-    pub fn property_message(&self, buffer: &MailboxBuffer) {
-        let addr = buffer.as_ptr();
+    fn wait_until_not_empty(&self) {
+        while self.status.get().get_is_empty() == 1 {
+            //Why do we need a no op?
+            cpu::nop();
+        }
+    }
 
-        self.call(addr as u32, Channel::Prop);
+    fn wait_until_not_full(&self) {
+        while self.status.get().get_is_full() == 1 {
+            cpu::nop();
+        }
     }
 }
 
