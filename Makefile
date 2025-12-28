@@ -4,10 +4,6 @@ ARCH = aarch64-unknown-none
 #TODO: do we need -g flag?
 BUILD_CMD = cargo rustc --features=$(PLATFORM) --target=$(ARCH) -- -g -C link-arg=-Taarch64-raspi3.ld
 
-SYMBOL_ELF = target/$(ARCH)/debug/graph_os_symbol
-
-BUILD_SYMBOL_CMD = cargo rustc --features=$(PLATFORM) --target=$(ARCH) -- -g -C link-arg=-Taarch64-raspi3-symbol.ld -o $(SYMBOL_ELF)
-
 KERNEL_ELF = target/$(ARCH)/debug/graph_os
 
 QEMU_ARCH = qemu-system-aarch64
@@ -88,6 +84,3 @@ doc-noopen:
 
 test:
 	cargo test --features=$(PLATFORM) -- --nocapture
-
-symbol_elf: 
-	$(BUILD_SYMBOL_CMD)
