@@ -23,15 +23,10 @@ QEMU_CMD = $(QEMU_ARCH) \
 	-serial mon:stdio \
 	-drive file=raspi.img,if=sd,format=raw
 
-#	-m 1024M -cpu $(CPU) \
-#	-smp $(CORES) \
-#	-d int,mmu,guest_errors,page \
-
 OBJDUMP = objdump
 OBJDUMP_CMD = $(OBJDUMP) -C --disassemble-all $(KERNEL_ELF)
 
-GDB = gdb #rust-gdb
-#gdb-multiarch
+GDB = gdb
 GDB_SCRIPT = debug.gdb
 GDB_CMD = $(GDB) -x $(GDB_SCRIPT)
 
@@ -54,20 +49,11 @@ image:
 run: $(KERNEL_ELF)
 	$(QEMU_CMD)
 
-run-trace: $(KERNEL_ELF)
-	$(QEMU_CMD) --trace "exec_tb,file=trace.log"
-
 run-nogui: $(KERNEL_ELF)
 	$(QEMU_CMD) -nographic
 
 dump:
 	$(OBJDUMP_CMD)
-
-nm:
-	nm $(KERNEL_ELF)
-
-readelf:
-	aarch64-none-elf-readelf --header $(KERNEL_ELF)
 
 gdb: 
 	$(GDB_CMD)
@@ -78,9 +64,6 @@ clean:
 
 doc:
 	cargo doc --features=$(PLATFORM) --open
-
-doc-noopen:
-	cargo doc --features=$(PLATFORM)
 
 test:
 	cargo test --features=$(PLATFORM) -- --nocapture
