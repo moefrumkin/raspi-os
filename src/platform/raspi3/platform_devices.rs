@@ -136,10 +136,11 @@ impl<'a> Platform<'a> {
             }
         }
 
+        // TODO: cleanup
         // Note: we could also just wake thread as part of the tick?
         if let Some(InterruptType::TimerInterrupt) = interrupt_type {
             panic!("Non-kernel timer interrupt occured");
-            if let Some(ref mut kernel) = *self.kernel.lock() {}
+            //if let Some(ref mut kernel) = *self.kernel.lock() {}
         }
     }
 

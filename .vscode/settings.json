@@ -2,5 +2,6 @@
     "rust-analyzer.cargo.features": [
         "raspi3"
     ],
-    "makefile.configureOnOpen": false
+    "makefile.configureOnOpen": false,
+    "editor.formatOnSave": true
 }

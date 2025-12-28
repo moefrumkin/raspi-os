@@ -48,7 +48,7 @@ unsafe extern "C" {
 global_asm!(include_str!("start.s"));
 
 #[no_mangle]
-pub extern "C" fn main(heap_start: usize, heap_size: usize, table_start: usize) {
+pub extern "C" fn main(heap_start: usize, heap_size: usize) {
     ALLOCATOR.lock().init(heap_start, heap_size);
     let platform = get_platform();
 
