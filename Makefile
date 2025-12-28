@@ -32,7 +32,7 @@ GDB_CMD = $(GDB) -x $(GDB_SCRIPT)
 
 .PHONY: all dump
 
-all: build doc-noopen
+all: build
 
 qemu:
 	$(QEMU_CMD) -S -s
@@ -79,8 +79,3 @@ detach-fs:
 
 copy-programs:
 	cp programs/build/*.elf $(IMG_MOUNT_PT)/users/moe
-
-make disk:
-	attach-fs
-	copy-programs
-	detach-fs
