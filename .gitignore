@@ -28,6 +28,7 @@ traces
 traces/*
 
 programs/*.elf
+programs/build
 
 *.bin
 

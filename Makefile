@@ -78,4 +78,9 @@ detach-fs:
 	hdiutil detach $(IMG_MOUNT_PT)
 
 copy-programs:
-	cp programs/*.elf $(IMG_MOUNT_PT)/users/moe
+	cp programs/build/*.elf $(IMG_MOUNT_PT)/users/moe
+
+make disk:
+	attach-fs
+	copy-programs
+	detach-fs
