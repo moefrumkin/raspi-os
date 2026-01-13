@@ -63,6 +63,9 @@ clean:
 	rm -f kernel8.img
 
 doc:
+	cargo doc --features=$(PLATFORM)
+
+doc-open:
 	cargo doc --features=$(PLATFORM) --open
 
 test:

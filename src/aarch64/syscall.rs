@@ -1,3 +1,7 @@
+//! Systems calls provide an interface for kernel functionality.
+//! Kernels threads may also use system calls just like user threads.
+//! This crate defines the system call numbers and wrapper functions to issue system calls from the kernel.
+
 use alloc::string::String;
 use core::arch::asm;
 
@@ -42,6 +46,7 @@ impl TryFrom<u64> for Syscall {
 // Wrappers to invoke system calls from the kernel.
 // These functions are marked as extern "C" to ensure they follow the calling convention
 
+/// Produces the assembly instruction to issue the system call.
 macro_rules! syscall {
     ($number: expr) => {
         unsafe {
@@ -50,11 +55,29 @@ macro_rules! syscall {
     };
 }
 
+/// Produces a wrapper function for a syscall using a specific number of arguments and a specific return type
+macro_rules! wrap_syscall {
+    ($number: expr, $name: ident,
+        ($($arg:ident: $type:ty),*) $(-> $return_type: ty)?
+    ) => {
+        #[allow(unused_variables)]
+        pub extern "C" fn $name($($arg: $type)*) $(-> $return_type)? {
+            syscall!($number);
+
+            $(
+                return_x0() as $return_type
+            )?
+        }
+    };
+}
+
 pub fn create_thread<T>(f: extern "C" fn(arg: T) -> (), name: String, arg: usize) -> u64 {
     start_thread(f, &name, arg)
 }
 
-// Should be optimized away
+/// Returns the value in x0.
+/// This is useful since the rust compiler doesn't know that syscalls return their value in x0
+/// This function should be optimized away
 #[inline(always)]
 fn return_x0() -> u64 {
     let x0: u64;
@@ -76,25 +99,17 @@ extern "C" fn start_thread<T>(
     return_x0()
 }
 
-pub extern "C" fn exit(_code: u64) {
-    syscall!(Syscall::Exit)
-}
+wrap_syscall!(Syscall::Exit, exit, (code: u64));
 
-pub extern "C" fn sleep(_micros: u64) {
-    syscall!(Syscall::Wait);
-}
+wrap_syscall!(Syscall::Wait, sleep, (micros: u64));
 
-pub extern "C" fn join(_thread_id: u64) -> u64 {
-    syscall!(Syscall::Join);
+wrap_syscall!(Syscall::Join, join, (thread_id: u64) -> u64);
 
-    return_x0()
-}
-
-pub extern "C" fn yield_thread() {
-    syscall!(Syscall::Yield);
-}
+wrap_syscall!(Syscall::Yield, yield_thread, ());
 
 pub fn open(name: &str) -> u64 {
+    // We calculate these values before the asm block just in case .as_ptr or .len changes the values of x0 or x1 in ways we wouldn't want
+    // TODO: is this necessary based on the semantics of the asm macro?
     let name_ptr = name.as_ptr();
     let name_size = name.len();
 
@@ -113,19 +128,20 @@ pub fn open(name: &str) -> u64 {
     return_x0()
 }
 
-pub extern "C" fn close(_handle: u64) {
-    syscall!(Syscall::Close);
-}
+wrap_syscall!(Syscall::Close, close, (handle: u64));
 
 pub fn read(handle: u64, buffer: &mut [u8]) -> usize {
+    let buffer_ptr = buffer.as_ptr() as usize;
+    let buffer_len = buffer.len() as usize;
+
     unsafe {
         asm!(
             "mov x0, {}
             mov x1, {}
             mov x2, {}",
             in(reg) handle,
-            in(reg) buffer.as_ptr() as usize,
-            in(reg) buffer.len()
+            in(reg) buffer_ptr,
+            in(reg) buffer_len
         );
     }
 
