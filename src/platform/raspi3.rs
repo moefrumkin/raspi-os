@@ -16,6 +16,7 @@ pub mod page_table;
 pub mod platform_devices;
 pub mod power;
 pub mod programs;
+pub mod scheduler;
 pub mod semaphore;
 #[cfg(not(test))]
 pub mod start;

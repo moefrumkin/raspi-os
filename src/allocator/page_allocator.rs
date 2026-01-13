@@ -7,6 +7,7 @@ pub const PAGE_SIZE: usize = 4096;
 pub type Page = [u8; PAGE_SIZE];
 
 #[repr(C)]
+#[derive(Debug)]
 pub struct PageAllocator<'a> {
     free_list: &'a mut [BitArray<usize>],
     pages: &'a mut [Page],

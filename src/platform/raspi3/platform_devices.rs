@@ -62,7 +62,7 @@ pub fn get_platform() -> &'static Platform<'static> {
 
 unsafe extern "C" {
     unsafe static PAGE_SECTION_START: usize;
-    unsafe static PAGE_SECTION_SIZE: usize;
+    unsafe static PAGE_SECTION_SIZE: &'static usize;
 }
 
 pub struct Platform<'a> {

@@ -1,3 +1,4 @@
+#[derive(Debug)]
 pub struct IDAllocator {
     current_id: u64,
 }

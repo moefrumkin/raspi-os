@@ -30,7 +30,8 @@ use crate::{
         page_table::PageTable,
         platform_devices::{get_platform, PLATFORM},
         raspi3::exception::InterruptFrame,
-        thread::{Scheduler, Thread, ThreadStatus},
+        scheduler::Scheduler,
+        thread::{Thread, ThreadStatus},
     },
 };
 
@@ -41,6 +42,7 @@ use super::kernel_object::ObjectHandle;
 
 pub const TICK: u32 = 1_000;
 
+#[derive(Debug)]
 pub struct Kernel<'a> {
     pub scheduler: Scheduler<'a>,
     pub page_allocator: IRQLock<PageAllocator<'a>>,

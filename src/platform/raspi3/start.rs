@@ -110,7 +110,7 @@ pub extern "C" fn main(heap_start: usize, heap_size: usize) {
 
     unsafe {
         let page_start: usize = &PAGE_SECTION_START as *const usize as usize;
-        let page_size: usize = 6553600;
+        let page_size: usize = 6553600; // TODO: what!?
         println!(
             "Initializing Page allocator at {:#x} with size {}",
             page_start, page_size
