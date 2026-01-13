@@ -139,107 +139,11 @@ pub extern "C" fn main(heap_start: usize, heap_size: usize) {
 
     println!("Timer interrupt enabled!");
 
-    //cpu::create_thread(graphics_thread, String::from("Graphics"), 0);
-
-    //cpu::create_thread(long_count, String::from("Long Count"), 0);
-
-    //cpu::create_thread(counter::run_count, String::from("Counters"), 20);
-
-    //cpu::create_thread(readelf::readelf, String::from("readelf"), 0);
-
     syscall::create_thread(write::write, String::from("write"), 0);
-
-    //cpu::create_thread(ls::ls, String::from("ls"), 0);
 
     PLATFORM.set_kernel_timeout(TICK);
 
     loop {
         syscall::yield_thread();
-    }
-}
-
-pub extern "C" fn long_count(_: usize) {
-    let timer = get_platform().get_timer();
-    println!("Starting long count");
-    loop {
-        syscall::sleep(1_000_000);
-        println!(
-            "Long Count Timer: {:?}",
-            Duration::from_micros(timer.get_micros())
-        );
-    }
-}
-
-pub extern "C" fn graphics_thread(_arg: usize) {
-    let platform = get_platform();
-    let resolution = Dimensions::new(1920, 1080);
-
-    let fb_config = FrameBufferConfigBuilder::new()
-        .depth(32)
-        .physical_dimensions(resolution)
-        .virtual_dimensions(resolution)
-        .pixel_order(PixelOrder::RGB)
-        .virtual_offset(Offset::none())
-        .overscan(Overscan::none())
-        .build();
-
-    println!("Initializing Frame Buffer with config {}", fb_config);
-
-    let mut fb = FrameBuffer::from_config(fb_config, platform.get_mailbox_controller());
-
-    println!("Actual config is {}", fb.get_config());
-
-    loop {
-        for i in 0..(1920 * 1080) {
-            fb.write_idx(i, 0xff00ffff);
-        }
-
-        for j in 0..1920 {
-            for i in 0..1080 {
-                fb.write_pixel(
-                    j,
-                    i,
-                    0xff000000 + ((255 * i / 1080) << 16) + ((255 * j / 1920) << 8) + 0xff,
-                );
-            }
-        }
-    }
-}
-
-pub fn blink_sequence(status_light: &mut StatusLight, timer: &dyn Timer, interval: u64) {
-    status_light.set_green(OutputLevel::High);
-
-    timer.delay_micros(interval);
-
-    status_light.set_green(OutputLevel::Low);
-    status_light.set_blue(OutputLevel::High);
-
-    timer.delay_micros(interval);
-
-    status_light.set_blue(OutputLevel::Low);
-    status_light.set_red(OutputLevel::High);
-
-    timer.delay_micros(interval);
-
-    status_light.set_red(OutputLevel::Low);
-}
-
-pub fn test_allocator(limit: usize) {
-    let mut vec_vec: Vec<Vec<usize>> = alloc::vec!();
-
-    for n in 0..limit {
-        let num_vec: Vec<usize> = alloc::vec!();
-        vec_vec.push(num_vec);
-        for m in 0..n {
-            vec_vec[n].push(m * n);
-        }
-    }
-
-    for n in 1..limit {
-        for m in 1..n {
-            if vec_vec[n][m] != m * n {
-                panic!("Expected {:?}, received {:?}", m * n, vec_vec[n][m]);
-            }
-        }
     }
 }
