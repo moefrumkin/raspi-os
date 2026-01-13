@@ -53,20 +53,8 @@ pub extern "C" fn main(heap_start: usize, heap_size: usize) {
     let platform = get_platform();
 
     platform.init();
-    // let status_light = PLATFORM.get_status_light().unwrap();
 
-    // blink_sequence(&status_light.borrow(), timer, 100);
-
-    println!("Starting");
-
-    println!("Entering Boot Sequence (with new build system?)");
-    println!("Initializing Memory Virtualization");
-
-    /*unsafe {
-        mmu::init(table_start as *mut usize);
-    };*/
-
-    println!("Memory Virtualization Initialized");
+    println!("Booting");
 
     println!(
         "Heap Allocator initialized at {:#x} with size {}",
@@ -146,7 +134,6 @@ pub extern "C" fn main(heap_start: usize, heap_size: usize) {
 
     let mut interrupt_controller = InterruptController::new();
 
-    //interrupt_controller.enable_timer_interrupt_3();
     interrupt_controller.enable_timer_interrupt_1();
     interrupt_controller.enable_auxiliary_device_interrupts();
 
@@ -165,8 +152,6 @@ pub extern "C" fn main(heap_start: usize, heap_size: usize) {
     //cpu::create_thread(ls::ls, String::from("ls"), 0);
 
     PLATFORM.set_kernel_timeout(TICK);
-
-    //status_light.borrow_mut().set_green(OutputLevel::High);
 
     loop {
         cpu::yield_thread();

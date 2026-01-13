@@ -14,7 +14,7 @@ macro_rules! read {
 macro_rules! write {
     ($sysreg: literal, $value: expr) => {
         unsafe {
-            asm!(concat!("msr ", $sysreg, ", {}"), in(reg) $value);
+            asm!(concat!("msr ", $sysreg, ", {0:x}"), in(reg) $value);
         }
     };
 }

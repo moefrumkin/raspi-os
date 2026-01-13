@@ -31,25 +31,43 @@ const unsafe fn to_mut_mmio_registers<T>(offset: usize) -> &'static mut T {
 }
 
 pub const fn get_timer_registers() -> &'static mut TimerRegisters {
-    unsafe { &mut TIMER_REGISTERS }
+    #[allow(static_mut_refs)]
+    unsafe {
+        &mut TIMER_REGISTERS
+    }
 }
 
 pub const fn get_emmc_registers() -> &'static mut EMMCRegisters {
-    unsafe { &mut EMMC_REGISTERS }
+    #[allow(static_mut_refs)]
+    unsafe {
+        &mut EMMC_REGISTERS
+    }
 }
 
 pub const fn get_gpio_registers() -> &'static mut GPIORegisters {
-    unsafe { &mut GPIO_REGISTERS }
+    #[allow(static_mut_refs)]
+    unsafe {
+        &mut GPIO_REGISTERS
+    }
 }
 
 pub const fn get_miniuart_registers() -> &'static mut MiniUARTRegisters {
-    unsafe { &mut MINI_UART_REGISTERS }
+    #[allow(static_mut_refs)]
+    unsafe {
+        &mut MINI_UART_REGISTERS
+    }
 }
 
 pub const fn get_mailbox_registers() -> &'static mut MailboxRegisters {
-    unsafe { &mut MAILBOX_REGISTERS }
+    #[allow(static_mut_refs)]
+    unsafe {
+        &mut MAILBOX_REGISTERS
+    }
 }
 
 pub const fn get_interrupt_registers() -> &'static mut InterruptRegisters {
-    unsafe { &mut INTERRUPT_REGISTERS }
+    #[allow(static_mut_refs)]
+    unsafe {
+        &mut INTERRUPT_REGISTERS
+    }
 }
