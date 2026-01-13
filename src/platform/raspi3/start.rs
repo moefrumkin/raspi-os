@@ -106,10 +106,6 @@ pub extern "C" fn main(heap_start: usize, heap_size: usize) {
     )
     .expect("Unable to initialize a FAT32 filesystem in partition");
 
-    let root_dir = filesystem.get_root_directory();
-
-    println!("Root directory: {}", root_dir);
-
     let page_allocator: IRQLock<PageAllocator>;
 
     unsafe {
