@@ -68,7 +68,7 @@ impl<'a> Scheduler<'a> {
         let time = PLATFORM.get_timer().get_micros();
 
         for thread in self.threads.iter_mut() {
-            if let ThreadStatus::Waiting(timeout) = *thread.status.lock() {
+            if let ThreadStatus::Sleeping(timeout) = *thread.status.lock() {
                 if timeout < time {
                     *thread.status.lock() = ThreadStatus::Ready;
                     self.thread_queue.push_back(Arc::clone(thread));
@@ -108,39 +108,9 @@ impl<'a> Scheduler<'a> {
     }
 
     pub fn schedule(&mut self) {
-        /*crate::println!("\n\n\nScheduling \n\n");
-        crate::println!("Threads:");
-        for thread in &self.threads {
-            crate::println!(
-                "{} (Strong count {}) @ {:#?}: {:?}",
-                &thread.name,
-                Rc::strong_count(thread),
-                Rc::as_ptr(thread),
-                *thread.status.lock()
-            );
-        }
-
-        crate::println!("Queue:");
-        for thread in &self.thread_queue {
-            crate::println!(
-                "{} (Strong count {}) @ {:#?}: {:?}",
-                &thread.name,
-                Rc::strong_count(thread),
-                Rc::as_ptr(thread),
-                *thread.status.lock()
-            );
-        }
-        crate::println!(
-            "Cloning! {:?}. With strong count {}",
-            &self.current_thread,
-            Rc::strong_count(&self.current_thread)
-        );*/
         let former_thread = Arc::clone(&self.current_thread);
-        //crate::println!("Cloned!");
         *former_thread.status.lock() = ThreadStatus::Ready;
         self.thread_queue.push_back(former_thread);
-
-        //crate::println!("Old pushed");
 
         let new_thread = self.thread_queue.pop_front().expect("No threads on queue");
         *new_thread.status.lock() = ThreadStatus::Running;
@@ -186,7 +156,7 @@ impl<'a> Scheduler<'a> {
     pub fn delay_current_thread(&mut self, delay: u64) {
         let thread_to_delay = Arc::clone(&self.current_thread);
 
-        *thread_to_delay.status.lock() = ThreadStatus::Waiting(delay);
+        *thread_to_delay.status.lock() = ThreadStatus::Sleeping(delay);
 
         self.waiting_threads.push(thread_to_delay);
 
@@ -201,7 +171,7 @@ impl<'a> Scheduler<'a> {
         self.waiting_threads
             .iter()
             .map(|thread| match *thread.status.lock() {
-                ThreadStatus::Waiting(wake_time) => wake_time,
+                ThreadStatus::Sleeping(wake_time) => wake_time,
                 _ => panic!("Non waiting thread on waiting thread queue"),
             })
             .min()
@@ -212,7 +182,7 @@ impl<'a> Scheduler<'a> {
 
         self.waiting_threads.retain(|thread| {
             let wake_time = match *thread.status.lock() {
-                ThreadStatus::Waiting(wake_time) => wake_time,
+                ThreadStatus::Sleeping(wake_time) => wake_time,
                 _ => panic!("Non waiting thread on waiting thread queue"),
             };
 

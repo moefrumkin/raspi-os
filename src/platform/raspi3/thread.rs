@@ -1,3 +1,5 @@
+//! Structures and functions to represent and manipulate OS threads
+
 use alloc::rc::Rc;
 use alloc::sync::Arc;
 use core::arch::asm;
@@ -22,20 +24,28 @@ use crate::platform::page_table::PageTable;
 use crate::platform::platform_devices::PLATFORM;
 use crate::platform::raspi3::exception::InterruptFrame;
 
+/// The status of a given thread
 #[derive(Copy, Clone, Debug)]
 pub enum ThreadStatus {
+    /// The thread is current running
     Running,
+    /// The thread is not running but it unblocked and scheduled to run
     Ready,
-    Waiting(u64),
+    /// The thread is sleeping until a clock time
+    Sleeping(u64),
+    /// The thread has exited with the given status
     Exited(u64),
+    /// The thread is waiting for a given thread to exit
     Joining(ThreadID),
 }
 
+/// Each thread is identified with a unique id
 pub type ThreadID = u64;
 
 #[derive(Debug)]
 // TODO: implement Drop trait
 pub struct Thread<'a> {
+    /// The thread's stack pointer. This is only valid for a non-running thread
     pub stack_pointer: IRQLock<*const u64>,
     pub parent: Option<Arc<Thread<'a>>>,
     pub status: IRQLock<ThreadStatus>,
@@ -62,6 +72,7 @@ impl<'a> Thread<'a> {
         }
     }
 
+    /// Return control to this thread
     pub fn return_to(&self) -> ! {
         unsafe {
             let user_table = self.user_table.lock().get_ttbr();
@@ -127,6 +138,7 @@ impl<'a> Thread<'a> {
         loop {}
     }
 
+    /// Set the return value
     /// Unsafe if the stack pointer is not accurate
     /// TODO: for memory safety, shyould this require a mutable ref to self?
     pub fn set_return_value(&self, value: u64) {
@@ -136,6 +148,7 @@ impl<'a> Thread<'a> {
         }
     }
 
+    /// Load and run a user-mode program on this thread
     pub fn exec(&self, program: &str) {
         let handle = syscall::open(program);
 
