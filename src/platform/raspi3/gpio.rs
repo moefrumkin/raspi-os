@@ -1,7 +1,7 @@
 //! This module provides support for the raspberry pi's general purpose input output (gpio) pins
 
-use core::cell::RefCell;
 use alloc::rc::Rc;
+use core::cell::RefCell;
 
 use crate::{aarch64::cpu, bitfield, utils::bit_array::BitArray, volatile::Volatile};
 
@@ -15,25 +15,14 @@ pub trait GPIOController {
 
 const PINS: u32 = 53;
 
-const GPIO_BASE_OFFSET: u32 = 0x00200000;
-
 const GPFSEL_SIZE: u32 = 10;
-const GPFSEL_BASE_OFFSET: u32 = GPIO_BASE_OFFSET + 0;
 
 const GPSET_SIZE: u32 = 32;
-const GPSET_BASE_OFFSET: u32 = GPIO_BASE_OFFSET + 0x1c;
 
 const GPCLR_SIZE: u32 = 32;
-const GPCLR_BASE_OFFSET: u32 = GPIO_BASE_OFFSET + 0x28;
-
-const GPHEN_BASE_OFFSET: u32 = GPIO_BASE_OFFSET + 0x64;
-
-#[allow(dead_code)]
-const GPPPUD: u32 = GPIO_BASE_OFFSET + 0x94;
 
 #[allow(dead_code)]
 const GPPUDCLK_SIZE: u32 = 32;
-const GPPUDCLK_BASE_OFFSET: u32 = GPIO_BASE_OFFSET + 0x98;
 
 #[repr(C)]
 #[derive(Debug)]
@@ -61,16 +50,16 @@ pub struct GPIORegisters {
     gpafen: [Volatile<u32>; 2],
     res10: u32,
     pull_register: Volatile<PullRegister>,
-    pull_enable: [Volatile<BitArray<u32>>; 2]
+    pull_enable: [Volatile<BitArray<u32>>; 2],
 }
 
 #[allow(dead_code)]
 impl GPIORegisters {
     pub fn set_pin_mode(&mut self, pin: Pin, mode: Mode) {
-        self.function_select_banks[
-            pin.function_select_bank_number()
-        ].map_closure(&|bank: FunctionSelectBlock|
-            bank.set_pin_mode(pin.number_in_function_select_bank(), mode)
+        self.function_select_banks[pin.function_select_bank_number()].map_closure(
+            &|bank: FunctionSelectBlock| {
+                bank.set_pin_mode(pin.number_in_function_select_bank(), mode)
+            },
         );
     }
 
@@ -79,14 +68,18 @@ impl GPIORegisters {
     pub fn set_out(&mut self, pin: Pin, output: OutputLevel) {
         match output {
             OutputLevel::High => {
-                self.set_output[pin.set_block()].map_closure(&move |output_block: BitArray<u32>|
+                self.set_output[pin.set_block()].map_closure(&move |output_block: BitArray<
+                    u32,
+                >| {
                     output_block.set_bit(pin.set_offset(), 1)
-                );
+                });
             }
             OutputLevel::Low => {
-                self.clear_output[pin.clear_block()].map_closure(&move |clear_block: BitArray<u32>|
+                self.clear_output[pin.clear_block()].map_closure(&move |clear_block: BitArray<
+                    u32,
+                >| {
                     clear_block.set_bit(pin.clear_offset(), 1)
-                );
+                });
             }
         }
     }
@@ -103,26 +96,25 @@ impl GPIORegisters {
 
         cpu::wait_for_cycles(150);
 
-        self.pull_enable[pull_enable_block].map_closure(&|pull_enable|
-            pull_enable.set_bit(pull_enable_offset, 1)
-        );
+        self.pull_enable[pull_enable_block]
+            .map_closure(&|pull_enable| pull_enable.set_bit(pull_enable_offset, 1));
 
         cpu::wait_for_cycles(150);
 
-        self.pull_enable[pull_enable_block].map_closure(&|pull_enable|
-            pull_enable.set_bit(pull_enable_offset, 0)
-        );
+        self.pull_enable[pull_enable_block]
+            .map_closure(&|pull_enable| pull_enable.set_bit(pull_enable_offset, 0));
     }
 
     fn get_pin_mode(&self, pin: Pin) -> u32 {
-        self.function_select_banks[pin.function_select_bank_number()].get()
+        self.function_select_banks[pin.function_select_bank_number()]
+            .get()
             .get_pin_mode(pin.number_in_function_select_bank())
     }
 
     // TODO: do this better
     pub fn set_high_detect_enable(&mut self, pin: Pin, value: u32) {
         let bank;
-        if pin.number < 32  {
+        if pin.number < 32 {
             bank = 0;
         } else {
             bank = 1
@@ -130,9 +122,8 @@ impl GPIORegisters {
 
         let offset_in_bank = pin.number - 32 * bank;
 
-        self.high_detect_enable[bank as usize].map_closure(&|detect_enable|
-            detect_enable.set_bit(offset_in_bank as usize, value)
-        );
+        self.high_detect_enable[bank as usize]
+            .map_closure(&|detect_enable| detect_enable.set_bit(offset_in_bank as usize, value));
     }
 }
 
@@ -152,14 +143,13 @@ bitfield! {
             let shifted_inverted_mask = !(Self::PIN_STATUS_MASK <<
                 (pin_number_in_block * Self::PIN_STATUS_BITS));
 
-            let value = (self.value & shifted_inverted_mask) | 
+            let value = (self.value & shifted_inverted_mask) |
                 ((mode as u32) << (pin_number_in_block * Self::PIN_STATUS_BITS));
 
             Self { value }
         }
     }
 }
-
 
 bitfield! {
     PullRegister(u32) {
