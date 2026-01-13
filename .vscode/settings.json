@@ -3,5 +3,13 @@
         "raspi3"
     ],
     "makefile.configureOnOpen": false,
-    "editor.formatOnSave": true
+    "editor.formatOnSave": true,
+    "emeraldwalk.runonsave": {
+        "commands": [
+            {
+                "match": "*.rs",
+                "cmd": "make doc"
+            }
+        ]
+    }
 }

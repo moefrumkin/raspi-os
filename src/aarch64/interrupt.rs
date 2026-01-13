@@ -1,3 +1,6 @@
+//! AArch64 interrupt API
+//! This API does not control platform specific interrupt features
+
 use core::{
     arch::asm,
     cell::UnsafeCell,
@@ -12,16 +15,19 @@ pub enum InterruptState {
     Disabled,
 }
 
+/// Globally enable interrupts
 pub fn enable_irq() {
     unsafe {
         asm!("msr daifclr, 0b1111");
     }
 }
 
+/// Globally disable interrupts
 pub fn disable_irq() {
     unsafe { asm!("msr daifset, 0b1111") }
 }
 
+/// Set whether interrupts are enabled or disabled
 pub fn set_irq_state(state: InterruptState) {
     match state {
         InterruptState::Enabled => enable_irq(),
@@ -46,6 +52,7 @@ pub fn get_irq_state() -> InterruptState {
     }
 }
 
+/// Disables interrupts and returns the interrupt state before being disabled
 pub fn pop_irq_state() -> InterruptState {
     let daif: u64;
 
@@ -65,6 +72,7 @@ pub fn pop_irq_state() -> InterruptState {
     }
 }
 
+/// A lock that provides synchronization by disabling interrupts when the contents are accessed.
 #[derive(Debug)]
 pub struct IRQLock<T> {
     data: UnsafeCell<T>,
@@ -78,13 +86,18 @@ impl<'a, T> IRQLock<T> {
     }
 
     pub fn lock(&'a self) -> IRQLockGuard<'a, T> {
-        // TODO: do we need to make sure that the irq state is atomically popped?
+        // This implementation is valid provided that the interrupt handler is correct
+        // The main concern is that an interrupt occurs in the execution of pop_irq_state
+        // after the state is read but before irqs are disables. However, the interrupt handler
+        // returns the irq state to the same state as before the interrupt so even if an interrupt
+        // occured between these instructions, the result is correct
         IRQLockGuard {
             state: pop_irq_state(),
             data: unsafe { &mut *self.data.get() },
         }
     }
 
+    /// Execute a closure on the locked data.
     pub fn execute(&self, f: impl FnOnce(&T)) {
         f(self.lock().data);
     }
