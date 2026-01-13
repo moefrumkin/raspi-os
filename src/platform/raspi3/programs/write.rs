@@ -1,4 +1,4 @@
-use crate::aarch64::cpu::{self, close_object, exit_thread, write_object};
+use crate::aarch64::syscall;
 use crate::platform::platform_devices::PLATFORM;
 use crate::println;
 
@@ -7,5 +7,5 @@ pub extern "C" fn write(_: usize) {
 
     PLATFORM.exec("file:USERS./MOE./WRITE.ELF");
 
-    cpu::exit_thread(0);
+    syscall::exit(0);
 }

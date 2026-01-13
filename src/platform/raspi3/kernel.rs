@@ -121,7 +121,7 @@ impl<'a> Kernel<'a> {
     }
 
     pub fn handle_syscall(&mut self, number: usize, args: SyscallArgs) {
-        let syscall = Syscall::from_u64(number as u64).expect("Invalid Syscall Number");
+        let syscall = Syscall::try_from(number as u64).expect("Invalid Syscall Number");
         match syscall {
             Syscall::Thread => self.create_thread(args[0], args),
             Syscall::Exit => self.exit_current_thread(args[0] as u64),

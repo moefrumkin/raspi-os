@@ -14,7 +14,7 @@ use alloc::boxed::Box;
 
 use super::kernel_object::{KernelObject, ObjectHandle};
 use crate::aarch64::interrupt::IRQLock;
-use crate::aarch64::{cpu, mmu};
+use crate::aarch64::{cpu, mmu, syscall};
 use crate::allocator::page_allocator::PAGE_SIZE;
 use crate::elf::{ELF64Header, ProgramHeader, ProgramType};
 use crate::platform::page_table::PageTable;
@@ -136,11 +136,11 @@ impl<'a> Thread<'a> {
     }
 
     pub fn exec(&self, program: &str) {
-        let handle = cpu::open_object(program);
+        let handle = syscall::open(program);
 
         let mut buffer: [u8; 840] = [b'\0'; 840];
 
-        let bytes_read = cpu::read_object(handle, &mut buffer);
+        let bytes_read = syscall::read(handle, &mut buffer);
 
         let header = ELF64Header::try_from(&buffer[0..bytes_read]).expect("Error parsing elf");
 

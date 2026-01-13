@@ -1,5 +1,5 @@
-use crate::aarch64::cpu;
 use crate::aarch64::interrupt::IRQLock;
+use crate::aarch64::{cpu, syscall};
 use crate::platform::semaphore::SemMutex;
 use crate::println;
 use alloc::boxed::Box;
@@ -46,7 +46,7 @@ pub extern "C" fn run_count(n: usize) {
             thread_number: i,
         });
 
-        let id = cpu::create_thread(
+        let id = syscall::create_thread(
             counter_thread,
             String::from(alloc::format!("Counter {}", i)),
             Box::into_raw(args) as usize,
@@ -56,14 +56,14 @@ pub extern "C" fn run_count(n: usize) {
     }
 
     for i in 0..n {
-        let ret = cpu::join_thread(threads[i] as u64);
+        let ret = syscall::join(threads[i] as u64);
 
         println!("Counter thread {} exited with code {}", i, ret);
     }
 
     println!("Final count: {}", counter.lock().count());
 
-    cpu::exit_thread(0);
+    syscall::exit(0);
 }
 
 pub extern "C" fn counter_thread(counter: Box<CounterThreadArguments>) {
@@ -75,5 +75,5 @@ pub extern "C" fn counter_thread(counter: Box<CounterThreadArguments>) {
         //cpu::sleep(200_000);
     }
 
-    cpu::exit_thread(0);
+    syscall::exit(0);
 }

@@ -3,7 +3,7 @@ use super::kernel::TICK;
 use super::programs::ls;
 use super::programs::{counter, readelf, write};
 use crate::aarch64::interrupt::IRQLock;
-use crate::aarch64::{cpu, interrupt, mmu, syscall::Syscall};
+use crate::aarch64::{cpu, interrupt, mmu, syscall, syscall::Syscall};
 use crate::allocator::page_allocator::PageAllocator;
 use crate::canvas::{canvas2d::Canvas2D, line::Line, matrix::Matrix, vector::Vector};
 use crate::ALLOCATOR;
@@ -147,14 +147,14 @@ pub extern "C" fn main(heap_start: usize, heap_size: usize) {
 
     //cpu::create_thread(readelf::readelf, String::from("readelf"), 0);
 
-    cpu::create_thread(write::write, String::from("write"), 0);
+    syscall::create_thread(write::write, String::from("write"), 0);
 
     //cpu::create_thread(ls::ls, String::from("ls"), 0);
 
     PLATFORM.set_kernel_timeout(TICK);
 
     loop {
-        cpu::yield_thread();
+        syscall::yield_thread();
     }
 }
 
@@ -162,7 +162,7 @@ pub extern "C" fn long_count(_: usize) {
     let timer = get_platform().get_timer();
     println!("Starting long count");
     loop {
-        cpu::sleep(1_000_000);
+        syscall::sleep(1_000_000);
         println!(
             "Long Count Timer: {:?}",
             Duration::from_micros(timer.get_micros())

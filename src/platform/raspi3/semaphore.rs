@@ -4,7 +4,10 @@ use core::{
     sync::atomic::{AtomicU64, Ordering},
 };
 
-use crate::{aarch64::cpu, sync::SpinMutexGuard};
+use crate::{
+    aarch64::{cpu, syscall},
+    sync::SpinMutexGuard,
+};
 
 #[derive(Debug)]
 struct Semaphore {
@@ -25,7 +28,7 @@ impl Semaphore {
             let value = self.value.load(Self::ORDERING);
 
             if value == 0 {
-                cpu::yield_thread(); // TODO: have this thread sleep until increment
+                syscall::yield_thread(); // TODO: have this thread sleep until increment
             } else {
                 let result =
                     self.value
