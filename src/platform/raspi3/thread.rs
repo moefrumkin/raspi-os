@@ -9,8 +9,6 @@ use alloc::vec::Vec;
 
 use alloc::string::String;
 
-use alloc::boxed::Box;
-
 use super::kernel_object::{KernelObject, ObjectHandle};
 use crate::aarch64::interrupt::IRQLock;
 use crate::aarch64::{mmu, syscall};
@@ -48,7 +46,7 @@ pub struct Thread<'a> {
     pub name: String,
     pub id: u64,
     pub children: IRQLock<Vec<Arc<Thread<'a>>>>,
-    pub objects: IRQLock<Vec<(ObjectHandle, Box<dyn KernelObject>)>>, // TODO: find a more efficient way of doing this
+    pub objects: IRQLock<Vec<(ObjectHandle, Arc<dyn KernelObject>)>>, // TODO: find a more efficient way of doing this
     pub kernel_table: IRQLock<PageTable>,
     pub user_table: IRQLock<PageTable>,
 }
@@ -148,12 +146,26 @@ impl<'a> Thread<'a> {
         *self.stack_pointer.lock() = sp;
     }
 
-    pub fn add_object(&self, object: Box<dyn KernelObject>, id: ObjectHandle) {
+    pub fn add_object(&self, object: Arc<dyn KernelObject>, id: ObjectHandle) {
         self.objects.lock().push((id, object));
     }
 
     pub fn remove_object(&self, handle: ObjectHandle) {
         self.objects.lock().retain(|(id, _)| *id != handle);
+    }
+
+    pub fn get_object(&self, handle: ObjectHandle) -> Option<Arc<dyn KernelObject>> {
+        let objects = self.objects.lock();
+
+        for i in 0..objects.len() {
+            let (id, o) = &objects[i];
+
+            if *id == handle {
+                return Some(o.clone());
+            }
+        }
+
+        return None;
     }
 
     /// Load and run a user-mode program on this thread

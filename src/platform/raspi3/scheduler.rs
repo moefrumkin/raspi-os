@@ -6,7 +6,6 @@ use alloc::vec::Vec;
 
 use alloc::collections::VecDeque;
 
-use super::kernel_object::ObjectHandle;
 use crate::platform::platform_devices::PLATFORM;
 use crate::platform::raspi3::exception::InterruptFrame;
 use crate::platform::thread::{Thread, ThreadID, ThreadStatus};
@@ -177,42 +176,5 @@ impl<'a> Scheduler<'a> {
         self.thread_queue.push_back(yielding_thread);
 
         self.current_thread = self.thread_queue.pop_front().expect("No threads on queue");
-    }
-
-    pub fn read(&mut self, handle: ObjectHandle, buffer: &mut [u8]) {
-        let mut return_value = 0;
-
-        {
-            let objects = self.current_thread.objects.lock();
-
-            for i in 0..objects.len() {
-                let (id, o) = &objects[i];
-
-                if *id == handle {
-                    return_value = o.read(buffer);
-                    break;
-                }
-            }
-        }
-
-        self.current_thread.set_return_value(return_value as u64);
-    }
-
-    pub fn write(&mut self, handle: ObjectHandle, buffer: &mut [u8]) {
-        let mut return_value = 0;
-        {
-            let objects = self.current_thread.objects.lock();
-
-            for i in 0..objects.len() {
-                let (id, o) = &objects[i];
-
-                if *id == handle {
-                    return_value = o.write(buffer);
-                    break;
-                }
-            }
-        }
-
-        self.current_thread.set_return_value(return_value as u64);
     }
 }

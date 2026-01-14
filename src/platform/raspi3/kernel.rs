@@ -14,7 +14,7 @@ use crate::{
     },
     filesystem::fat32::{FAT32DirectoryEntry, FAT32Filesystem},
     platform::{
-        kernel_object::{FileObject, Stdio},
+        kernel_object::{FileObject, ObjectHandle, Stdio},
         page_table::PageTable,
         platform_devices::PLATFORM,
         raspi3::exception::InterruptFrame,
@@ -23,7 +23,6 @@ use crate::{
     },
 };
 
-use alloc::boxed::Box;
 use alloc::string::String;
 
 pub const TICK: u32 = 1_000;
@@ -51,6 +50,7 @@ impl<'a> Kernel<'a> {
         }
     }
 
+    // TODO: should be able to eliminate
     pub fn allocate_page(&mut self) -> PageRef {
         self.page_allocator
             .lock()
@@ -80,12 +80,14 @@ impl<'a> Kernel<'a> {
             }
             Syscall::Close => self.get_current_thread().remove_object(args[0] as u64),
             Syscall::Read => {
+                let handle = args[0] as ObjectHandle;
                 let buffer = unsafe { slice::from_raw_parts_mut(args[1] as *mut u8, args[2]) };
-                self.scheduler.read(args[0] as u64, buffer)
+                self.read(handle, buffer);
             }
             Syscall::Write => {
+                let handle = args[0] as ObjectHandle;
                 let buffer = unsafe { slice::from_raw_parts_mut(args[1] as *mut u8, args[2]) };
-                self.scheduler.write(args[0] as u64, buffer)
+                self.write(handle, buffer);
             }
             _ => panic!("Unsupported Syscall"),
         }
@@ -118,7 +120,7 @@ impl<'a> Kernel<'a> {
             .set_stack_pointer(frame as *const InterruptFrame as *const u64);
     }
 
-    pub fn read(&self, entry: FAT32DirectoryEntry, buffer: &mut [u8]) -> usize {
+    pub fn readfile(&self, entry: FAT32DirectoryEntry, buffer: &mut [u8]) -> usize {
         self.filesystem.lock().read_file(entry, buffer)
     }
 
@@ -135,7 +137,7 @@ impl<'a> Kernel<'a> {
                 let id = self.object_id_allocator.allocate_id();
 
                 self.get_current_thread()
-                    .add_object(Box::new(FileObject::from_entry(entry)), id);
+                    .add_object(Arc::new(FileObject::from_entry(entry)), id);
 
                 self.get_current_thread().set_return_value(id);
             } else {
@@ -144,7 +146,7 @@ impl<'a> Kernel<'a> {
         } else if prefix == "stdio" {
             let id = self.object_id_allocator.allocate_id();
             self.get_current_thread()
-                .add_object(Box::new(Stdio::new()), id);
+                .add_object(Arc::new(Stdio::new()), id);
             self.get_current_thread().set_return_value(id);
         }
     }
@@ -197,5 +199,31 @@ impl<'a> Kernel<'a> {
         });
 
         self.get_current_thread().set_return_value(id);
+    }
+
+    fn read(&self, handle: ObjectHandle, buffer: &mut [u8]) {
+        let thread = self.get_current_thread();
+
+        let object = thread.get_object(handle);
+
+        if let Some(o) = object {
+            let len = o.read(self, buffer);
+            thread.set_return_value(len as u64);
+        } else {
+            // TODO: kill thread
+        }
+    }
+
+    fn write(&self, handle: ObjectHandle, buffer: &mut [u8]) {
+        let thread = self.get_current_thread();
+
+        let object = thread.get_object(handle);
+
+        if let Some(o) = object {
+            let len = o.write(self, buffer);
+            thread.set_return_value(len as u64);
+        } else {
+            // TODO: kill thread
+        }
     }
 }

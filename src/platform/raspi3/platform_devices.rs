@@ -2,7 +2,6 @@ use crate::{
     aarch64::{interrupt::IRQLock, syscall::SyscallArgs},
     allocator::page_allocator::{PageRef, PAGE_SIZE},
     device::sector_device::{Sector, SectorDevice},
-    filesystem::fat32::FAT32DirectoryEntry,
     platform::{
         emmc::{EMMCConfiguration, EMMCController, EMMCRegisters},
         gpio::{GPIOController, GPIORegisters},
@@ -176,14 +175,6 @@ impl<'a> Platform<'a> {
     pub fn update_frame(&self, frame: &mut InterruptFrame) {
         if let Some(ref mut kernel) = *self.kernel.lock() {
             kernel.save_current_frame(frame);
-        }
-    }
-
-    pub fn read(&self, entry: FAT32DirectoryEntry, buffer: &mut [u8]) -> usize {
-        if let Some(ref mut kernel) = *self.kernel.lock() {
-            kernel.read(entry, buffer)
-        } else {
-            0
         }
     }
 }
