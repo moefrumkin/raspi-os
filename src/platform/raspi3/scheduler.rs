@@ -31,6 +31,7 @@ impl<'a> Scheduler<'a> {
         }
     }
 
+    /// Adds a thread to the thread pool and ready queue
     pub fn add_thread(&mut self, thread: Thread<'a>) {
         let thread = Arc::new(thread);
         self.thread_queue.push_back(Arc::clone(&thread));
@@ -40,10 +41,7 @@ impl<'a> Scheduler<'a> {
         self.threads.push(thread);
     }
 
-    pub fn update_current(&mut self, frame: &InterruptFrame) {
-        *self.current_thread.stack_pointer.lock() = frame as *const InterruptFrame as *const u64;
-    }
-
+    // TODO; this should probably be removed?
     pub fn choose_thread(&mut self) -> Arc<Thread<'a>> {
         *self.current_thread.status.lock() = ThreadStatus::Ready;
 
