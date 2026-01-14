@@ -52,7 +52,8 @@ impl<'a> Scheduler<'a> {
         self.threads.push(thread);
     }
 
-    pub fn update_waits(&mut self) {
+    /// Wake all threads whose time has elapsed
+    pub fn check_for_wake(&mut self) {
         let time = PLATFORM.get_timer().get_micros();
 
         for thread in self.threads.iter_mut() {
@@ -85,14 +86,6 @@ impl<'a> Scheduler<'a> {
         *new_thread.status.lock() = ThreadStatus::Running;
 
         return Arc::clone(&new_thread);
-    }
-
-    pub fn return_to_current(&self) {
-        self.current_thread.return_to();
-    }
-
-    pub fn set_current_stack_pointer(&mut self, pointer: *const u64) {
-        *self.current_thread.stack_pointer.lock() = pointer;
     }
 
     pub fn schedule(&mut self) {

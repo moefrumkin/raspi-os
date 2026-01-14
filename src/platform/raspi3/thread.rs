@@ -148,6 +148,10 @@ impl<'a> Thread<'a> {
         }
     }
 
+    pub fn set_stack_pointer(&self, sp: *const u64) {
+        *self.stack_pointer.lock() = sp;
+    }
+
     /// Load and run a user-mode program on this thread
     pub fn exec(&self, program: &str) {
         let handle = syscall::open(program);

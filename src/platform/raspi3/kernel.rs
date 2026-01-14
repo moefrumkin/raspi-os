@@ -72,7 +72,100 @@ impl<'a> Kernel<'a> {
             .expect("Error allocationg page")
     }
 
-    pub fn create_thread(&mut self, entry: usize, args: SyscallArgs) {
+    fn get_current_thread(&self) -> &Arc<Thread<'a>> {
+        &self.scheduler.current_thread
+    }
+
+    /// Processess a system call with the given number and arguments. Does not return control to a thread but may change scheduling depending on the system call.
+    /// TODO: add pointer validity checks
+    pub fn handle_syscall(&mut self, number: usize, args: SyscallArgs) {
+        let syscall = Syscall::try_from(number as u64).expect("Invalid Syscall Number");
+        match syscall {
+            Syscall::Thread => self.create_thread(args[0], args),
+            Syscall::Exit => self.scheduler.exit_current_thread(args[0] as u64),
+            Syscall::Wait => self
+                .scheduler
+                .delay_current_thread(PLATFORM.get_timer().get_micros() + args[0] as u64),
+            Syscall::Join => self.scheduler.join_current_thread(args[0] as ThreadID),
+            Syscall::Yield => self.scheduler.yield_current_thread(),
+            Syscall::Open => {
+                let name = unsafe { str::from_raw_parts(args[0] as *const u8, args[1]) };
+                self.open_object(name);
+            }
+            Syscall::Close => self
+                .scheduler
+                .remove_object_from_current_thread(args[0] as u64),
+            Syscall::Read => {
+                let buffer = unsafe { slice::from_raw_parts_mut(args[1] as *mut u8, args[2]) };
+                self.scheduler.read(args[0] as u64, buffer)
+            }
+            Syscall::Write => {
+                let buffer = unsafe { slice::from_raw_parts_mut(args[1] as *mut u8, args[2]) };
+                self.scheduler.write(args[0] as u64, buffer)
+            }
+            _ => panic!("Unsupported Syscall"),
+        }
+    }
+
+    pub fn exec(&mut self, program_name: &str) {
+        self.get_current_thread().exec(program_name);
+    }
+
+    /// Handles a system tick:
+    /// 1. Wakes sleeping threads
+    /// 2. Updates scheduling decisions
+    ///
+    /// Does not return to a thread
+    pub fn tick(&mut self) {
+        self.scheduler.wake_sleeping();
+        self.scheduler.schedule();
+    }
+
+    pub fn get_return_thread(&mut self) -> Arc<Thread<'a>> {
+        self.scheduler.choose_thread()
+    }
+
+    pub fn return_from_exception(&self) {
+        self.get_current_thread().return_to();
+    }
+
+    pub fn save_current_frame(&mut self, frame: &mut InterruptFrame) {
+        self.get_current_thread()
+            .set_stack_pointer(frame as *const InterruptFrame as *const u64);
+    }
+
+    pub fn read(&self, entry: FAT32DirectoryEntry, buffer: &mut [u8]) -> usize {
+        self.filesystem.lock().read_file(entry, buffer)
+    }
+
+    // Syscall helpers
+    fn open_object(&mut self, name: &str) {
+        let mut split = name.split(":");
+        let prefix = split.next().unwrap();
+
+        if prefix == "file" {
+            let path = split.next().unwrap();
+            let entry = self.filesystem.lock().search_item(path);
+
+            if let Some(entry) = entry {
+                let id = self.object_id_allocator.allocate_id();
+
+                self.scheduler
+                    .add_object_to_current_thread(Box::new(FileObject::from_entry(entry)), id);
+
+                self.scheduler.set_current_thread_return(id);
+            } else {
+                self.scheduler.set_current_thread_return(0);
+            }
+        } else if prefix == "stdio" {
+            let id = self.object_id_allocator.allocate_id();
+            self.scheduler
+                .add_object_to_current_thread(Box::new(Stdio::new()), id);
+            self.scheduler.set_current_thread_return(id);
+        }
+    }
+
+    fn create_thread(&mut self, entry: usize, args: SyscallArgs) {
         let page_ref = self
             .page_allocator
             .lock()
@@ -120,94 +213,5 @@ impl<'a> Kernel<'a> {
         });
 
         self.scheduler.set_current_thread_return(id);
-    }
-
-    /// Processess a system call with the given number and arguments. Does not return control to a thread but may change scheduling depending on the system call.
-    /// TODO: add pointer validity checks
-    pub fn handle_syscall(&mut self, number: usize, args: SyscallArgs) {
-        let syscall = Syscall::try_from(number as u64).expect("Invalid Syscall Number");
-        match syscall {
-            Syscall::Thread => self.create_thread(args[0], args),
-            Syscall::Exit => self.scheduler.exit_current_thread(args[0] as u64),
-            Syscall::Wait => self
-                .scheduler
-                .delay_current_thread(PLATFORM.get_timer().get_micros() + args[0] as u64),
-            Syscall::Join => self.scheduler.join_current_thread(args[0] as ThreadID),
-            Syscall::Yield => self.scheduler.yield_current_thread(),
-            Syscall::Open => {
-                let name = unsafe { str::from_raw_parts(args[0] as *const u8, args[1]) };
-                self.open_object(name);
-            }
-            Syscall::Close => self
-                .scheduler
-                .remove_object_from_current_thread(args[0] as u64),
-            Syscall::Read => {
-                let buffer = unsafe { slice::from_raw_parts_mut(args[1] as *mut u8, args[2]) };
-                self.scheduler.read(args[0] as u64, buffer)
-            }
-            Syscall::Write => {
-                let buffer = unsafe { slice::from_raw_parts_mut(args[1] as *mut u8, args[2]) };
-                self.scheduler.write(args[0] as u64, buffer)
-            }
-            _ => panic!("Unsupported Syscall"),
-        }
-    }
-
-    pub fn exec(&mut self, program_name: &str) {
-        self.scheduler.current_thread.exec(program_name);
-    }
-
-    /// Handles a system tick:
-    /// 1. Wakes sleeping threads
-    /// 2. Updates scheduling decisions
-    ///
-    /// Does not return to a thread
-    pub fn tick(&mut self) {
-        self.scheduler.wake_sleeping();
-        self.scheduler.schedule();
-    }
-
-    pub fn get_return_thread(&mut self) -> Arc<Thread<'a>> {
-        self.scheduler.choose_thread()
-    }
-
-    pub fn return_from_exception(&self) {
-        self.scheduler.return_to_current();
-    }
-
-    pub fn save_current_frame(&mut self, frame: &mut InterruptFrame) {
-        self.scheduler
-            .set_current_stack_pointer(frame as *const InterruptFrame as *const u64);
-    }
-
-    pub fn read(&self, entry: FAT32DirectoryEntry, buffer: &mut [u8]) -> usize {
-        self.filesystem.lock().read_file(entry, buffer)
-    }
-
-    // Syscall helpers
-    fn open_object(&mut self, name: &str) {
-        let mut split = name.split(":");
-        let prefix = split.next().unwrap();
-
-        if prefix == "file" {
-            let path = split.next().unwrap();
-            let entry = self.filesystem.lock().search_item(path);
-
-            if let Some(entry) = entry {
-                let id = self.object_id_allocator.allocate_id();
-
-                self.scheduler
-                    .add_object_to_current_thread(Box::new(FileObject::from_entry(entry)), id);
-
-                self.scheduler.set_current_thread_return(id);
-            } else {
-                self.scheduler.set_current_thread_return(0);
-            }
-        } else if prefix == "stdio" {
-            let id = self.object_id_allocator.allocate_id();
-            self.scheduler
-                .add_object_to_current_thread(Box::new(Stdio::new()), id);
-            self.scheduler.set_current_thread_return(id);
-        }
     }
 }
