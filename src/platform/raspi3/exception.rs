@@ -103,6 +103,9 @@ impl InterruptFrame {
 
 #[no_mangle]
 pub extern "C" fn handle_exception(
+    arg1: usize,
+    arg2: usize,
+    arg3: usize,
     exception_source: ExceptionSource,
     exception_type: ExceptionType,
     frame: &mut InterruptFrame,
@@ -112,61 +115,38 @@ pub extern "C" fn handle_exception(
 
     if exception_type == ExceptionType::Interrupt {
         platform.handle_interrupt();
-    } else {
-        println!(
-            "Received Exception Type {:?} from {:?}",
-            exception_type, exception_source
-        );
+    } else if exception_type == ExceptionType::Synchronous {
+        let esr = ExceptionSyndromeRegister::read_to_buffer();
 
-        if let Some(ref thread) = PLATFORM.get_current_thread() {
-            println!("From thread: {}", thread.name);
-            println!("With sp: {:#p}", *thread.stack_pointer.lock());
+        let exception_class: ExceptionClass =
+            (esr.get_exception_class() as u64).try_into().unwrap();
+
+        if exception_class == ExceptionClass::SystemCall {
+            let syscall_number = esr.get_instruction_number();
+
+            platform.handle_syscall(syscall_number, [arg1, arg2, arg3]);
         }
-
-        let esr = ExceptionSyndromeRegister::read_to_buffer().value();
-        let far = FaultAddressRegister::read_to_buffer().value();
-        let elr = ExceptionLinkRegister::read_to_buffer().value();
-
-        println!("elr: {:#x}", elr);
-        println!("esr: {:#x}", esr);
-        println!("far: {:#x}", far);
-
-        println!("{:?}", frame);
-
-        loop {}
     }
-}
 
-#[no_mangle]
-pub extern "C" fn handle_synchronous_exception(
-    arg1: usize,
-    arg2: usize,
-    arg3: usize,
-    frame: &mut InterruptFrame,
-) {
-    let esr = ExceptionSyndromeRegister::read_to_buffer();
-    let elr = ExceptionLinkRegister::read_to_buffer();
-    let far = FaultAddressRegister::read_to_buffer();
+    println!(
+        "Received Exception Type {:?} from {:?}",
+        exception_type, exception_source
+    );
 
-    let exception_class: ExceptionClass = (esr.get_exception_class() as u64).try_into().unwrap();
-
-    PLATFORM.update_frame(frame);
-
-    if exception_class == ExceptionClass::SystemCall {
-        let syscall_number = esr.get_instruction_number();
-        PLATFORM.handle_syscall(syscall_number, [arg1, arg2, arg3]);
-    } else {
-        println!("Received syncronous exception: {:#x}", esr.value());
-        println!("FAR: {:#x}", far.value());
-        println!("ELR: {:#x}", elr.value());
-
-        if let Some(ref thread) = PLATFORM.get_current_thread() {
-            println!("From thread: {}", thread.name);
-            println!("With sp: {:#p}", *thread.stack_pointer.lock());
-        }
-
-        println!("{:?}", frame);
-
-        loop {}
+    if let Some(ref thread) = PLATFORM.get_current_thread() {
+        println!("From thread: {}", thread.name);
+        println!("With sp: {:#p}", *thread.stack_pointer.lock());
     }
+
+    let esr = ExceptionSyndromeRegister::read_to_buffer().value();
+    let far = FaultAddressRegister::read_to_buffer().value();
+    let elr = ExceptionLinkRegister::read_to_buffer().value();
+
+    println!("elr: {:#x}", elr);
+    println!("esr: {:#x}", esr);
+    println!("far: {:#x}", far);
+
+    println!("{:?}", frame);
+
+    loop {}
 }

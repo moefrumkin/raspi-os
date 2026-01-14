@@ -4,9 +4,9 @@
     msr daifset, 0b1111 // Disable interrupts
     str lr, [sp, #-16]! // Note: lr is x30 which is overwritten by bl
     bl push_frame
-    mov     x0, \source
-    mov     x1, \type
-    mov     x2, sp
+    mov     x3, \source
+    mov     x4, \type
+    mov     x5, sp
     bl       \handler
     bl pop_frame
     ldr lr, [sp], #16 
@@ -17,14 +17,7 @@
 .align 11
 _exception_vector:
 .org 0x0
-    msr daifset, 0b1111
-    str lr, [sp, #-16]!
-    bl push_frame
-    mov x3, sp
-    bl handle_synchronous_exception
-    bl pop_frame
-    ldr lr, [sp], #16
-    eret
+    call_handler handle_exception 0 0
 .org 0x80
     call_handler handle_exception 0 1
 .org 0x100
@@ -33,15 +26,7 @@ _exception_vector:
     call_handler handle_exception 0 3
 
 .org 0x200
-    msr daifset, 0b1111 // Disable interrupts
-    str lr, [sp, #-16]!
-    bl push_frame
-    mov x3, sp // third arg is sp?
-    bl handle_synchronous_exception
-    bl pop_frame
-    ldr lr, [sp], #16
-    //msr daifclr, 0b10 // Enable Interrupts
-    eret
+    call_handler handle_exception 1 0
 .org 0x280
     call_handler handle_exception 1 1
 .org 0x300
@@ -50,14 +35,7 @@ _exception_vector:
     call_handler handle_exception 1 3
 
 .org 0x400
-    msr daifset, 0b1111 // Disable interrupts
-    str lr, [sp, #-16]!
-    bl push_frame
-    mov x3, sp // third arg is sp?
-    bl handle_synchronous_exception
-    bl pop_frame
-    ldr lr, [sp], #16
-    //msr daifclr, 0b10 // Enable Interrupts
+    call_handler handle_exception 2 0
 .org 0x480
     call_handler handle_exception 2 1
 .org 0x500
