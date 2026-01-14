@@ -7,8 +7,6 @@ use core::{
     ops::{Deref, DerefMut},
 };
 
-use crate::platform::interrupt::IRQSource;
-
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum InterruptState {
     Enabled,

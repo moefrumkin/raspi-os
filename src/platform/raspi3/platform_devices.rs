@@ -1,15 +1,14 @@
 use crate::{
     aarch64::{interrupt::IRQLock, syscall::SyscallArgs},
-    allocator::page_allocator::{Page, PageAllocator, PageRef, PAGE_SIZE},
+    allocator::page_allocator::{PageRef, PAGE_SIZE},
     device::sector_device::{Sector, SectorDevice},
-    filesystem::fat32::{FAT32DirectoryEntry, FAT32Filesystem},
+    filesystem::fat32::FAT32DirectoryEntry,
     platform::{
-        self,
-        emmc::{self, EMMCConfiguration, EMMCController, EMMCRegisters},
-        gpio::{GPIOController, GPIORegisters, StatusLight},
+        emmc::{EMMCConfiguration, EMMCController, EMMCRegisters},
+        gpio::{GPIOController, GPIORegisters},
         hardware_config::HardwareConfig,
         interrupt::{InterruptRegisters, InterruptType},
-        kernel::{self, Kernel, TICK},
+        kernel::{Kernel, TICK},
         mailbox::{MailboxBuffer, MailboxController, MailboxRegisters},
         raspi3::exception::InterruptFrame,
         thread::Thread,
@@ -21,17 +20,10 @@ use alloc::sync::Arc;
 
 use super::{mini_uart::MiniUARTRegisters, mmio};
 
-use alloc::boxed::Box;
 use alloc::rc::Rc;
-use core::{
-    cell::{Cell, Ref, RefCell, RefMut, UnsafeCell},
-    fmt::Arguments,
-    mem::MaybeUninit,
-};
+use core::{cell::RefCell, fmt::Arguments};
 
 use crate::device::{console::Console, timer::Timer};
-
-use alloc::rc::Weak;
 
 #[macro_export]
 macro_rules! print {

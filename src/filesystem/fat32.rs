@@ -1,14 +1,10 @@
 use crate::{
-    aarch64::interrupt::IRQLock,
     bitfield,
     device::sector_device::{Sector, SectorAddress, SectorDevice},
     utils::fat_name::fat_name_from_chars,
 };
-use alloc::rc::Rc;
-use alloc::sync::Arc;
 use alloc::vec::Vec;
 use core::{
-    cell::RefCell,
     cmp::min,
     fmt::{self, Display, Formatter},
 };

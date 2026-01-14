@@ -1,5 +1,4 @@
-use crate::aarch64::interrupt::IRQLock;
-use crate::aarch64::{cpu, syscall};
+use crate::aarch64::syscall;
 use crate::platform::semaphore::SemMutex;
 use crate::println;
 use alloc::boxed::Box;

@@ -1,34 +1,22 @@
 use super::thread::ThreadID;
-use alloc::rc::Rc;
 use alloc::sync::Arc;
 use alloc::vec;
-use core::{
-    cell::{Ref, RefCell},
-    slice, str,
-    time::Duration,
-};
+use core::{slice, str};
 
 use crate::{
     aarch64::{
-        cpu,
         interrupt::IRQLock,
-        mmu,
         syscall::{Syscall, SyscallArgs},
     },
     allocator::{
         id_allocator::IDAllocator,
-        page_allocator::{self, Page, PageAllocator, PageRef, PAGE_SIZE},
+        page_allocator::{PageAllocator, PageRef, PAGE_SIZE},
     },
-    elf::{ELF64Header, ProgramHeader},
-    filesystem::{
-        self,
-        fat32::{FAT32DirectoryEntry, FAT32Filesystem},
-    },
+    filesystem::fat32::{FAT32DirectoryEntry, FAT32Filesystem},
     platform::{
-        framebuffer::FrameBuffer,
         kernel_object::{FileObject, Stdio},
         page_table::PageTable,
-        platform_devices::{get_platform, PLATFORM},
+        platform_devices::PLATFORM,
         raspi3::exception::InterruptFrame,
         scheduler::Scheduler,
         thread::{Thread, ThreadStatus},
@@ -37,8 +25,6 @@ use crate::{
 
 use alloc::boxed::Box;
 use alloc::string::String;
-
-use super::kernel_object::ObjectHandle;
 
 pub const TICK: u32 = 1_000;
 

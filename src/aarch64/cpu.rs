@@ -1,8 +1,6 @@
-use alloc::boxed::Box;
-use alloc::string::String;
 use core::arch::asm;
 
-use crate::{aarch64::syscall::Syscall, read, write};
+use crate::read;
 
 /// Returns the id of the cpu core as reported by the arm MPIDR_EL1 system register
 #[allow(dead_code)]

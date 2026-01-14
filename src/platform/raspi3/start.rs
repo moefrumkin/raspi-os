@@ -1,43 +1,21 @@
 use super::kernel::Kernel;
 use super::kernel::TICK;
-use super::programs::ls;
-use super::programs::{counter, readelf, write};
+use super::programs::write;
 use crate::aarch64::interrupt::IRQLock;
-use crate::aarch64::{cpu, interrupt, mmu, syscall, syscall::Syscall};
+use crate::aarch64::{interrupt, syscall};
 use crate::allocator::page_allocator::PageAllocator;
-use crate::canvas::{canvas2d::Canvas2D, line::Line, matrix::Matrix, vector::Vector};
+use crate::println;
 use crate::ALLOCATOR;
-use crate::{print, println, read, write};
-use alloc::boxed::Box;
-use alloc::rc::Rc;
-use alloc::slice;
 use alloc::string::String;
-use alloc::sync::Arc;
-use alloc::vec::Vec;
 use core::arch::global_asm;
-use core::cell::RefCell;
-use core::time::Duration;
 
-use crate::device::timer::Timer;
-
-use crate::{
-    device::sector_device::SectorDevice,
-    filesystem::{fat32::FAT32Filesystem, master_boot_record::MasterBootRecord},
-};
+use crate::filesystem::{fat32::FAT32Filesystem, master_boot_record::MasterBootRecord};
 
 use super::{
-    clock::{self, Clock, ClockState, CLOCKS},
-    emmc::{EMMCController, EMMCRegisters},
-    framebuffer::{
-        Dimensions, FrameBuffer, FrameBufferConfig, FrameBufferConfigBuilder, Offset, Overscan,
-        PixelOrder,
-    },
-    gpio::{GPIOController, OutputLevel, Pin, StatusLight},
-    hardware_config::HardwareConfig,
+    clock::CLOCKS,
     interrupt::InterruptController,
-    mailbox::{Channel, MailboxController},
     platform_devices::{get_platform, PLATFORM},
-    power::{Device, PowerState, DEVICES},
+    power::DEVICES,
 };
 
 unsafe extern "C" {

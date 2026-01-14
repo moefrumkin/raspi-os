@@ -1,5 +1,4 @@
 use crate::aarch64::interrupt::{pop_irq_state, set_irq_state};
-use crate::aarch64::{cpu, interrupt};
 use crate::sync::SpinMutex;
 use alloc::alloc::{GlobalAlloc, Layout};
 use core::fmt::{Debug, Error, Formatter};

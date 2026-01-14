@@ -1,7 +1,5 @@
-use crate::aarch64::cpu;
 use crate::aarch64::syscall;
 use crate::elf::ELF64Header;
-use crate::print;
 use crate::println;
 
 pub extern "C" fn ls(_: usize) {

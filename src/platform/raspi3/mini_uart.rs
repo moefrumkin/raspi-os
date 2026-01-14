@@ -1,13 +1,10 @@
-use super::{
-    gpio::{GPIOController, Mode, Pin},
-};
-use crate::{aarch64::cpu, sync::SpinMutex, volatile::Volatile, bitfield};
+use super::gpio::{GPIOController, Mode, Pin};
+use crate::{bitfield, volatile::Volatile};
 
 use core::{
-    arch::asm, cell::RefCell, fmt::{self, Arguments, Error, Write}
+    arch::asm,
+    fmt::{self, Arguments, Error, Write},
 };
-
-use alloc::rc::Rc;
 
 #[repr(C)]
 #[derive(Debug)]
@@ -25,7 +22,7 @@ pub struct MiniUARTRegisters {
     scratch: Volatile<Scratch>,
     extra_control: Volatile<ExtraControl>,
     extra_status: Volatile<ExtraStatus>,
-    baud_rate: Volatile<BaudRate>
+    baud_rate: Volatile<BaudRate>,
 }
 
 pub struct UARTConfig {
@@ -57,34 +54,29 @@ impl Write for MiniUARTRegisters {
 
 impl MiniUARTRegisters {
     pub fn init(&mut self, gpio: &dyn GPIOController) {
-        self.enables.map(|enables|
-            enables.set_mini_uart(1)
-        );
+        self.enables.map(|enables| enables.set_mini_uart(1));
 
         self.extra_control.set(ExtraControl::empty());
 
         // TODO: fix
         // Data is 8 bit
-        self.line_control.set(LineControl{value: 0b11});
+        self.line_control.set(LineControl { value: 0b11 });
 
-        self.modem_control.map(|modem_control|
-            modem_control.set_request_to_send(0)
-        );
+        self.modem_control
+            .map(|modem_control| modem_control.set_request_to_send(0));
 
         // Disable Interrupts
-        self.interrupt_enable.set(MiniUARTInterruptEnable::enabled());
+        self.interrupt_enable
+            .set(MiniUARTInterruptEnable::enabled());
 
         // Clear fifo bits
-        self.interrupt_identify.map(|line_control|
-            line_control.set_interrupt_id(0b11)
-                .set_fifo_enables(0b11)
-        );
+        self.interrupt_identify
+            .map(|line_control| line_control.set_interrupt_id(0b11).set_fifo_enables(0b11));
 
         self.baud_rate.set(BaudRate::with_baud_rate(270));
 
         let tx = Pin::new(14).unwrap();
         let rx = Pin::new(15).unwrap();
-
 
         gpio.set_pin_mode(tx, Mode::AF5);
         gpio.set_pin_mode(rx, Mode::AF5);

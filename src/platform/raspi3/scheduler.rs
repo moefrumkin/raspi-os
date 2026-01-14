@@ -1,6 +1,4 @@
-use alloc::rc::Rc;
 use alloc::sync::Arc;
-use core::arch::asm;
 
 use alloc::vec;
 
@@ -8,17 +6,9 @@ use alloc::vec::Vec;
 
 use alloc::collections::VecDeque;
 
-use alloc::string::String;
-
 use alloc::boxed::Box;
 
 use super::kernel_object::{KernelObject, ObjectHandle};
-use crate::aarch64::interrupt::IRQLock;
-use crate::aarch64::{cpu, mmu, syscall};
-use crate::allocator::page_allocator::PAGE_SIZE;
-use crate::elf::{ELF64Header, ProgramHeader, ProgramType};
-use crate::platform::kernel::Kernel;
-use crate::platform::page_table::PageTable;
 use crate::platform::platform_devices::PLATFORM;
 use crate::platform::raspi3::exception::InterruptFrame;
 use crate::platform::thread::{Thread, ThreadID, ThreadStatus};

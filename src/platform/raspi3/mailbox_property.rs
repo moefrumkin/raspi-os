@@ -1,16 +1,11 @@
-use core::cell::RefCell;
-use alloc::rc::Rc;
-
-use crate::platform::raspi3::mailbox::{MailboxController, Channel, MailboxBuffer, AlignedWord};
-use alloc::vec::Vec;
-use alloc::vec;
-use alloc::boxed::Box;
+use crate::platform::raspi3::framebuffer::Dimensions;
+use crate::platform::raspi3::mailbox::{MailboxBuffer, MailboxController};
 use crate::volatile::{AlignedBuffer, Volatile};
-use crate::platform::raspi3::framebuffer::{PixelOrder, Overscan, Dimensions};
+use alloc::vec::Vec;
 
 pub struct MessageBuilder<'a> {
     pub instructions: Vec<(&'a mut dyn MailboxInstruction, usize)>,
-    pub word_length: usize
+    pub word_length: usize,
 }
 
 const MBOX_REQUEST: u32 = 0x0;
@@ -20,7 +15,7 @@ impl<'a> MessageBuilder<'a> {
         Self {
             // First element is 0. Second element signifies this is a request We will fill it with the size later
             instructions: Vec::new(),
-            word_length: 2 // First element is length, second signifies request
+            word_length: 2, // First element is length, second signifies request
         }
     }
 
@@ -31,52 +26,56 @@ impl<'a> MessageBuilder<'a> {
         self.word_length += Self::TAG_METADATA_WORDS; // Tag, Size, Req Code
         self.word_length += request.get_buffer_words() as usize;
         self.instructions.push((request, offset));
-       self
+        self
     }
 
-    pub fn send(&mut self, mailbox: & dyn MailboxController) {
-        let buffer = self.to_buffer(); 
+    pub fn send(&mut self, mailbox: &dyn MailboxController) {
+        let buffer = self.to_buffer();
 
         mailbox.send_property_message(&buffer);
 
         for i in 0..self.instructions.len() {
             let (req, offset) = &mut self.instructions[i];
 
-            let response = MailboxResponse::new(buffer[*offset + 1].get(),
-                buffer[*offset + 2].get());
+            let response =
+                MailboxResponse::new(buffer[*offset + 1].get(), buffer[*offset + 2].get());
 
             req.set_response(response);
 
             let buffer_start = *offset + 3;
-            req.read_data_at_offset(&buffer[buffer_start..buffer_start + req.get_buffer_words() as usize]);
+            req.read_data_at_offset(
+                &buffer[buffer_start..buffer_start + req.get_buffer_words() as usize],
+            );
         }
     }
 
     fn to_buffer(&mut self) -> MailboxBuffer {
-       let mut buffer: MailboxBuffer = AlignedBuffer::with_length_align(self.word_length, 16);
+        let mut buffer: MailboxBuffer = AlignedBuffer::with_length_align(self.word_length, 16);
 
-       // TODO: add padding and end tag at end
-       buffer[0].set((4 * self.word_length) as u32);
-       buffer[1].set(MBOX_REQUEST);
+        // TODO: add padding and end tag at end
+        buffer[0].set((4 * self.word_length) as u32);
+        buffer[1].set(MBOX_REQUEST);
 
-       for i in 0..self.instructions.len() {
-           let (req, offset) = &self.instructions[i];
-           buffer[*offset].set(req.get_encoding());
-           buffer[offset + 1].set(req.get_buffer_bytes());
-           buffer[offset + 2].set(0);
+        for i in 0..self.instructions.len() {
+            let (req, offset) = &self.instructions[i];
+            buffer[*offset].set(req.get_encoding());
+            buffer[offset + 1].set(req.get_buffer_bytes());
+            buffer[offset + 2].set(0);
 
-           let buffer_start = *offset + 3;
-           req.write_data_at_offset(&mut buffer[buffer_start..buffer_start + req.get_buffer_words() as usize]);
-       }
+            let buffer_start = *offset + 3;
+            req.write_data_at_offset(
+                &mut buffer[buffer_start..buffer_start + req.get_buffer_words() as usize],
+            );
+        }
 
-       buffer
+        buffer
     }
 }
 
 #[derive(Copy, Clone, Debug)]
 pub struct MailboxResponse {
     code: u32,
-    size: u32
+    size: u32,
 }
 
 impl MailboxResponse {
@@ -94,7 +93,7 @@ impl MailboxResponse {
 
     // TODO: find a better way of representing and empty response
     pub fn none() -> Self {
-        Self { code: 0, size : 0 }
+        Self { code: 0, size: 0 }
     }
 }
 
@@ -109,16 +108,11 @@ pub trait MailboxInstruction {
 
     fn get_buffer_words(&self) -> u32;
 
-    fn write_data_at_offset(&self,
-        #[allow(unused_variables)] buffer: &mut MailboxBufferSlice) {
-    } // TODO: is it ok to not initialize the buffer on requests with no data?
+    fn write_data_at_offset(&self, #[allow(unused_variables)] buffer: &mut MailboxBufferSlice) {} // TODO: is it ok to not initialize the buffer on requests with no data?
 
-    fn read_data_at_offset(&mut self,
-        #[allow(unused_variables)] buffer: &MailboxBufferSlice) {
-    }
+    fn read_data_at_offset(&mut self, #[allow(unused_variables)] buffer: &MailboxBufferSlice) {}
 
-    fn set_response(&mut self, #[allow(unused_variables)] response: MailboxResponse) {
-    }
+    fn set_response(&mut self, #[allow(unused_variables)] response: MailboxResponse) {}
 }
 
 pub trait ToMailboxBuffer {
@@ -132,21 +126,21 @@ pub trait FromMailboxBuffer {
 pub struct SimpleRequest<T, U, const E: u32>
 where
     T: ToMailboxBuffer + Copy,
-    U: FromMailboxBuffer + Copy
+    U: FromMailboxBuffer + Copy,
 {
     request: T,
-    response: Option<U>
+    response: Option<U>,
 }
 
 impl<T, U, const E: u32> SimpleRequest<T, U, E>
 where
     T: ToMailboxBuffer + Copy,
-    U: FromMailboxBuffer + Copy
+    U: FromMailboxBuffer + Copy,
 {
     pub fn with_request(request: T) -> Self {
         Self {
             request,
-            response: Option::None
+            response: Option::None,
         }
     }
 
@@ -158,7 +152,7 @@ where
 impl<T, U, const E: u32> MailboxInstruction for SimpleRequest<T, U, E>
 where
     T: ToMailboxBuffer + Copy,
-    U: FromMailboxBuffer + Copy
+    U: FromMailboxBuffer + Copy,
 {
     fn get_encoding(&self) -> u32 {
         E
@@ -182,15 +176,12 @@ where
 
 pub struct GetARMMemory {
     pub base: u32,
-    pub size: u32
+    pub size: u32,
 }
 
 impl GetARMMemory {
     pub fn new() -> Self {
-        Self {
-            base: 0,
-            size: 0
-        }
+        Self { base: 0, size: 0 }
     }
 
     pub fn get_base(&self) -> u32 {
@@ -219,15 +210,12 @@ impl MailboxInstruction for GetARMMemory {
 
 pub struct GetVCMemory {
     pub base: u32,
-    pub size: u32
+    pub size: u32,
 }
 
 impl GetVCMemory {
     pub fn new() -> Self {
-        Self {
-            base: 0,
-            size: 0
-        }
+        Self { base: 0, size: 0 }
     }
 
     pub fn get_base(&self) -> u32 {
@@ -258,7 +246,7 @@ pub struct GetFrameBuffer {
     pub alignment: u32,
     pub start: u32,
     pub size: u32,
-    pub response: MailboxResponse
+    pub response: MailboxResponse,
 }
 
 impl GetFrameBuffer {
@@ -267,7 +255,7 @@ impl GetFrameBuffer {
             alignment,
             start: 0,
             size: 0,
-            response: MailboxResponse::none()
+            response: MailboxResponse::none(),
         }
     }
 
@@ -303,13 +291,11 @@ impl MailboxInstruction for GetFrameBuffer {
     }
 }
 
-pub struct ReleaseBuffer {
-}
+pub struct ReleaseBuffer {}
 
 impl ReleaseBuffer {
     pub fn new() -> Self {
-        Self {
-        }
+        Self {}
     }
 }
 
@@ -324,14 +310,12 @@ impl MailboxInstruction for ReleaseBuffer {
 }
 
 pub struct BlankScreen {
-    state: bool
+    state: bool,
 }
 
 impl BlankScreen {
     pub fn new(state: bool) -> Self {
-        Self {
-            state
-        }
+        Self { state }
     }
 }
 
@@ -341,32 +325,31 @@ impl MailboxInstruction for BlankScreen {
     }
 
     fn get_buffer_words(&self) -> u32 {
-        1 
+        1
     }
 
     fn write_data_at_offset(&self, buffer: &mut MailboxBufferSlice) {
-        let word = if self.state {0x1} else {0x0};
+        let word = if self.state { 0x1 } else { 0x0 };
 
         buffer[0].set(word);
     }
 
     fn read_data_at_offset(&mut self, buffer: &MailboxBufferSlice) {
         let word = buffer[0].get();
-        self.state = if word == 0 {false} else {true};
+        self.state = if word == 0 { false } else { true };
     }
 }
 
-
 pub struct GetPhysicalDimensions {
     pub width: u32,
-    pub height: u32
+    pub height: u32,
 }
 
 impl GetPhysicalDimensions {
     pub fn new() -> Self {
         Self {
             width: 0,
-            height: 0
+            height: 0,
         }
     }
 
@@ -404,9 +387,7 @@ pub struct SetPhysicalDimensions {
 
 impl SetPhysicalDimensions {
     pub fn new(dimensions: Dimensions) -> Self {
-        Self {
-            dimensions
-        }
+        Self { dimensions }
     }
 
     pub fn get_width(&self) -> u32 {
@@ -444,14 +425,14 @@ impl MailboxInstruction for SetPhysicalDimensions {
 
 pub struct GetVirtualDimensions {
     pub width: u32,
-    pub height: u32
+    pub height: u32,
 }
 
 impl GetVirtualDimensions {
     pub fn new() -> Self {
         Self {
             width: 0,
-            height: 0
+            height: 0,
         }
     }
 
@@ -484,14 +465,12 @@ impl MailboxInstruction for GetVirtualDimensions {
 }
 
 pub struct SetVirtualDimensions {
-    dimensions: Dimensions
+    dimensions: Dimensions,
 }
 
 impl SetVirtualDimensions {
     pub fn new(dimensions: Dimensions) -> Self {
-        Self {
-            dimensions
-        }
+        Self { dimensions }
     }
 
     pub fn get_width(&self) -> u32 {
@@ -527,16 +506,13 @@ impl MailboxInstruction for SetVirtualDimensions {
     }
 }
 
-
 pub struct GetDepth {
-    pub depth: u32
+    pub depth: u32,
 }
 
 impl GetDepth {
     pub fn new() -> Self {
-        Self {
-            depth: 0
-        }
+        Self { depth: 0 }
     }
 
     pub fn get_depth(&self) -> u32 {
@@ -559,14 +535,12 @@ impl MailboxInstruction for GetDepth {
 }
 
 pub struct SetDepth {
-    pub depth: u32
+    pub depth: u32,
 }
 
 impl SetDepth {
     pub fn new(depth: u32) -> Self {
-        Self {
-            depth
-        }
+        Self { depth }
     }
 
     pub fn get_depth(&self) -> u32 {
@@ -574,7 +548,7 @@ impl SetDepth {
     }
 
     pub fn get(&self) -> u32 {
-        self.depth 
+        self.depth
     }
 }
 
@@ -597,14 +571,12 @@ impl MailboxInstruction for SetDepth {
 }
 
 pub struct GetPitch {
-    pub pitch: u32
+    pub pitch: u32,
 }
 
 impl GetPitch {
     pub fn new() -> Self {
-        Self {
-            pitch: 0
-        }
+        Self { pitch: 0 }
     }
 
     pub fn get_pitch(&self) -> u32 {

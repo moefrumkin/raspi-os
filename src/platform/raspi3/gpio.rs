@@ -1,8 +1,5 @@
 //! This module provides support for the raspberry pi's general purpose input output (gpio) pins
 
-use alloc::rc::Rc;
-use core::cell::RefCell;
-
 use crate::{aarch64::cpu, bitfield, utils::bit_array::BitArray, volatile::Volatile};
 
 pub trait GPIOController {

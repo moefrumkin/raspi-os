@@ -1,11 +1,6 @@
-use alloc::sync::Arc;
 use core::fmt::Debug;
 
-use crate::{
-    aarch64::interrupt::IRQLock,
-    filesystem::fat32::{FAT32DirectoryEntry, FAT32Filesystem},
-    platform::platform_devices::{get_platform, PLATFORM},
-};
+use crate::{filesystem::fat32::FAT32DirectoryEntry, platform::platform_devices::get_platform};
 
 pub type ObjectHandle = u64;
 

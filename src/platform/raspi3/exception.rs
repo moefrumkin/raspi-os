@@ -1,12 +1,7 @@
-use super::gpio::{GPIOController, OutputLevel, StatusLight};
 use core::arch::global_asm;
 
 use crate::{
-    aarch64::{
-        cpu,
-        registers::{ExceptionLinkRegister, ExceptionSyndromeRegister, FaultAddressRegister},
-    },
-    bitfield, elf,
+    aarch64::registers::{ExceptionLinkRegister, ExceptionSyndromeRegister, FaultAddressRegister},
     platform::platform_devices::{get_platform, PLATFORM},
     println,
 };

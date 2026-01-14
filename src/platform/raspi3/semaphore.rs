@@ -4,10 +4,7 @@ use core::{
     sync::atomic::{AtomicU64, Ordering},
 };
 
-use crate::{
-    aarch64::{cpu, syscall},
-    sync::SpinMutexGuard,
-};
+use crate::aarch64::syscall;
 
 #[derive(Debug)]
 struct Semaphore {

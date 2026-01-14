@@ -1,9 +1,5 @@
 use crate::{
-    aarch64::{
-        self,
-        mmu::{Address, TableDescriptor, TableEntry},
-    },
-    allocator::page_allocator::PAGE_SIZE,
+    aarch64::mmu::{Address, TableDescriptor, TableEntry},
     platform::platform_devices::PLATFORM,
 };
 

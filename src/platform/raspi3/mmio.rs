@@ -1,11 +1,6 @@
-use core::ptr;
-
-use crate::{
-    platform::{
-        emmc::EMMCRegisters, gpio::GPIORegisters, interrupt::InterruptRegisters,
-        mailbox::MailboxRegisters, mini_uart::MiniUARTRegisters,
-    },
-    sync::SpinMutex,
+use crate::platform::{
+    emmc::EMMCRegisters, gpio::GPIORegisters, interrupt::InterruptRegisters,
+    mailbox::MailboxRegisters, mini_uart::MiniUARTRegisters,
 };
 
 use super::timer::TimerRegisters;
