@@ -158,9 +158,6 @@ impl<'a> Kernel<'a> {
             .allocate_page()
             .expect("Unable to Allocate Page");
 
-        let stack_pointer;
-        let name;
-
         let mut sp = page_ref.get_initial_stack_pointer();
 
         let mut initial_frame = InterruptFrame::with_kernel_entry(entry as u64);
@@ -168,8 +165,9 @@ impl<'a> Kernel<'a> {
 
         let sp = sp.push(initial_frame);
 
-        stack_pointer = IRQLock::new(sp.get());
+        let stack_pointer = IRQLock::new(sp.get());
 
+        let name;
         unsafe {
             name = String::from(&*(args[1] as *mut String));
         }

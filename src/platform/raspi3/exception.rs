@@ -26,21 +26,38 @@ pub enum ExceptionType {
     SystemError = 4,
 }
 
+#[derive(Debug)]
+#[repr(C)]
+pub struct InterruptFrame {
+    pub gp_registers: [u64; 32],
+    pub elr: u64,
+    pub spsr: u64,
+    pub fp_regs: [u128; 32],
+    pub fpsr: u64,
+}
+
+impl InterruptFrame {
+    pub fn with_kernel_entry(entry_point: u64) -> Self {
+        Self {
+            gp_registers: [0; 32],
+            elr: entry_point,
+            spsr: 0b101, // EL1 with SP_EL1h
+            fp_regs: [0; 32],
+            fpsr: 0,
+        }
+    }
+
+    pub fn set_arg(&mut self, arg: u64) {
+        self.gp_registers[0] = arg;
+    }
+}
+
 #[no_mangle]
 pub extern "C" fn handle_exception(
     exception_source: ExceptionSource,
     exception_type: ExceptionType,
     frame: &mut InterruptFrame,
 ) {
-    /*if let Some(thread) = PLATFORM.get_current_thread() {
-        println!("\n\n {}", thread.name);
-    }
-    println!("{:#?}", frame);*/
-    /*println!(
-        "Exception returning to {:#x}, of type {:?}, with source {:?}",
-        frame.elr, exception_type, exception_source
-    );*/
-
     let platform = get_platform();
     platform.update_frame(frame);
 
@@ -71,32 +88,6 @@ pub extern "C" fn handle_exception(
     }
 }
 
-#[derive(Debug)]
-#[repr(C)]
-pub struct InterruptFrame {
-    pub gp_registers: [u64; 32],
-    pub elr: u64,
-    pub spsr: u64,
-    pub fp_regs: [u128; 32],
-    pub fpsr: u64,
-}
-
-impl InterruptFrame {
-    pub fn with_kernel_entry(entry_point: u64) -> Self {
-        Self {
-            gp_registers: [0; 32],
-            elr: entry_point,
-            spsr: 0b101, // EL1 with SP_EL1h
-            fp_regs: [0; 32],
-            fpsr: 0,
-        }
-    }
-
-    pub fn set_arg(&mut self, arg: u64) {
-        self.gp_registers[0] = arg;
-    }
-}
-
 #[no_mangle]
 pub extern "C" fn handle_synchronous_exception(
     arg1: usize,
@@ -104,31 +95,16 @@ pub extern "C" fn handle_synchronous_exception(
     arg3: usize,
     frame: &mut InterruptFrame,
 ) {
-    // println!("Handling synchronous");
-
     let esr = ExceptionSyndromeRegister::read_to_buffer();
     let elr = ExceptionLinkRegister::read_to_buffer();
     let far = FaultAddressRegister::read_to_buffer();
 
-    /* println!(
-        "ESR: {:x}. ELR: {:x}. FAR: {:x}",
-        esr.value(),
-        elr.value(),
-        far.value()
-    ); */
-
     let exception_class = esr.get_exception_class();
-
-    // println!("Exception class: {:b}", exception_class);
 
     PLATFORM.update_frame(frame);
 
     if exception_class == 0b010101 {
         let syscall_number = esr.get_instruction_number();
-        //println!("Syscall returning to {:#x}", frame.elr);
-
-        // println!("arg1: {}", arg1);
-
         PLATFORM.handle_syscall(syscall_number, [arg1, arg2, arg3]);
     } else {
         println!("Received syncronous exception: {:#x}", esr.value());
@@ -145,18 +121,3 @@ pub extern "C" fn handle_synchronous_exception(
         loop {}
     }
 }
-
-/*fn blink_out(n: usize, timer: &Timer, status_light: &StatusLight, wait: u64) {
-    for i in 0..64 {
-        if (n >> (64 - i)) & 1 == 1 {
-            status_light.set_green(OutputLevel::High);
-            timer.delay(wait);
-            status_light.set_green(OutputLevel::Low);
-        } else {
-            status_light.set_blue(OutputLevel::High);
-            timer.delay(wait);
-            status_light.set_blue(OutputLevel::Low);
-        }
-        timer.delay(wait);
-    }
-}*/

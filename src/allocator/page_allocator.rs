@@ -13,12 +13,14 @@ pub struct PageAllocator<'a> {
     pages: &'a mut [Page],
 }
 
+/// A reference to an allocated page
 #[derive(Debug)]
 pub struct PageRef {
     pub page: *mut Page,
     pub page_number: usize,
 }
 
+/// A stack pointer in an allocated page
 pub struct StackPointer {
     sp: *mut u8,
 }
@@ -74,6 +76,7 @@ impl<'a> PageAllocator<'a> {
 }
 
 impl PageRef {
+    /// Get the stack pointer that starts at the top of this page
     pub fn get_initial_stack_pointer(&self) -> StackPointer {
         // TODO: where to put unsafeness?
         StackPointer::from(unsafe { (self.page as *mut u8).offset(PAGE_SIZE as isize) })
@@ -85,6 +88,7 @@ impl StackPointer {
         Self { sp }
     }
 
+    /// Pushes a value to the stack and returns the new stack pointer
     pub fn push<T>(&mut self, value: T) -> Self {
         let ptr = unsafe { (self.sp as *mut T).offset(-1) };
 
