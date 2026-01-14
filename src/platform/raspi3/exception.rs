@@ -26,6 +26,55 @@ pub enum ExceptionType {
     SystemError = 4,
 }
 
+/// Partial enumeration of aarch64 exception classes. This is reported in ESR_EL1
+/// For more, see: https://developer.arm.com/documentation/ddi0601/2025-12/AArch64-Registers/ESR-EL1--Exception-Syndrome-Register--EL1-?lang=en
+#[derive(Debug, PartialEq, Eq)]
+pub enum ExceptionClass {
+    Unknown = 0b0,
+    TrappedWF = 0b1,
+    // Note: Skipping AA32 expcetions
+    TrappedFPInstruction = 0b111,
+    TrappedPointerAuthenticatedInstruction = 0b1001,
+    TrappedInstructionExecution = 0b1010,
+    BranchTargetException = 0b1101,
+    IllegalExecutionState = 0b1110,
+    SystemCall = 0b10101,
+    TrappedSVE = 0b11001,
+    InstructionAbortFromLowerLevel = 0b10_0000,
+    InstructionAbort = 0b10_0001,
+    PCAlignmentFault = 0b10_0010,
+    DataAbortFromLowerLevel = 0b10_0100,
+    DataAbort = 0b10_0101,
+    SPAlignmentFault = 0b10_0110,
+    MemoryOperationException = 0b10_0111,
+}
+
+impl TryFrom<u64> for ExceptionClass {
+    type Error = &'static str;
+
+    fn try_from(value: u64) -> Result<Self, Self::Error> {
+        match value {
+            0b0 => Ok(Self::Unknown),
+            0b1 => Ok(Self::TrappedWF),
+            0b111 => Ok(Self::TrappedFPInstruction),
+            0b1001 => Ok(Self::TrappedPointerAuthenticatedInstruction),
+            0b1010 => Ok(Self::TrappedInstructionExecution),
+            0b1101 => Ok(Self::BranchTargetException),
+            0b1110 => Ok(Self::IllegalExecutionState),
+            0b10101 => Ok(Self::SystemCall),
+            0b11001 => Ok(Self::TrappedSVE),
+            0b10_0000 => Ok(Self::InstructionAbortFromLowerLevel),
+            0b10_0001 => Ok(Self::InstructionAbort),
+            0b10_0010 => Ok(Self::PCAlignmentFault),
+            0b10_0100 => Ok(Self::DataAbortFromLowerLevel),
+            0b10_0101 => Ok(Self::DataAbort),
+            0b10_0110 => Ok(Self::SPAlignmentFault),
+            0b10_0111 => Ok(Self::MemoryOperationException),
+            _ => Err("Unknown Exception Class"),
+        }
+    }
+}
+
 #[derive(Debug)]
 #[repr(C)]
 pub struct InterruptFrame {
@@ -99,11 +148,11 @@ pub extern "C" fn handle_synchronous_exception(
     let elr = ExceptionLinkRegister::read_to_buffer();
     let far = FaultAddressRegister::read_to_buffer();
 
-    let exception_class = esr.get_exception_class();
+    let exception_class: ExceptionClass = (esr.get_exception_class() as u64).try_into().unwrap();
 
     PLATFORM.update_frame(frame);
 
-    if exception_class == 0b010101 {
+    if exception_class == ExceptionClass::SystemCall {
         let syscall_number = esr.get_instruction_number();
         PLATFORM.handle_syscall(syscall_number, [arg1, arg2, arg3]);
     } else {
