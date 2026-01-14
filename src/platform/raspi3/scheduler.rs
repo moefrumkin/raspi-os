@@ -88,6 +88,7 @@ impl<'a> Scheduler<'a> {
         return Arc::clone(&new_thread);
     }
 
+    /// Update scheduling decisions
     pub fn schedule(&mut self) {
         let former_thread = Arc::clone(&self.current_thread);
         *former_thread.status.lock() = ThreadStatus::Ready;
@@ -179,15 +180,6 @@ impl<'a> Scheduler<'a> {
         })
     }
 
-    pub fn set_current_thread_return(&mut self, value: u64) {
-        let frame = *self.current_thread.stack_pointer.lock() as *mut InterruptFrame;
-
-        unsafe {
-            let frame = &mut *frame;
-            frame.regs[0] = value;
-        }
-    }
-
     pub fn join_current_thread(&mut self, thread_id: ThreadID) {
         let child_thread_index = self
             .current_thread
@@ -254,7 +246,7 @@ impl<'a> Scheduler<'a> {
             }
         }
 
-        self.set_current_thread_return(return_value as u64);
+        self.current_thread.set_return_value(return_value as u64);
     }
 
     pub fn write(&mut self, handle: ObjectHandle, buffer: &mut [u8]) {
@@ -272,6 +264,6 @@ impl<'a> Scheduler<'a> {
             }
         }
 
-        self.set_current_thread_return(return_value as u64);
+        self.current_thread.set_return_value(return_value as u64);
     }
 }

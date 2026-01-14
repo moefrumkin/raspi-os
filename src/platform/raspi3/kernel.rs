@@ -153,15 +153,15 @@ impl<'a> Kernel<'a> {
                 self.scheduler
                     .add_object_to_current_thread(Box::new(FileObject::from_entry(entry)), id);
 
-                self.scheduler.set_current_thread_return(id);
+                self.get_current_thread().set_return_value(id);
             } else {
-                self.scheduler.set_current_thread_return(0);
+                self.get_current_thread().set_return_value(0);
             }
         } else if prefix == "stdio" {
             let id = self.object_id_allocator.allocate_id();
             self.scheduler
                 .add_object_to_current_thread(Box::new(Stdio::new()), id);
-            self.scheduler.set_current_thread_return(id);
+            self.get_current_thread().set_return_value(id);
         }
     }
 
@@ -212,6 +212,6 @@ impl<'a> Kernel<'a> {
             user_table: IRQLock::new(PageTable::new_unmapped()),
         });
 
-        self.scheduler.set_current_thread_return(id);
+        self.get_current_thread().set_return_value(id);
     }
 }
