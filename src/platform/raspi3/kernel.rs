@@ -163,9 +163,15 @@ impl<'a> Kernel<'a> {
         let mut initial_frame = InterruptFrame::with_kernel_entry(entry as u64);
         initial_frame.set_arg(args[2] as u64);
 
+        sp = sp.push(0 as u64).push(0 as u64);
         let sp = sp.push(initial_frame);
 
-        let stack_pointer = IRQLock::new(sp.get());
+        let top_page: u64 = 0xFFFF_FFFF_FFFF_F000;
+        let stack_phys_page = (page_ref.page as u64) & !(0xFFF) & (0xFFFF_FFFF_FFFF);
+
+        let sp = sp.get() as u64 | top_page;
+
+        let stack_pointer = IRQLock::new(sp as *const u64);
 
         let name;
         unsafe {
@@ -176,12 +182,7 @@ impl<'a> Kernel<'a> {
 
         let mut kernel_table = PageTable::new_kernel();
 
-        for i in 0..512 {
-            let offset = PAGE_SIZE as u64 * i;
-            kernel_table.map_user_address(0xffff_0000_0000_0000 + offset, offset);
-        }
-
-        //let kernel_table = IRQLock::new(*self.scheduler.current_thread.kernel_table.lock());
+        kernel_table.map_user_address(top_page, stack_phys_page);
 
         self.scheduler.add_thread(Thread {
             stack_pointer,

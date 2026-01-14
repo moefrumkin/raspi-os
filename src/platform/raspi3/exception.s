@@ -54,7 +54,7 @@ _exception_vector:
 
 
 push_frame: // TODO: push all registers
-    sub sp, sp, 0x360 // TODO: check math
+    sub sp, sp, 0x320 // TODO: check math
     stp x0, x1, [sp, 0x0]
     stp x2, x3, [sp, 0x10]
     stp x4, x5, [sp, 0x20]
@@ -80,25 +80,25 @@ push_frame: // TODO: push all registers
     stp q6, q7, [sp, 0x170]
     stp q8, q9, [sp, 0x190]
     stp q10, q11, [sp, 0x1b0]
-    stp q12, q13, [sp, 0x1e0]
-    stp q14, q15, [sp, 0x210]
-    stp q16, q17, [sp, 0x230]
-    stp q18, q19, [sp, 0x250]
-    stp q20, q21, [sp, 0x270]
-    stp q22, q23, [sp, 0x290]
-    stp q24, q25, [sp, 0x2b0]
-    stp q26, q27, [sp, 0x2e0]
-    stp q28, q29, [sp, 0x310]
-    stp q30, q31, [sp, 0x330]
+    stp q12, q13, [sp, 0x1d0]
+    stp q14, q15, [sp, 0x1f0]
+    stp q16, q17, [sp, 0x210]
+    stp q18, q19, [sp, 0x230]
+    stp q20, q21, [sp, 0x250]
+    stp q22, q23, [sp, 0x270]
+    stp q24, q25, [sp, 0x290]
+    stp q26, q27, [sp, 0x2b0]
+    stp q28, q29, [sp, 0x2d0]
+    stp q30, q31, [sp, 0x2f0]
     mrs x21, fpsr
-    str x21, [sp, 0x350]
+    str x21, [sp, 0x310]
     ret
 
 pop_frame:
     ldp x0, x1, [sp, 0x100]
     msr elr_el1, x0
     msr spsr_el1, x1
-    ldr x1, [sp, 0x350]
+    ldr x1, [sp, 0x310]
     msr fpsr, x1
     ldp x0, x1, [sp, 0x0]
     ldp x2, x3, [sp, 0x10]
@@ -122,15 +122,15 @@ pop_frame:
     ldp q6, q7, [sp, 0x170]
     ldp q8, q9, [sp, 0x190]
     ldp q10, q11, [sp, 0x1b0]
-    ldp q12, q13, [sp, 0x1e0]
-    ldp q14, q15, [sp, 0x210]
-    ldp q16, q17, [sp, 0x230]
-    ldp q18, q19, [sp, 0x250]
-    ldp q20, q21, [sp, 0x270]
-    ldp q22, q23, [sp, 0x290]
-    ldp q24, q25, [sp, 0x2b0]
-    ldp q26, q27, [sp, 0x2e0]
-    ldp q28, q29, [sp, 0x310]
-    ldp q30, q31, [sp, 0x330]
-    add sp, sp, 0x360
+    ldp q12, q13, [sp, 0x1d0]
+    ldp q14, q15, [sp, 0x1f0]
+    ldp q16, q17, [sp, 0x210]
+    ldp q18, q19, [sp, 0x230]
+    ldp q20, q21, [sp, 0x250]
+    ldp q22, q23, [sp, 0x270]
+    ldp q24, q25, [sp, 0x290]
+    ldp q26, q27, [sp, 0x2a0]
+    ldp q28, q29, [sp, 0x2c0]
+    ldp q30, q31, [sp, 0x2f0]
+    add sp, sp, 0x320
     ret
