@@ -19,6 +19,10 @@ pub struct PageRef {
     pub page_number: usize,
 }
 
+pub struct StackPointer {
+    sp: *mut u8,
+}
+
 impl<'a> PageAllocator<'a> {
     pub fn allocate_page(&mut self) -> Option<PageRef> {
         //TODO: skipping first page now because of possible stack underflow
@@ -66,5 +70,30 @@ impl<'a> PageAllocator<'a> {
 
             Self { free_list, pages }
         }
+    }
+}
+
+impl PageRef {
+    pub fn get_initial_stack_pointer(&self) -> StackPointer {
+        // TODO: where to put unsafeness?
+        StackPointer::from(unsafe { (self.page as *mut u8).offset(PAGE_SIZE as isize) })
+    }
+}
+
+impl StackPointer {
+    pub fn from(sp: *mut u8) -> Self {
+        Self { sp }
+    }
+
+    pub fn push<T>(&mut self, value: T) -> Self {
+        let ptr = unsafe { (self.sp as *mut T).offset(-1) };
+
+        unsafe { *ptr = value };
+
+        Self::from(ptr as *mut u8)
+    }
+
+    pub fn get(&self) -> *const u64 {
+        self.sp as *const u64
     }
 }

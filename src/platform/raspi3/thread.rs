@@ -138,7 +138,7 @@ impl<'a> Thread<'a> {
     pub fn set_return_value(&self, value: u64) {
         unsafe {
             let frame = &mut *(*self.stack_pointer.lock() as *mut InterruptFrame);
-            frame.regs[0] = value;
+            frame.gp_registers[0] = value;
         }
     }
 

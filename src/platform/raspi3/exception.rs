@@ -74,11 +74,27 @@ pub extern "C" fn handle_exception(
 #[derive(Debug)]
 #[repr(C)]
 pub struct InterruptFrame {
-    pub regs: [u64; 32],
+    pub gp_registers: [u64; 32],
     pub elr: u64,
     pub spsr: u64,
     pub fp_regs: [u128; 32],
     pub fpsr: u64,
+}
+
+impl InterruptFrame {
+    pub fn with_kernel_entry(entry_point: u64) -> Self {
+        Self {
+            gp_registers: [0; 32],
+            elr: entry_point,
+            spsr: 0b101, // EL1 with SP_EL1h
+            fp_regs: [0; 32],
+            fpsr: 0,
+        }
+    }
+
+    pub fn set_arg(&mut self, arg: u64) {
+        self.gp_registers[0] = arg;
+    }
 }
 
 #[no_mangle]

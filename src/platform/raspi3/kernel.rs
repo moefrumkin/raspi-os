@@ -10,7 +10,7 @@ use crate::{
     },
     allocator::{
         id_allocator::IDAllocator,
-        page_allocator::{PageAllocator, PageRef, PAGE_SIZE},
+        page_allocator::{PageAllocator, PageRef},
     },
     filesystem::fat32::{FAT32DirectoryEntry, FAT32Filesystem},
     platform::{
@@ -161,24 +161,16 @@ impl<'a> Kernel<'a> {
         let stack_pointer;
         let name;
 
+        let mut sp = page_ref.get_initial_stack_pointer();
+
+        let mut initial_frame = InterruptFrame::with_kernel_entry(entry as u64);
+        initial_frame.set_arg(args[2] as u64);
+
+        let sp = sp.push(initial_frame);
+
+        stack_pointer = IRQLock::new(sp.get());
+
         unsafe {
-            let page = page_ref.page;
-
-            let page64 = page as *mut u64;
-
-            let mut sp = PAGE_SIZE / 8;
-
-            sp -= 106; // TODO: use size_of instead of a magic number
-
-            let frame = &mut *(page64.offset(sp as isize) as *mut InterruptFrame);
-
-            frame.regs[0] = args[2] as u64;
-
-            frame.elr = entry as u64;
-            frame.spsr = 0b101; // EL1 with SP_EL1h
-
-            stack_pointer = IRQLock::new(page64.offset(sp as isize) as *const u64);
-
             name = String::from(&*(args[1] as *mut String));
         }
 

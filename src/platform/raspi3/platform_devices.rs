@@ -115,7 +115,6 @@ impl<'a> Platform<'a> {
     pub fn handle_interrupt(&self) {
         let interrupt_type = self.devices.interrupts.borrow().get_interrupt_type();
         if let Some(InterruptType::KernelTimerInterrupt) = interrupt_type {
-            //println!("interrupt type {:?}", interrupt_type);
             if let Some(ref mut kernel) = *self.kernel.lock() {
                 // TODO: are the clears necessary?
                 kernel.tick();

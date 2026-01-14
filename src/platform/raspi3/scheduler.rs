@@ -89,7 +89,7 @@ impl<'a> Scheduler<'a> {
                     unsafe {
                         let frame = &mut *(*thread.stack_pointer.lock() as *mut InterruptFrame);
 
-                        frame.regs[0] = code;
+                        frame.gp_registers[0] = code;
 
                         self.thread_queue.push_back(thread.clone());
                     }
