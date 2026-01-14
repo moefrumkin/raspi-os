@@ -50,18 +50,6 @@ impl<'a> Scheduler<'a> {
         self.current_thread.children.lock().push(thread.clone());
 
         self.threads.push(thread);
-
-        /*for thread in &self.threads {
-            crate::println!(
-                "{} (Strong count {}) @ {:#?}: {:?}",
-                &thread.name,
-                Rc::strong_count(thread),
-                Rc::as_ptr(thread),
-                *thread.status.lock()
-            );
-        }*/
-
-        //crate::println!("\n\n\n");
     }
 
     pub fn update_waits(&mut self) {

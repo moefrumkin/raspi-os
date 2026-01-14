@@ -122,26 +122,33 @@ impl<'a> Kernel<'a> {
         self.scheduler.set_current_thread_return(id);
     }
 
+    /// Processess a system call with the given number and arguments. Does not return control to a thread but may change scheduling depending on the system call.
+    /// TODO: add pointer validity checks
     pub fn handle_syscall(&mut self, number: usize, args: SyscallArgs) {
         let syscall = Syscall::try_from(number as u64).expect("Invalid Syscall Number");
         match syscall {
             Syscall::Thread => self.create_thread(args[0], args),
-            Syscall::Exit => self.exit_current_thread(args[0] as u64),
-            Syscall::Wait => self.delay_current_thread(args[0] as u64),
-            Syscall::Join => self.join_current_thread(args[0] as ThreadID),
+            Syscall::Exit => self.scheduler.exit_current_thread(args[0] as u64),
+            Syscall::Wait => self
+                .scheduler
+                .delay_current_thread(PLATFORM.get_timer().get_micros() + args[0] as u64),
+            Syscall::Join => self.scheduler.join_current_thread(args[0] as ThreadID),
             Syscall::Yield => self.scheduler.yield_current_thread(),
             Syscall::Open => {
-                self.open_object(unsafe { str::from_raw_parts(args[0] as *const u8, args[1]) })
+                let name = unsafe { str::from_raw_parts(args[0] as *const u8, args[1]) };
+                self.open_object(name);
             }
             Syscall::Close => self
                 .scheduler
                 .remove_object_from_current_thread(args[0] as u64),
-            Syscall::Read => self.read_object(args[0] as u64, unsafe {
-                slice::from_raw_parts_mut(args[1] as *mut u8, args[2])
-            }),
-            Syscall::Write => self.write_object(args[0] as u64, unsafe {
-                slice::from_raw_parts_mut(args[1] as *mut u8, args[2])
-            }),
+            Syscall::Read => {
+                let buffer = unsafe { slice::from_raw_parts_mut(args[1] as *mut u8, args[2]) };
+                self.scheduler.read(args[0] as u64, buffer)
+            }
+            Syscall::Write => {
+                let buffer = unsafe { slice::from_raw_parts_mut(args[1] as *mut u8, args[2]) };
+                self.scheduler.write(args[0] as u64, buffer)
+            }
             _ => panic!("Unsupported Syscall"),
         }
     }
@@ -150,6 +157,11 @@ impl<'a> Kernel<'a> {
         self.scheduler.current_thread.exec(program_name);
     }
 
+    /// Handles a system tick:
+    /// 1. Wakes sleeping threads
+    /// 2. Updates scheduling decisions
+    ///
+    /// Does not return to a thread
     pub fn tick(&mut self) {
         self.scheduler.wake_sleeping();
         self.scheduler.schedule();
@@ -168,26 +180,11 @@ impl<'a> Kernel<'a> {
             .set_current_stack_pointer(frame as *const InterruptFrame as *const u64);
     }
 
-    pub fn exit_current_thread(&mut self, code: u64) {
-        self.scheduler.exit_current_thread(code);
+    pub fn read(&self, entry: FAT32DirectoryEntry, buffer: &mut [u8]) -> usize {
+        self.filesystem.lock().read_file(entry, buffer)
     }
 
-    pub fn delay_current_thread(&mut self, delay: u64) {
-        // TODO: what is wake up time is before the current time because of the time the computations take?
-        let current_time = PLATFORM.get_timer().get_micros();
-        let delay_end = current_time + delay;
-
-        self.scheduler.delay_current_thread(delay_end);
-
-        //let new_timeout = self.scheduler.get_next_thread_wakeup().unwrap() - current_time;
-
-        //PLATFORM.get_timer().set_timeout(new_timeout as u32);
-    }
-
-    pub fn join_current_thread(&mut self, thread_id: ThreadID) {
-        self.scheduler.join_current_thread(thread_id);
-    }
-
+    // Syscall helpers
     pub fn open_object(&mut self, name: &str) {
         let mut split = name.split(":");
         let prefix = split.next().unwrap();
@@ -212,17 +209,5 @@ impl<'a> Kernel<'a> {
                 .add_object_to_current_thread(Box::new(Stdio::new()), id);
             self.scheduler.set_current_thread_return(id);
         }
-    }
-
-    pub fn read_object(&mut self, handle: ObjectHandle, buffer: &mut [u8]) {
-        self.scheduler.read(handle, buffer);
-    }
-
-    pub fn write_object(&mut self, handle: ObjectHandle, buffer: &mut [u8]) {
-        self.scheduler.write(handle, buffer);
-    }
-
-    pub fn read(&self, entry: FAT32DirectoryEntry, buffer: &mut [u8]) -> usize {
-        self.filesystem.lock().read_file(entry, buffer)
     }
 }
