@@ -10,7 +10,7 @@ use crate::{
     },
     allocator::{
         id_allocator::IDAllocator,
-        page_allocator::{PageAllocator, PageRef},
+        page_allocator::{PageAllocator, PageRef, PAGE_SIZE},
     },
     filesystem::fat32::{FAT32DirectoryEntry, FAT32Filesystem},
     platform::{
@@ -174,7 +174,14 @@ impl<'a> Kernel<'a> {
 
         let id = self.thread_id_allocator.allocate_id();
 
-        let kernel_table = IRQLock::new(*self.scheduler.current_thread.kernel_table.lock());
+        let mut kernel_table = PageTable::new_kernel();
+
+        for i in 0..512 {
+            let offset = PAGE_SIZE as u64 * i;
+            kernel_table.map_user_address(0xffff_0000_0000_0000 + offset, offset);
+        }
+
+        //let kernel_table = IRQLock::new(*self.scheduler.current_thread.kernel_table.lock());
 
         self.scheduler.add_thread(Thread {
             stack_pointer,
@@ -184,7 +191,7 @@ impl<'a> Kernel<'a> {
             id,
             children: IRQLock::new(vec![]),
             objects: IRQLock::new(vec![]),
-            kernel_table, // Currently all kernel threads have the same mapping
+            kernel_table: IRQLock::new(kernel_table), // Currently all kernel threads have the same mapping
             user_table: IRQLock::new(PageTable::new_unmapped()),
         });
 

@@ -5,9 +5,14 @@ use crate::{
 
 pub type Table = [usize; 512];
 
+/// A 4kb Page Table in memory.
 #[derive(Debug, Copy, Clone)]
 pub struct PageTable {
     pgd: *mut Table,
+}
+
+unsafe extern "C" {
+    unsafe static KERNEL_TABLE_START: usize;
 }
 
 impl PageTable {
@@ -20,17 +25,46 @@ impl PageTable {
         Self { pgd: page_ptr }
     }
 
-    pub fn get_ttbr(&self) -> usize {
-        (self.pgd) as usize & 0xFFFF_FFFF_FFFF
-    }
+    /// Create a kernel page table with the correct memory and mmio mappings
+    pub fn new_kernel() -> Self {
+        let pgd_ref = PLATFORM.allocate_zeroed_page();
+        let pud_ref = PLATFORM.allocate_zeroed_page();
+        let pmd_ref = PLATFORM.allocate_zeroed_page();
 
-    pub fn kernel_mapped() -> Self {
-        let pgd_addr = PLATFORM.allocate_zeroed_page().page;
-        let pgd = pgd_addr as *mut Table;
+        let pgd = pgd_ref.page as usize as *mut [usize; Self::TABLE_LENGTH];
+        let pud = pud_ref.page as usize as *mut [usize; Self::TABLE_LENGTH];
+        // NOTE: could share this across all threads
+        let pmd = pmd_ref.page as usize as *mut [usize; Self::TABLE_LENGTH];
 
-        //let pud = PLATFORM.allocate_zeroed_page();
+        unsafe {
+            let pgd_entry =
+                TableDescriptor::new(pud_ref.page as u64 & 0xFFFF_FFFF_FFFF).set_identifier(0b11);
+
+            (*pgd)[0] = pgd_entry.get_value() as usize;
+
+            let pud_entry =
+                TableDescriptor::new(pmd_ref.page as u64 & 0xFFFF_FFFF_FFFF).set_identifier(0b11);
+
+            (*pud)[0] = pud_entry.get_value() as usize;
+        }
+
+        // TODO: refactor and use separate index for mmio
+        for i in 0..512 {
+            unsafe {
+                let pmd_entry = TableEntry::from(0x20_0000 * i)
+                    .set_id(0b01)
+                    .set_attribute_index(0b1)
+                    .set_access_flag(0b1);
+
+                (*pmd)[i as usize] = pmd_entry.get_value() as usize;
+            }
+        }
 
         Self { pgd }
+    }
+
+    pub fn get_ttbr(&self) -> usize {
+        (self.pgd) as usize & 0xFFFF_FFFF_FFFF
     }
 
     pub fn from(ttbr: usize) -> Self {

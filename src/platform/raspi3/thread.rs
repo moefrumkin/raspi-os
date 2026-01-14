@@ -70,15 +70,18 @@ impl<'a> Thread<'a> {
     pub fn return_to(&self) -> ! {
         unsafe {
             let user_table = self.user_table.lock().get_ttbr();
+            let kernel_table = self.kernel_table.lock().get_ttbr();
+            let stack_pointer = *self.stack_pointer.lock();
 
             // See the Armv8-A address translation manual
             asm!("msr ttbr0_el1, {ttbr0}", ttbr0 = in(reg) user_table);
+            asm!("msr ttbr1_el1, {ttbr1}", ttbr1 = in(reg) kernel_table);
             asm!("dsb ishst");
             //asm!("tlbi alle1");
             asm!("dsb ish", "isb");
 
             asm!(
-                "mov sp, {sp}", sp = in(reg) *self.stack_pointer.lock()
+                "mov sp, {sp}", sp = in(reg) stack_pointer
             );
 
             asm!(
