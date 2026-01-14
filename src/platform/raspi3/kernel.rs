@@ -185,7 +185,7 @@ impl<'a> Kernel<'a> {
     }
 
     // Syscall helpers
-    pub fn open_object(&mut self, name: &str) {
+    fn open_object(&mut self, name: &str) {
         let mut split = name.split(":");
         let prefix = split.next().unwrap();
 
