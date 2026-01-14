@@ -111,7 +111,7 @@ pub extern "C" fn handle_exception(
     frame: &mut InterruptFrame,
 ) {
     let platform = get_platform();
-    platform.update_frame(frame);
+    platform.save_frame(frame);
 
     if exception_type == ExceptionType::Interrupt {
         platform.handle_interrupt();

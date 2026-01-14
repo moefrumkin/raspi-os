@@ -171,9 +171,9 @@ impl<'a> Platform<'a> {
         *self.kernel.lock() = Some(kernel);
     }
 
-    pub fn update_frame(&self, frame: &mut InterruptFrame) {
+    pub fn save_frame(&self, frame: &mut InterruptFrame) {
         if let Some(ref mut kernel) = *self.kernel.lock() {
-            kernel.save_current_frame(frame);
+            kernel.save_frame(frame);
         }
     }
 }

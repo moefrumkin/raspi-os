@@ -115,7 +115,7 @@ impl<'a> Kernel<'a> {
         self.get_current_thread().return_to();
     }
 
-    pub fn save_current_frame(&mut self, frame: &mut InterruptFrame) {
+    pub fn save_frame(&mut self, frame: &mut InterruptFrame) {
         self.get_current_thread()
             .set_stack_pointer(frame as *const InterruptFrame as *const u64);
     }
