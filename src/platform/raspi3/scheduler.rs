@@ -6,9 +6,7 @@ use alloc::vec::Vec;
 
 use alloc::collections::VecDeque;
 
-use alloc::boxed::Box;
-
-use super::kernel_object::{KernelObject, ObjectHandle};
+use super::kernel_object::ObjectHandle;
 use crate::platform::platform_devices::PLATFORM;
 use crate::platform::raspi3::exception::InterruptFrame;
 use crate::platform::thread::{Thread, ThreadID, ThreadStatus};
@@ -40,20 +38,6 @@ impl<'a> Scheduler<'a> {
         self.current_thread.children.lock().push(thread.clone());
 
         self.threads.push(thread);
-    }
-
-    /// Wake all threads whose time has elapsed
-    pub fn check_for_wake(&mut self) {
-        let time = PLATFORM.get_timer().get_micros();
-
-        for thread in self.threads.iter_mut() {
-            if let ThreadStatus::Sleeping(timeout) = *thread.status.lock() {
-                if timeout < time {
-                    *thread.status.lock() = ThreadStatus::Ready;
-                    self.thread_queue.push_back(Arc::clone(thread));
-                }
-            }
-        }
     }
 
     pub fn update_current(&mut self, frame: &InterruptFrame) {
@@ -139,16 +123,7 @@ impl<'a> Scheduler<'a> {
         self.current_thread = new_thread;
     }
 
-    pub fn get_next_thread_wakeup(&self) -> Option<u64> {
-        self.waiting_threads
-            .iter()
-            .map(|thread| match *thread.status.lock() {
-                ThreadStatus::Sleeping(wake_time) => wake_time,
-                _ => panic!("Non waiting thread on waiting thread queue"),
-            })
-            .min()
-    }
-
+    /// Wake all threads that are sleeping
     pub fn wake_sleeping(&mut self) {
         let current_time = PLATFORM.get_timer().get_micros();
 
@@ -204,20 +179,6 @@ impl<'a> Scheduler<'a> {
         self.thread_queue.push_back(yielding_thread);
 
         self.current_thread = self.thread_queue.pop_front().expect("No threads on queue");
-    }
-
-    pub fn add_object_to_current_thread(&self, object: Box<dyn KernelObject>, id: ObjectHandle) {
-        self.current_thread.objects.lock().push((id, object));
-    }
-
-    pub fn remove_object_from_current_thread(&self, handle: ObjectHandle) {
-        // TODO: error handling?
-        // TODO: will this call drop?
-
-        self.current_thread
-            .objects
-            .lock()
-            .retain(|(id, _)| *id != handle);
     }
 
     pub fn read(&mut self, handle: ObjectHandle, buffer: &mut [u8]) {

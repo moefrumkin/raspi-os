@@ -78,9 +78,7 @@ impl<'a> Kernel<'a> {
                 let name = unsafe { str::from_raw_parts(args[0] as *const u8, args[1]) };
                 self.open_object(name);
             }
-            Syscall::Close => self
-                .scheduler
-                .remove_object_from_current_thread(args[0] as u64),
+            Syscall::Close => self.get_current_thread().remove_object(args[0] as u64),
             Syscall::Read => {
                 let buffer = unsafe { slice::from_raw_parts_mut(args[1] as *mut u8, args[2]) };
                 self.scheduler.read(args[0] as u64, buffer)
@@ -136,8 +134,8 @@ impl<'a> Kernel<'a> {
             if let Some(entry) = entry {
                 let id = self.object_id_allocator.allocate_id();
 
-                self.scheduler
-                    .add_object_to_current_thread(Box::new(FileObject::from_entry(entry)), id);
+                self.get_current_thread()
+                    .add_object(Box::new(FileObject::from_entry(entry)), id);
 
                 self.get_current_thread().set_return_value(id);
             } else {
@@ -145,8 +143,8 @@ impl<'a> Kernel<'a> {
             }
         } else if prefix == "stdio" {
             let id = self.object_id_allocator.allocate_id();
-            self.scheduler
-                .add_object_to_current_thread(Box::new(Stdio::new()), id);
+            self.get_current_thread()
+                .add_object(Box::new(Stdio::new()), id);
             self.get_current_thread().set_return_value(id);
         }
     }

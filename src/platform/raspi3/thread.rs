@@ -148,6 +148,14 @@ impl<'a> Thread<'a> {
         *self.stack_pointer.lock() = sp;
     }
 
+    pub fn add_object(&self, object: Box<dyn KernelObject>, id: ObjectHandle) {
+        self.objects.lock().push((id, object));
+    }
+
+    pub fn remove_object(&self, handle: ObjectHandle) {
+        self.objects.lock().retain(|(id, _)| *id != handle);
+    }
+
     /// Load and run a user-mode program on this thread
     pub fn exec(&self, program: &str) {
         let handle = syscall::open(program);
