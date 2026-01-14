@@ -10,7 +10,7 @@ use crate::{
     },
     allocator::{
         id_allocator::IDAllocator,
-        page_allocator::{PageAllocator, PageRef, PAGE_SIZE},
+        page_allocator::{PageAllocator, PageRef},
     },
     filesystem::fat32::{FAT32DirectoryEntry, FAT32Filesystem},
     platform::{
