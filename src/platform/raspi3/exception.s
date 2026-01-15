@@ -2,16 +2,26 @@
 
 .macro call_handler handler source type
     msr daifset, 0b1111 // Disable interrupts
-    str lr, [sp, #-16]! // Note: lr is x30 which is overwritten by bl
+    msr tpidr_el1, x0 // Save x0
+    mov x0, sp
+    mov sp, 0x70000
+    str x0, [sp, #-8]! // TODO; could we compress with next line?
+    str lr, [sp, #-8]! // Note: lr is x30 which is overwritten by bl
+    mrs x0, tpidr_el1 // Restore x0
+    msr tpidr_el1, lr
     bl push_frame
+    mrs lr, tpidr_el1
+    str lr, [sp, 0xF0]
     mov     x3, \source
     mov     x4, \type
     mov     x5, sp
-    bl       \handler
+    ldr     x6, [sp, 0x328]
+    # add     x6, x6, #0x328
+    b       \handler
     bl pop_frame
     ldr lr, [sp], #16 
     //msr daifclr, 0b111 // Enable Interrupts
-    eret
+    eret // Once the kernel is up and running we should never return through this path
 .endm   
 
 .align 11
@@ -63,13 +73,13 @@ push_frame: // TODO: push all registers
     stp x10, x11, [sp, 0x50]
     stp x12, x13, [sp, 0x60]
     stp x14, x15, [sp, 0x70]
-    stp x16, x17, [sp, 0x90]
-    stp x18, x19, [sp, 0xa0]
-    stp x20, x21, [sp, 0xb0]
-    stp x22, x23, [sp, 0xc0]
-    stp x24, x25, [sp, 0xd0]
-    stp x26, x27, [sp, 0xe0]
-    stp x28, x29, [sp, 0xf0]
+    stp x16, x17, [sp, 0x80]
+    stp x18, x19, [sp, 0x90]
+    stp x20, x21, [sp, 0xa0]
+    stp x22, x23, [sp, 0xb0]
+    stp x24, x25, [sp, 0xc0]
+    stp x26, x27, [sp, 0xd0]
+    stp x28, x29, [sp, 0xe0]
     mrs x21, elr_el1 // TODO: with user programs may also need to save spsr
     mrs x22, spsr_el1
     stp x21, x22, [sp, 0x100] // Dont want to mess with syscall argument registers

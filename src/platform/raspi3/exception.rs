@@ -2,6 +2,7 @@ use core::arch::global_asm;
 
 use crate::{
     aarch64::registers::{ExceptionLinkRegister, ExceptionSyndromeRegister, FaultAddressRegister},
+    allocator::page_allocator::StackPointer,
     platform::platform_devices::{get_platform, PLATFORM},
     println,
 };
@@ -75,7 +76,7 @@ impl TryFrom<u64> for ExceptionClass {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone)]
 #[repr(C)]
 pub struct InterruptFrame {
     pub gp_registers: [u64; 32],
@@ -109,9 +110,10 @@ pub extern "C" fn handle_exception(
     exception_source: ExceptionSource,
     exception_type: ExceptionType,
     frame: &mut InterruptFrame,
+    sp: StackPointer,
 ) {
     let platform = get_platform();
-    platform.save_frame(frame);
+    platform.push_frame(frame, sp);
 
     if exception_type == ExceptionType::Interrupt {
         platform.handle_interrupt();

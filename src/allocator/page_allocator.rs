@@ -21,6 +21,7 @@ pub struct PageRef {
 }
 
 /// A stack pointer in an allocated page
+#[repr(C)]
 pub struct StackPointer {
     sp: *mut u8,
 }
@@ -92,7 +93,7 @@ impl StackPointer {
     pub fn push<T>(&mut self, value: T) -> Self {
         let ptr = unsafe { (self.sp as *mut T).offset(-1) };
 
-        unsafe { *ptr = value };
+        unsafe { ptr.write_unaligned(value) };
 
         Self::from(ptr as *mut u8)
     }

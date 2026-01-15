@@ -10,7 +10,7 @@ use crate::{
     },
     allocator::{
         id_allocator::IDAllocator,
-        page_allocator::{PageAllocator, PageRef},
+        page_allocator::{PageAllocator, PageRef, StackPointer},
     },
     filesystem::fat32::{FAT32DirectoryEntry, FAT32Filesystem},
     platform::{
@@ -115,9 +115,9 @@ impl<'a> Kernel<'a> {
         self.get_current_thread().return_to();
     }
 
-    pub fn save_frame(&mut self, frame: &mut InterruptFrame) {
-        self.get_current_thread()
-            .set_stack_pointer(frame as *const InterruptFrame as *const u64);
+    pub fn push_frame(&mut self, frame: &mut InterruptFrame, mut sp: StackPointer) {
+        let sp = sp.push(*frame);
+        self.get_current_thread().set_stack_pointer(sp.get());
     }
 
     pub fn readfile(&self, entry: FAT32DirectoryEntry, buffer: &mut [u8]) -> usize {

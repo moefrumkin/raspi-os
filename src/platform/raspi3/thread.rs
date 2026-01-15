@@ -100,13 +100,14 @@ impl<'a> Thread<'a> {
                 ldp x10, x11, [sp, 0x50]
                 ldp x12, x13, [sp, 0x60]
                 ldp x14, x15, [sp, 0x70]
-                ldp x16, x17, [sp, 0x90]
-                ldp x18, x19, [sp, 0xa0]
-                ldp x20, x21, [sp, 0xb0]
-                ldp x22, x23, [sp, 0xc0]
-                ldp x24, x25, [sp, 0xd0]
-                ldp x26, x27, [sp, 0xe0]
-                ldp x28, x29, [sp, 0xf0]
+                ldp x16, x17, [sp, 0x80]
+                ldp x18, x19, [sp, 0x90]
+                ldp x20, x21, [sp, 0xa0]
+                ldp x22, x23, [sp, 0xb0]
+                ldp x24, x25, [sp, 0xc0]
+                ldp x26, x27, [sp, 0xd0]
+                ldp x28, x29, [sp, 0xe0]
+                ldr x30, [sp, 0xf0]
 
                 ldp q0, q1, [sp, 0x110]
                 ldp q2, q3, [sp, 0x130]
@@ -126,7 +127,6 @@ impl<'a> Thread<'a> {
                 ldp q30, q31, [sp, 0x2f0]
 
                 add sp, sp, 0x320
-                ldr lr, [sp], #16
                 eret
                 "
             );

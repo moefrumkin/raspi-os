@@ -1,6 +1,6 @@
 use crate::{
     aarch64::{interrupt::IRQLock, syscall::SyscallArgs},
-    allocator::page_allocator::{PageRef, PAGE_SIZE},
+    allocator::page_allocator::{PageRef, StackPointer, PAGE_SIZE},
     device::sector_device::{Sector, SectorDevice},
     platform::{
         emmc::{EMMCConfiguration, EMMCController, EMMCRegisters},
@@ -171,9 +171,9 @@ impl<'a> Platform<'a> {
         *self.kernel.lock() = Some(kernel);
     }
 
-    pub fn save_frame(&self, frame: &mut InterruptFrame) {
+    pub fn push_frame(&self, frame: &mut InterruptFrame, sp: StackPointer) {
         if let Some(ref mut kernel) = *self.kernel.lock() {
-            kernel.save_frame(frame);
+            kernel.push_frame(frame, sp);
         }
     }
 }
