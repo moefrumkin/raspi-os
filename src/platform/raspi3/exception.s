@@ -7,7 +7,7 @@
     msr tpidr_el0, x1 // Save x1
 
     mov x0, sp // Save the stack pointer
-    ldr x1, =0xffff000000700000
+    ldr x1, =EXCEPTION_STACK
     mov sp, x1 // Interrupt stack pointer
 
     str x0, [sp, #-8]! // TODO; could we compress with next line?
