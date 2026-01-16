@@ -76,6 +76,57 @@ impl TryFrom<u64> for ExceptionClass {
     }
 }
 
+/// https://df.lth.se/~getz/ARM/SysReg/AArch64-esr_el1.html#fieldset_0-24_0_16-5_0
+#[derive(PartialEq, Eq)]
+pub enum DataFaultStatus {
+    AddressSizeFaultLevel0 = 0b00_0000,
+    AddressSizeFaultLevel1 = 0b00_0001,
+    AddressSizeFaultLevel2 = 0b00_0010,
+    AddressSizeFaultLevel3 = 0b00_0011,
+
+    TranslationFaultLevel0 = 0b00_0100,
+    TranslationFaultLevel1 = 0b00_0101,
+    TranslationFaultLevel2 = 0b00_0110,
+    TranslationFaultLevel3 = 0b00_0111,
+
+    AccessFlagFaultLevel1 = 0b00_1001,
+    AccessFlagFaultLevel2 = 0b00_1010,
+    AccessFlagFaultLevel3 = 0b00_1011,
+
+    PermissionFaultLevel1 = 0b00_1101,
+    PermissionFaultLevel2 = 0b00_1110,
+    PermissionFaultLevel3 = 0b00_1111,
+    // Skipping Synchronous External Aborts
+}
+
+impl TryFrom<u64> for DataFaultStatus {
+    type Error = &'static str;
+
+    fn try_from(value: u64) -> Result<Self, Self::Error> {
+        match value {
+            0b00_0000 => Ok(Self::AddressSizeFaultLevel0),
+            0b00_0001 => Ok(Self::AddressSizeFaultLevel1),
+            0b00_0010 => Ok(Self::AddressSizeFaultLevel2),
+            0b00_0011 => Ok(Self::AddressSizeFaultLevel3),
+
+            0b00_0100 => Ok(Self::TranslationFaultLevel0),
+            0b00_0101 => Ok(Self::TranslationFaultLevel1),
+            0b00_0110 => Ok(Self::TranslationFaultLevel2),
+            0b00_0111 => Ok(Self::TranslationFaultLevel3),
+
+            0b00_1001 => Ok(Self::AccessFlagFaultLevel1),
+            0b00_1010 => Ok(Self::AccessFlagFaultLevel2),
+            0b00_1011 => Ok(Self::AccessFlagFaultLevel3),
+
+            0b00_1101 => Ok(Self::PermissionFaultLevel1),
+            0b00_1110 => Ok(Self::PermissionFaultLevel2),
+            0b00_1111 => Ok(Self::PermissionFaultLevel3),
+
+            _ => Err("Unknown Data Fault Type"),
+        }
+    }
+}
+
 #[derive(Debug, Copy, Clone)]
 #[repr(C)]
 pub struct InterruptFrame {
@@ -112,6 +163,10 @@ pub extern "C" fn handle_exception(
     frame: &mut InterruptFrame,
     sp: StackPointer,
 ) {
+    let esr = ExceptionSyndromeRegister::read_to_buffer().value();
+    let far = FaultAddressRegister::read_to_buffer().value();
+    let elr = ExceptionLinkRegister::read_to_buffer().value();
+
     let platform = get_platform();
     platform.push_frame(frame, sp);
 
@@ -127,6 +182,8 @@ pub extern "C" fn handle_exception(
             let syscall_number = esr.get_instruction_number();
 
             platform.handle_syscall(syscall_number, [arg1, arg2, arg3]);
+        } else if exception_class == ExceptionClass::DataAbort {
+            println!("Kernel Page fault!");
         }
     }
 
@@ -139,10 +196,6 @@ pub extern "C" fn handle_exception(
         println!("From thread: {}", thread.name);
         println!("With sp: {:#p}", *thread.stack_pointer.lock());
     }
-
-    let esr = ExceptionSyndromeRegister::read_to_buffer().value();
-    let far = FaultAddressRegister::read_to_buffer().value();
-    let elr = ExceptionLinkRegister::read_to_buffer().value();
 
     println!("elr: {:#x}", elr);
     println!("esr: {:#x}", esr);

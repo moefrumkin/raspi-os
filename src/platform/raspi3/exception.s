@@ -1,13 +1,20 @@
 .global _exception_vector
 
+// SP should be 0xFFFF_0000_0070_0000 (0xffff000000700000)
 .macro call_handler handler source type
     msr daifset, 0b1111 // Disable interrupts
     msr tpidr_el1, x0 // Save x0
-    mov x0, sp
-    mov sp, 0x70000
+    msr tpidr_el0, x1 // Save x1
+
+    mov x0, sp // Save the stack pointer
+    ldr x1, =0xffff000000700000
+    mov sp, x1 // Interrupt stack pointer
+
     str x0, [sp, #-8]! // TODO; could we compress with next line?
     str lr, [sp, #-8]! // Note: lr is x30 which is overwritten by bl
     mrs x0, tpidr_el1 // Restore x0
+    mrs x1, tpidr_el0
+
     msr tpidr_el1, lr
     bl push_frame
     mrs lr, tpidr_el1
