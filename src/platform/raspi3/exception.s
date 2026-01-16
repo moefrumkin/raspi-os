@@ -22,7 +22,7 @@
     mov     x3, \source
     mov     x4, \type
     mov     x5, sp
-    ldr     x6, [sp, 0x328]
+    ldr     x6, [sp, 0x328] // x6 is the old stack pointer
     # add     x6, x6, #0x328
     b       \handler
     bl pop_frame

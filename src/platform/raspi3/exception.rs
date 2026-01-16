@@ -99,10 +99,50 @@ pub enum DataFaultStatus {
     // Skipping Synchronous External Aborts
 }
 
-impl TryFrom<u64> for DataFaultStatus {
+impl DataFaultStatus {
+    pub fn is_address_size_fault(&self) -> bool {
+        match self {
+            Self::AddressSizeFaultLevel0
+            | Self::AddressSizeFaultLevel1
+            | Self::AddressSizeFaultLevel2
+            | Self::AccessFlagFaultLevel3 => true,
+            _ => false,
+        }
+    }
+
+    pub fn is_translation_fault(&self) -> bool {
+        match self {
+            Self::TranslationFaultLevel0
+            | Self::TranslationFaultLevel1
+            | Self::TranslationFaultLevel2
+            | Self::TranslationFaultLevel3 => true,
+            _ => false,
+        }
+    }
+
+    pub fn is_access_flag_fault(&self) -> bool {
+        match self {
+            Self::AccessFlagFaultLevel1
+            | Self::AccessFlagFaultLevel2
+            | Self::AccessFlagFaultLevel3 => true,
+            _ => false,
+        }
+    }
+
+    pub fn is_permission_fault(&self) -> bool {
+        match self {
+            Self::PermissionFaultLevel1
+            | Self::PermissionFaultLevel2
+            | Self::PermissionFaultLevel3 => true,
+            _ => false,
+        }
+    }
+}
+
+impl TryFrom<usize> for DataFaultStatus {
     type Error = &'static str;
 
-    fn try_from(value: u64) -> Result<Self, Self::Error> {
+    fn try_from(value: usize) -> Result<Self, Self::Error> {
         match value {
             0b00_0000 => Ok(Self::AddressSizeFaultLevel0),
             0b00_0001 => Ok(Self::AddressSizeFaultLevel1),
@@ -168,9 +208,9 @@ pub extern "C" fn handle_exception(
     let elr = ExceptionLinkRegister::read_to_buffer().value();
 
     let platform = get_platform();
-    platform.push_frame(frame, sp);
 
     if exception_type == ExceptionType::Interrupt {
+        platform.push_frame(frame, sp);
         platform.handle_interrupt();
     } else if exception_type == ExceptionType::Synchronous {
         let esr = ExceptionSyndromeRegister::read_to_buffer();
@@ -181,9 +221,14 @@ pub extern "C" fn handle_exception(
         if exception_class == ExceptionClass::SystemCall {
             let syscall_number = esr.get_instruction_number();
 
+            platform.push_frame(frame, sp);
             platform.handle_syscall(syscall_number, [arg1, arg2, arg3]);
         } else if exception_class == ExceptionClass::DataAbort {
-            println!("Kernel Page fault!");
+            let fault_class: DataFaultStatus = esr
+                .get_data_fault_status_code()
+                .try_into()
+                .expect("Uknown data fault class");
+            platform.handle_data_fault(true, fault_class, far, frame, sp);
         }
     }
 

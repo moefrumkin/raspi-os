@@ -196,4 +196,8 @@ impl PageTable {
             return true;
         }
     }
+
+    pub fn is_kernel_address(addr: usize) -> bool {
+        addr & 0xFFFF_0000_0000_0000 != 0
+    }
 }

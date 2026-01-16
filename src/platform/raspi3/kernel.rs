@@ -16,8 +16,8 @@ use crate::{
     platform::{
         kernel_object::{FileObject, ObjectHandle, Stdio},
         page_table::PageTable,
-        platform_devices::PLATFORM,
-        raspi3::exception::InterruptFrame,
+        platform_devices::{get_platform, PLATFORM},
+        raspi3::exception::{DataFaultStatus, InterruptFrame},
         scheduler::Scheduler,
         thread::{Thread, ThreadStatus},
     },
@@ -95,6 +95,63 @@ impl<'a> Kernel<'a> {
 
     pub fn exec(&mut self, program_name: &str) {
         self.get_current_thread().exec(program_name);
+    }
+
+    /// Does not return to a thread
+    /// Data fault on current thread
+    pub fn handle_data_fault(
+        &mut self,
+        kernel: bool,
+        fault_class: DataFaultStatus,
+        far: usize,
+        interrupt_frame: &mut InterruptFrame,
+        sp: StackPointer,
+    ) {
+        if fault_class.is_translation_fault() {
+            self.handle_translation_fault(kernel, far, interrupt_frame, sp);
+        } else {
+            unimplemented!()
+        }
+    }
+
+    /// Does not return to a thread
+    /// Page fault on the current thread
+    fn handle_translation_fault(
+        &mut self,
+        kernel: bool,
+        far: usize,
+        interrupt_frame: &mut InterruptFrame,
+        sp: StackPointer,
+    ) {
+        if kernel {
+            if PageTable::is_kernel_address(far) {
+                // Check if address is valid stack address
+                let stack_offset = (0xFFFF_FFFF_FFFF_FFFF - far) >> 12;
+                // Maximum stack growth?
+                if stack_offset < 512 {
+                    let page_virtual_address = far & !0xFFF;
+                    let page = get_platform().allocate_zeroed_page();
+
+                    self.get_current_thread()
+                        .kernel_table
+                        .lock()
+                        .map_user_address(page_virtual_address as u64, page.page as u64);
+
+                    // TODO: do we need to have a data or instruction buffer now?
+
+                    // We dont want the interrupt frame to overflow this
+                    self.push_frame(interrupt_frame, sp);
+                } else {
+                    panic!("Kernel Stack Overflow");
+                }
+            } else {
+                // Should only occur when a syscall receives and invalid buffer
+                unimplemented!();
+            }
+        } else {
+            // TODO: Kill thread
+            unimplemented!();
+        }
     }
 
     /// Handles a system tick:

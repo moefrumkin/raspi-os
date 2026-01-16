@@ -9,7 +9,7 @@ use crate::{
         interrupt::{InterruptRegisters, InterruptType},
         kernel::{Kernel, TICK},
         mailbox::{MailboxBuffer, MailboxController, MailboxRegisters},
-        raspi3::exception::InterruptFrame,
+        raspi3::exception::{DataFaultStatus, InterruptFrame},
         thread::Thread,
         timer::TimerRegisters,
     },
@@ -163,6 +163,20 @@ impl<'a> Platform<'a> {
     pub fn handle_syscall(&self, syscall_number: usize, args: SyscallArgs) {
         if let Some(ref mut kernel) = *self.kernel.lock() {
             kernel.handle_syscall(syscall_number, args);
+            kernel.return_from_exception();
+        }
+    }
+
+    pub fn handle_data_fault(
+        &self,
+        is_kernel: bool,
+        fault_class: DataFaultStatus,
+        far: usize,
+        interrupt_frame: &mut InterruptFrame,
+        sp: StackPointer,
+    ) {
+        if let Some(ref mut kernel) = *self.kernel.lock() {
+            kernel.handle_data_fault(is_kernel, fault_class, far, interrupt_frame, sp);
             kernel.return_from_exception();
         }
     }
