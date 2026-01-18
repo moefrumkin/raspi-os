@@ -1,15 +1,15 @@
 use crate::{
-    aarch64::{interrupt::IRQLock, syscall::SyscallArgs},
+    aarch64::interrupt::IRQLock,
     allocator::page_allocator::{PageRef, StackPointer, PAGE_SIZE},
     device::sector_device::{Sector, SectorDevice},
     platform::{
         emmc::{EMMCConfiguration, EMMCController, EMMCRegisters},
         gpio::{GPIOController, GPIORegisters},
         hardware_config::HardwareConfig,
-        interrupt::{InterruptRegisters, InterruptType},
-        kernel::{Kernel, TICK},
+        interrupt::InterruptRegisters,
+        kernel::Kernel,
         mailbox::{MailboxBuffer, MailboxController, MailboxRegisters},
-        raspi3::exception::{DataFaultStatus, Exception, InterruptFrame},
+        raspi3::exception::{Exception, InterruptFrame},
         thread::Thread,
         timer::TimerRegisters,
     },
@@ -112,28 +112,6 @@ impl<'a> Platform<'a> {
             .map(|kernel| Arc::clone(&kernel.scheduler.current_thread))
     }
 
-    pub fn handle_interrupt(&self) {
-        let interrupt_type = self.devices.interrupts.borrow().get_interrupt_type();
-        if let Some(InterruptType::KernelTimerInterrupt) = interrupt_type {
-            if let Some(ref mut kernel) = *self.kernel.lock() {
-                // TODO: are the clears necessary?
-                kernel.tick();
-                self.get_timer().clear_matches();
-
-                self.set_kernel_timeout(TICK);
-
-                kernel.return_from_exception();
-            }
-        }
-
-        // TODO: cleanup
-        // Note: we could also just wake thread as part of the tick?
-        if let Some(InterruptType::TimerInterrupt) = interrupt_type {
-            panic!("Non-kernel timer interrupt occured");
-            //if let Some(ref mut kernel) = *self.kernel.lock() {}
-        }
-    }
-
     pub fn exec(&self, program: &str) {
         if let Some(ref mut kernel) = *self.kernel.lock() {
             kernel.exec(program);
@@ -157,27 +135,6 @@ impl<'a> Platform<'a> {
             kernel.allocate_page()
         } else {
             panic!();
-        }
-    }
-
-    pub fn handle_syscall(&self, syscall_number: usize, args: SyscallArgs) {
-        if let Some(ref mut kernel) = *self.kernel.lock() {
-            kernel.handle_syscall(syscall_number, args);
-            kernel.return_from_exception();
-        }
-    }
-
-    pub fn handle_data_fault(
-        &self,
-        is_kernel: bool,
-        fault_class: DataFaultStatus,
-        far: usize,
-        interrupt_frame: &mut InterruptFrame,
-        sp: StackPointer,
-    ) {
-        if let Some(ref mut kernel) = *self.kernel.lock() {
-            kernel.handle_data_fault(is_kernel, fault_class, far, interrupt_frame, sp);
-            kernel.return_from_exception();
         }
     }
 
