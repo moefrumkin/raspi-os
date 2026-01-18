@@ -18,10 +18,10 @@
     bl push_frame
     mrs lr, tpidr_el1
     str lr, [sp, 0xF0]
-    mov     x3, \source
-    mov     x4, \type
-    mov     x5, sp
-    ldr     x6, [sp, 0x328] // x6 is the old stack pointer
+    mov     x0, \source
+    mov     x1, \type
+    mov     x2, sp
+    ldr     x3, [sp, 0x328] // x6 is the old stack pointer
     # add     x6, x6, #0x328
     b       \handler
 .endm   

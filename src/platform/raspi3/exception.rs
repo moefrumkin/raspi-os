@@ -2,12 +2,11 @@ use core::arch::global_asm;
 
 use crate::{
     aarch64::{
-        registers::{ExceptionLinkRegister, ExceptionSyndromeRegister, FaultAddressRegister},
+        registers::{ExceptionSyndromeRegister, FaultAddressRegister},
         syscall::SyscallArgs,
     },
     allocator::page_allocator::StackPointer,
-    platform::platform_devices::{get_platform, PLATFORM},
-    println,
+    platform::platform_devices::PLATFORM,
 };
 
 global_asm!(include_str!("exception.s"));
@@ -264,9 +263,6 @@ impl InterruptFrame {
 
 #[no_mangle]
 pub extern "C" fn handle_exception(
-    arg1: usize,
-    arg2: usize,
-    arg3: usize,
     exception_source: ExceptionSource,
     exception_type: ExceptionType,
     //TODO: Is is ok for this to be static?
