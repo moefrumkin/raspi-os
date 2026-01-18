@@ -1,7 +1,10 @@
 use core::arch::global_asm;
 
 use crate::{
-    aarch64::registers::{ExceptionLinkRegister, ExceptionSyndromeRegister, FaultAddressRegister},
+    aarch64::{
+        registers::{ExceptionLinkRegister, ExceptionSyndromeRegister, FaultAddressRegister},
+        syscall::SyscallArgs,
+    },
     allocator::page_allocator::StackPointer,
     platform::platform_devices::{get_platform, PLATFORM},
     println,
@@ -9,7 +12,7 @@ use crate::{
 
 global_asm!(include_str!("exception.s"));
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 #[repr(u64)]
 pub enum ExceptionSource {
     CurrentELUserSP = 0,
@@ -18,7 +21,16 @@ pub enum ExceptionSource {
     LowerEL32 = 3,
 }
 
-#[derive(Debug, PartialEq, Eq)]
+impl ExceptionSource {
+    pub fn is_kernel(&self) -> bool {
+        match self {
+            Self::CurrentELUserSP | Self::CurrentELCurrentSP => true,
+            Self::LowerEL64 | Self::LowerEL32 => true,
+        }
+    }
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 #[repr(u64)]
 pub enum ExceptionType {
     Synchronous = 0,
@@ -167,6 +179,51 @@ impl TryFrom<usize> for DataFaultStatus {
     }
 }
 
+pub struct Exception {
+    exception_syndrome_register: ExceptionSyndromeRegister::RegisterBuffer,
+    fault_address: usize,
+    source: ExceptionSource,
+    exception_type: ExceptionType,
+}
+
+impl Exception {
+    pub fn get_type(&self) -> ExceptionType {
+        self.exception_type
+    }
+
+    pub fn get_exception_class(&self) -> ExceptionClass {
+        (self.exception_syndrome_register.get_exception_class() as u64)
+            .try_into()
+            .unwrap()
+    }
+
+    /// Precondition: Exception must be caused by a syscall
+    pub fn get_syscall_number(&self) -> usize {
+        self.exception_syndrome_register.get_instruction_number()
+    }
+
+    /// Was the exception caused in kernel code?
+    pub fn is_kernel(&self) -> bool {
+        self.source.is_kernel()
+    }
+
+    pub fn get_address(&self) -> usize {
+        self.fault_address
+    }
+
+    pub fn get_data_fault_class(&self) -> DataFaultStatus {
+        self.exception_syndrome_register
+            .get_data_fault_status_code()
+            .try_into()
+            .expect("Unknown data fault class")
+    }
+
+    // TODO: is it ok to keep this?
+    pub fn get_esr(&self) -> usize {
+        self.exception_syndrome_register.value()
+    }
+}
+
 #[derive(Debug, Copy, Clone)]
 #[repr(C)]
 pub struct InterruptFrame {
@@ -191,6 +248,18 @@ impl InterruptFrame {
     pub fn set_arg(&mut self, arg: u64) {
         self.gp_registers[0] = arg;
     }
+
+    pub fn get_syscall_arguments(&self) -> SyscallArgs {
+        [
+            self.gp_registers[0] as usize,
+            self.gp_registers[1] as usize,
+            self.gp_registers[2] as usize,
+        ]
+    }
+
+    pub fn get_exception_link_register(&self) -> u64 {
+        self.elr as u64
+    }
 }
 
 #[no_mangle]
@@ -200,53 +269,16 @@ pub extern "C" fn handle_exception(
     arg3: usize,
     exception_source: ExceptionSource,
     exception_type: ExceptionType,
-    frame: &mut InterruptFrame,
-    sp: StackPointer,
-) {
-    let esr = ExceptionSyndromeRegister::read_to_buffer().value();
-    let far = FaultAddressRegister::read_to_buffer().value();
-    let elr = ExceptionLinkRegister::read_to_buffer().value();
+    //TODO: Is is ok for this to be static?
+    interrupt_frame: &'static mut InterruptFrame,
+    stack_pointer: StackPointer,
+) -> ! {
+    let exception = Exception {
+        exception_syndrome_register: ExceptionSyndromeRegister::read_to_buffer(),
+        fault_address: FaultAddressRegister::read_to_buffer().value(),
+        source: exception_source,
+        exception_type,
+    };
 
-    let platform = get_platform();
-
-    if exception_type == ExceptionType::Interrupt {
-        platform.push_frame(frame, sp);
-        platform.handle_interrupt();
-    } else if exception_type == ExceptionType::Synchronous {
-        let esr = ExceptionSyndromeRegister::read_to_buffer();
-
-        let exception_class: ExceptionClass =
-            (esr.get_exception_class() as u64).try_into().unwrap();
-
-        if exception_class == ExceptionClass::SystemCall {
-            let syscall_number = esr.get_instruction_number();
-
-            platform.push_frame(frame, sp);
-            platform.handle_syscall(syscall_number, [arg1, arg2, arg3]);
-        } else if exception_class == ExceptionClass::DataAbort {
-            let fault_class: DataFaultStatus = esr
-                .get_data_fault_status_code()
-                .try_into()
-                .expect("Uknown data fault class");
-            platform.handle_data_fault(true, fault_class, far, frame, sp);
-        }
-    }
-
-    println!(
-        "Received Exception Type {:?} from {:?}",
-        exception_type, exception_source
-    );
-
-    if let Some(ref thread) = PLATFORM.get_current_thread() {
-        println!("From thread: {}", thread.name);
-        println!("With sp: {:#p}", *thread.stack_pointer.lock());
-    }
-
-    println!("elr: {:#x}", elr);
-    println!("esr: {:#x}", esr);
-    println!("far: {:#x}", far);
-
-    println!("{:?}", frame);
-
-    loop {}
+    PLATFORM.handle_exception(exception, interrupt_frame, stack_pointer);
 }

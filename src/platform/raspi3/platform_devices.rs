@@ -9,7 +9,7 @@ use crate::{
         interrupt::{InterruptRegisters, InterruptType},
         kernel::{Kernel, TICK},
         mailbox::{MailboxBuffer, MailboxController, MailboxRegisters},
-        raspi3::exception::{DataFaultStatus, InterruptFrame},
+        raspi3::exception::{DataFaultStatus, Exception, InterruptFrame},
         thread::Thread,
         timer::TimerRegisters,
     },
@@ -178,6 +178,19 @@ impl<'a> Platform<'a> {
         if let Some(ref mut kernel) = *self.kernel.lock() {
             kernel.handle_data_fault(is_kernel, fault_class, far, interrupt_frame, sp);
             kernel.return_from_exception();
+        }
+    }
+
+    pub fn handle_exception(
+        &self,
+        exception: Exception,
+        interrupt_frame: &'a mut InterruptFrame,
+        stack_pointer: StackPointer,
+    ) -> ! {
+        if let Some(ref mut kernel) = *self.kernel.lock() {
+            kernel.handle_exception(exception, interrupt_frame, stack_pointer)
+        } else {
+            panic!("Exception received before a kernel was registered")
         }
     }
 

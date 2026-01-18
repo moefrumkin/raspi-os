@@ -1,8 +1,7 @@
 .global _exception_vector
 
-// SP should be 0xFFFF_0000_0070_0000 (0xffff000000700000)
 .macro call_handler handler source type
-    msr daifset, 0b1111 // Disable interrupts
+    msr daifset, 0b1111 // Disable interrupts. TODO: could a system call be called when an IRQ lock is in use
     msr tpidr_el1, x0 // Save x0
     msr tpidr_el0, x1 // Save x1
 
@@ -25,10 +24,6 @@
     ldr     x6, [sp, 0x328] // x6 is the old stack pointer
     # add     x6, x6, #0x328
     b       \handler
-    bl pop_frame
-    ldr lr, [sp], #16 
-    //msr daifclr, 0b111 // Enable Interrupts
-    eret // Once the kernel is up and running we should never return through this path
 .endm   
 
 .align 11
@@ -87,10 +82,11 @@ push_frame: // TODO: push all registers
     stp x24, x25, [sp, 0xc0]
     stp x26, x27, [sp, 0xd0]
     stp x28, x29, [sp, 0xe0]
+
     mrs x21, elr_el1 // TODO: with user programs may also need to save spsr
     mrs x22, spsr_el1
-    stp x21, x22, [sp, 0x100] // Dont want to mess with syscall argument registers
 
+    stp x21, x22, [sp, 0x100] // Dont want to mess with syscall argument registers
     stp q0, q1, [sp, 0x110]
     stp q2, q3, [sp, 0x130]
     stp q4, q5, [sp, 0x150]

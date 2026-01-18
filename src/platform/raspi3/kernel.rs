@@ -17,7 +17,9 @@ use crate::{
         kernel_object::{FileObject, ObjectHandle, Stdio},
         page_table::PageTable,
         platform_devices::{get_platform, PLATFORM},
-        raspi3::exception::{DataFaultStatus, InterruptFrame},
+        raspi3::exception::{
+            DataFaultStatus, Exception, ExceptionClass, ExceptionType, InterruptFrame,
+        },
         scheduler::Scheduler,
         thread::{Thread, ThreadStatus},
     },
@@ -62,6 +64,36 @@ impl<'a> Kernel<'a> {
         &self.scheduler.current_thread
     }
 
+    /// Handles a fault and returns to a thread
+    pub fn handle_exception(
+        &mut self,
+        exception: Exception,
+        interrupt_frame: &'a mut InterruptFrame,
+        stack_pointer: StackPointer,
+    ) -> ! {
+        match exception.get_type() {
+            ExceptionType::Interrupt => {
+                self.push_frame(interrupt_frame, stack_pointer);
+                self.tick();
+                PLATFORM.get_timer().clear_matches();
+                PLATFORM.set_kernel_timeout(TICK);
+            }
+            ExceptionType::Synchronous => {
+                self.handle_synchronous_exception(exception, interrupt_frame, stack_pointer);
+            }
+            ExceptionType::FastInterrupt => {
+                unimplemented!()
+            }
+            ExceptionType::SystemError => {
+                panic!("A system error occured");
+            }
+        }
+
+        self.get_current_thread().return_to();
+
+        // Just here to make the compiler happy. TODO: remove
+    }
+
     /// Processess a system call with the given number and arguments. Does not return control to a thread but may change scheduling depending on the system call.
     /// TODO: add pointer validity checks
     pub fn handle_syscall(&mut self, number: usize, args: SyscallArgs) {
@@ -93,8 +125,38 @@ impl<'a> Kernel<'a> {
         }
     }
 
-    pub fn exec(&mut self, program_name: &str) {
-        self.get_current_thread().exec(program_name);
+    fn handle_synchronous_exception(
+        &mut self,
+        exception: Exception,
+        interrupt_frame: &mut InterruptFrame,
+        stack_pointer: StackPointer,
+    ) {
+        let exception_class: ExceptionClass = exception.get_exception_class();
+
+        if exception_class == ExceptionClass::SystemCall {
+            let syscall_number = exception.get_syscall_number();
+
+            self.push_frame(interrupt_frame, stack_pointer);
+            self.handle_syscall(syscall_number, interrupt_frame.get_syscall_arguments());
+        } else if exception_class == ExceptionClass::DataAbort {
+            let fault_class = exception.get_data_fault_class();
+
+            self.handle_data_fault(
+                exception.is_kernel(),
+                fault_class,
+                exception.get_address(),
+                interrupt_frame,
+                stack_pointer,
+            );
+        } else {
+            crate::println!("elr: {:x}", interrupt_frame.get_exception_link_register());
+            crate::println!("esr: {:#x}", exception.get_esr());
+            crate::println!("far: {:#x}", exception.get_address());
+
+            crate::println!("{:?}", interrupt_frame);
+
+            loop {}
+        }
     }
 
     /// Does not return to a thread
@@ -164,6 +226,9 @@ impl<'a> Kernel<'a> {
         self.scheduler.schedule();
     }
 
+    pub fn exec(&mut self, program_name: &str) {
+        self.get_current_thread().exec(program_name);
+    }
     pub fn get_return_thread(&mut self) -> Arc<Thread<'a>> {
         self.scheduler.choose_thread()
     }
