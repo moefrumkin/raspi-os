@@ -3,10 +3,7 @@
 //! The standard library has the default options of stack unwinding or aborting, however neither of those can be used, as the full standard library is not included
 
 #[cfg(feature = "raspi3")]
-use super::platform::{
-    gpio::{GPIOController, OutputLevel, StatusLight},
-    platform_devices::PLATFORM,
-};
+use super::platform::platform_devices::PLATFORM;
 
 #[cfg(feature = "raspi3")]
 use crate::println;

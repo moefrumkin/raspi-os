@@ -1,23 +1,28 @@
 #![allow(dead_code)]
 
+use super::{line::Line, matrix::Matrix, vector::Vector, Draw};
 use alloc::{boxed::Box, vec::Vec};
-use crate::utils::math;
-use super::{Draw, line::Line, matrix::Matrix, vector::Vector};
 
 pub type Color = u32;
 pub type Gradient2D = dyn Fn(usize, usize) -> Color;
 
 #[allow(dead_code)]
-pub struct Canvas2D<'a, T> where T: Draw {
+pub struct Canvas2D<'a, T>
+where
+    T: Draw,
+{
     gpu: &'a mut T,
     pix_width: usize,
     pix_height: usize,
     background: Box<Gradient2D>,
     points: Vec<(Vector, Color)>,
-    lines: Vec<(Line, Color)>
+    lines: Vec<(Line, Color)>,
 }
 
-impl<'a, T> Canvas2D<'a, T> where T: Draw{
+impl<'a, T> Canvas2D<'a, T>
+where
+    T: Draw,
+{
     pub fn new(gpu: &'a mut T, pix_width: usize, pix_height: usize) -> Self {
         Self {
             gpu,
@@ -25,7 +30,7 @@ impl<'a, T> Canvas2D<'a, T> where T: Draw{
             pix_height,
             background: Box::new(|_x, _y| 0x000000),
             points: Vec::new(),
-            lines: Vec::new()
+            lines: Vec::new(),
         }
     }
 
@@ -42,20 +47,20 @@ impl<'a, T> Canvas2D<'a, T> where T: Draw{
         let x_scale = self.pix_width as f64 / width; //1
         let y_scale = self.pix_height as f64 / height; //1
 
-        let scale = Matrix ( Vector (x_scale, 0.0), Vector (0.0, y_scale));
+        let scale = Matrix(Vector(x_scale, 0.0), Vector(0.0, y_scale));
 
         //draw points
         for &(point, color) in &self.points {
-            let Vector (x, y) = scale * (point - origin);
+            let Vector(x, y) = scale * (point - origin);
             if (x >= 0.0 && y >= 0.0) && (x < width && y < height) {
                 self.gpu.draw(x as usize, y as usize, color);
             }
         }
 
         //draw lines
-        for &(Line (v0, v1), color) in &self.lines {
-            let Vector (x0, y0) = scale * (v0 - origin);
-            let Vector (x1, y1) = scale * (v1 - origin);
+        for &(Line(v0, v1), color) in &self.lines {
+            let Vector(x0, y0) = scale * (v0 - origin);
+            let Vector(x1, y1) = scale * (v1 - origin);
 
             let start_x: usize;
             let start_y: usize;
@@ -111,4 +116,3 @@ impl<'a, T> Canvas2D<'a, T> where T: Draw{
         self.lines.push((line, color));
     }
 }
-

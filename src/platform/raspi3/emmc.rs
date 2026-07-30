@@ -1,22 +1,16 @@
-use core::cell::{RefCell, RefMut};
+use core::cell::RefCell;
 
-use crate::volatile::Volatile;
+use super::gpio::{GPIOController, Mode, Pin, Pull};
+use crate::aarch64::cpu::wait_for_cycles;
 use crate::bitfield;
 use crate::device::timer::Timer;
-use super::gpio::{GPIOController, Pin, Pull, Mode};
-use crate::aarch64::cpu::wait_for_cycles;
-use crate::device::sector_device::{
-    Sector,
-    SectorAddress,
-    SectorDevice
-};
-use alloc::rc::Rc;
+use crate::volatile::Volatile;
 
 enum CommandFlag {
     NeedApp = 0x8000_0000,
     Response48 = 0x0002_0000,
     ErrorsMask = 0xfff9_c004,
-    RcaMask = 0xffff_0000
+    RcaMask = 0xffff_0000,
 }
 
 enum Command {
@@ -32,7 +26,7 @@ enum Command {
     AppCommand = 0x3700_0000,
     SetBusWidth = (0x0602_0000 | 0x8000_0000),
     SendOpCommand = (0x2902_0000 | 0x8000_0000),
-    SendScr = (0x3322_0010 | 0x8000_0000)
+    SendScr = (0x3322_0010 | 0x8000_0000),
 }
 
 #[derive(Copy, Clone)]
@@ -40,14 +34,14 @@ pub enum StatusSetting {
     ReadAvailable = 0x0000_0800,
     DataInhibit = 0x0000_0002,
     CommandInhibit = 0x0000_0001,
-    AppCommand = 0x0000_0020
+    AppCommand = 0x0000_0020,
 }
 
 #[derive(Clone, Debug)]
 pub struct EMMCConfiguration {
     configuration: SDConfigurationRegister,
     relative_card_address: u32,
-    hardware_version: u32
+    hardware_version: u32,
 }
 
 impl EMMCConfiguration {
@@ -55,29 +49,30 @@ impl EMMCConfiguration {
         Self {
             configuration: SDConfigurationRegister::uninitialized(),
             relative_card_address: 0,
-            hardware_version: 0
+            hardware_version: 0,
         }
     }
 }
-
-
 
 pub struct EMMCController<'a> {
     slot: &'a RefCell<&'a mut EMMCRegisters>,
     gpio: &'a dyn GPIOController,
     timer: &'a dyn Timer,
 
-    configuration: EMMCConfiguration
+    configuration: EMMCConfiguration,
 }
 
 impl<'a> EMMCController<'a> {
-    pub fn new(registers: &'a RefCell<&'a mut EMMCRegisters>,
+    pub fn new(
+        registers: &'a RefCell<&'a mut EMMCRegisters>,
         gpio: &'a dyn GPIOController,
-        timer: &'a dyn Timer
+        timer: &'a dyn Timer,
     ) -> Self {
         Self {
-            slot: registers, gpio, timer,
-            configuration: EMMCConfiguration::new()
+            slot: registers,
+            gpio,
+            timer,
+            configuration: EMMCConfiguration::new(),
         }
     }
 
@@ -86,13 +81,13 @@ impl<'a> EMMCController<'a> {
         gpio: &'a dyn GPIOController,
         timer: &'a dyn Timer,
 
-        configuration: EMMCConfiguration
+        configuration: EMMCConfiguration,
     ) -> Self {
         Self {
             slot,
             gpio,
             timer,
-            configuration
+            configuration,
         }
     }
 
@@ -102,12 +97,14 @@ impl<'a> EMMCController<'a> {
         let relative_card_address = self.configuration.relative_card_address;
 
         if relative_card_address != 0 {
-            application_specific_command = application_specific_command.set_response_type(
-                ResponseType::Response48Bit as u32
-            );
+            application_specific_command =
+                application_specific_command.set_response_type(ResponseType::Response48Bit as u32);
         }
 
-        let result = self.send_command(application_specific_command, self.configuration.relative_card_address);
+        let result = self.send_command(
+            application_specific_command,
+            self.configuration.relative_card_address,
+        );
 
         match result {
             Err(error) => Err(error),
@@ -122,14 +119,16 @@ impl<'a> EMMCController<'a> {
     }
 
     fn send_command(&mut self, mut command: SDCommand, argument: u32) -> Result<u32, &str> {
-
         if command.get_is_application_specific() == 1 {
             self.send_application_specific_command().unwrap();
 
             command = command.set_is_application_specific(0);
         }
 
-        self.slot.borrow_mut().wait_for_status(StatusSetting::CommandInhibit).expect("ERROR: EMMC busy");
+        self.slot
+            .borrow_mut()
+            .wait_for_status(StatusSetting::CommandInhibit)
+            .expect("ERROR: EMMC busy");
 
         // TODO: is this necessary?
         self.slot.borrow_mut().rewrite_interrupt();
@@ -140,15 +139,30 @@ impl<'a> EMMCController<'a> {
         if command == SDCommand::SEND_OP_COND {
             self.timer.delay_millis(1000);
         } else if command == SDCommand::SEND_INTERFACE_CONDITIONS
-            || command == SDCommand::APPPLICATION_SPECIFIC_COMMAND {
+            || command == SDCommand::APPPLICATION_SPECIFIC_COMMAND
+        {
             self.timer.delay_millis(100);
         }
 
-        let response = self.slot.borrow_mut().wait_for_command_response().map_err(|err| 
-            alloc::format!("Error while sending: command {:#x} with argument {}: {}", command.value, argument, err)
-        ).unwrap();
+        let response = self
+            .slot
+            .borrow_mut()
+            .wait_for_command_response()
+            .map_err(|err| {
+                alloc::format!(
+                    "Error while sending: command {:#x} with argument {}: {}",
+                    command.value,
+                    argument,
+                    err
+                )
+            })
+            .unwrap();
 
-        return self.slot.borrow().parse_response(response, command, argument).map_err(|_| "op")
+        return self
+            .slot
+            .borrow()
+            .parse_response(response, command, argument)
+            .map_err(|_| "op");
     }
 
     const SET_CLOCK_FREQUENCY_TIMEOUT: u32 = 100_000;
@@ -156,11 +170,10 @@ impl<'a> EMMCController<'a> {
     fn wait_until_uninhibited(&self) -> Result<(), &str> {
         let mut count = Self::SET_CLOCK_FREQUENCY_TIMEOUT;
 
-        while self.slot.borrow().is_inhibited()
-            && count > 0 {
-                self.timer.delay_millis(1);
-                count -= 1;
-            }
+        while self.slot.borrow().is_inhibited() && count > 0 {
+            self.timer.delay_millis(1);
+            count -= 1;
+        }
 
         if count <= 0 {
             return Err("Time out waiting for card to be uninhibited");
@@ -171,25 +184,40 @@ impl<'a> EMMCController<'a> {
 
     fn calculate_d(&self, f: u32) -> u32 {
         let mut d: u32;
-        let c = 41666666/f;
+        let c = 41666666 / f;
         let mut x: u32;
         let mut s = 32;
         let mut h = 0;
-        
+
         x = c - 1;
-        if x == 0  {
+        if x == 0 {
             s = 0;
         } else {
-            if (x & 0xffff0000) == 0 { x <<= 16; s -= 16; }
-            if (x & 0xff000000) == 0 { x <<= 8;  s -= 8; }
-            if (x & 0xf0000000) == 0 { x <<= 4;  s -= 4; }
-            if (x & 0xc0000000) == 0 { x <<= 2;  s -= 2; }
-            if (x & 0x80000000) == 0 { /*x <<= 1;*/  s -= 1; }
-            if s>0 {
+            if (x & 0xffff0000) == 0 {
+                x <<= 16;
+                s -= 16;
+            }
+            if (x & 0xff000000) == 0 {
+                x <<= 8;
+                s -= 8;
+            }
+            if (x & 0xf0000000) == 0 {
+                x <<= 4;
+                s -= 4;
+            }
+            if (x & 0xc0000000) == 0 {
+                x <<= 2;
+                s -= 2;
+            }
+            if (x & 0x80000000) == 0 {
+                /*x <<= 1;*/
                 s -= 1;
             }
-            if s>7 {
-                s=7;
+            if s > 0 {
+                s -= 1;
+            }
+            if s > 7 {
+                s = 7;
             }
         }
 
@@ -199,22 +227,22 @@ impl<'a> EMMCController<'a> {
             d = 1 << s;
         }
 
-        if d <= 2  {
+        if d <= 2 {
             d = 2;
             //s = 0;
         }
 
-        if self.configuration.hardware_version > EMMCRegisters::HOST_SPEC_V2  {
-            h = (d&0x300) >> 2;
+        if self.configuration.hardware_version > EMMCRegisters::HOST_SPEC_V2 {
+            h = (d & 0x300) >> 2;
         }
 
-        d =  ((d & 0x0ff) << 8) | h;
+        d = ((d & 0x0ff) << 8) | h;
 
         return d;
     }
 
     fn set_clock_frequency(&mut self, f: u32) {
-        self.wait_until_uninhibited().unwrap(); 
+        self.wait_until_uninhibited().unwrap();
 
         self.slot.borrow_mut().disable_clock();
         self.timer.delay_micros(10);
@@ -229,12 +257,12 @@ impl<'a> EMMCController<'a> {
 
         let mut count = 10_000;
 
-        while  !self.slot.borrow().is_clock_enabled() && count > 0 {
+        while !self.slot.borrow().is_clock_enabled() && count > 0 {
             count -= 1;
             self.timer.delay_micros(10);
         }
 
-        if count <= 0  {
+        if count <= 0 {
             panic!("ERROR: failed to get stable clock");
         }
     }
@@ -270,7 +298,6 @@ impl<'a> EMMCController<'a> {
         gpio.set_pin_pull(dat1, Pull::Up);
         gpio.set_pin_pull(dat2, Pull::Up);
         gpio.set_pin_pull(dat3, Pull::Up);
-
     }
 
     fn reset_card(&mut self) {
@@ -280,8 +307,7 @@ impl<'a> EMMCController<'a> {
 
         self.timer.delay_micros(10);
 
-        while !self.slot.borrow().is_reset_complete()
-        && count > 0 {
+        while !self.slot.borrow().is_reset_complete() && count > 0 {
             count -= 1;
             self.timer.delay_micros(10);
         }
@@ -291,7 +317,11 @@ impl<'a> EMMCController<'a> {
         }
     }
 
-    pub fn initialize(registers: &'a RefCell<&'a mut EMMCRegisters>, timer: &'a dyn Timer, gpio: &'a dyn GPIOController) -> EMMCConfiguration {
+    pub fn initialize(
+        registers: &'a RefCell<&'a mut EMMCRegisters>,
+        timer: &'a dyn Timer,
+        gpio: &'a dyn GPIOController,
+    ) -> EMMCConfiguration {
         let mut emmc_controller = Self::new(registers, gpio, timer);
 
         Self::initialize_pins(gpio);
@@ -302,13 +332,16 @@ impl<'a> EMMCController<'a> {
     }
 
     pub fn initialize_card(&mut self) {
-        self.configuration.hardware_version = self.slot.borrow().get_host_controller_specification_version();
+        self.configuration.hardware_version = self
+            .slot
+            .borrow()
+            .get_host_controller_specification_version();
 
         self.reset_card();
 
         // At this point, reset has succeeded
         self.slot.borrow_mut().configure_internal_clocks(0b1110);
-        
+
         self.timer.delay_micros(10);
 
         // Set clock frequency
@@ -321,7 +354,11 @@ impl<'a> EMMCController<'a> {
             panic!("Unable to go idle");
         }
 
-        if self.send_command(SDCommand::SEND_INTERFACE_CONDITIONS, 0x1AA).unwrap() != 0 {
+        if self
+            .send_command(SDCommand::SEND_INTERFACE_CONDITIONS, 0x1AA)
+            .unwrap()
+            != 0
+        {
             panic!("Unable to send conditions")
         }
 
@@ -333,9 +370,9 @@ impl<'a> EMMCController<'a> {
             wait_for_cycles(400);
 
             acmd41_response = ACMD41Response::from(
-                self.send_command(SDCommand::SEND_OP_COND, EMMCRegisters::ACMD41_ARG_HC).unwrap()
+                self.send_command(SDCommand::SEND_OP_COND, EMMCRegisters::ACMD41_ARG_HC)
+                    .unwrap(),
             );
-
 
             // TODO: check for errors
         }
@@ -352,51 +389,84 @@ impl<'a> EMMCController<'a> {
 
         if acmd41_response.get_command_support_bits() == 0 {
             command_support_bits = EMMCRegisters::SCR_SUPP_CCS;
-        } 
+        }
 
-        self.send_command(SDCommand::SEND_CARD_IDENTIFICATION, 0).unwrap();
+        self.send_command(SDCommand::SEND_CARD_IDENTIFICATION, 0)
+            .unwrap();
 
-        self.configuration.relative_card_address = self.send_command(SDCommand::SEND_RELATIVE_ADDRESS, 0).unwrap();
+        self.configuration.relative_card_address = self
+            .send_command(SDCommand::SEND_RELATIVE_ADDRESS, 0)
+            .unwrap();
 
         self.set_clock_frequency(25_000_000);
 
-
         // TODO error checking
-        self.send_command(SDCommand::CARD_SELECT, self.configuration.relative_card_address as u32).unwrap();
+        self.send_command(
+            SDCommand::CARD_SELECT,
+            self.configuration.relative_card_address as u32,
+        )
+        .unwrap();
 
-        self.slot.borrow_mut().wait_for_status(StatusSetting::DataInhibit).expect("ERROR: Timeout");
+        self.slot
+            .borrow_mut()
+            .wait_for_status(StatusSetting::DataInhibit)
+            .expect("ERROR: Timeout");
 
         self.slot.borrow_mut().set_block_size_and_count(8, 1);
 
         self.configuration.configuration = self.read_configuration().unwrap();
 
-        if self.configuration.configuration.get_spec_version_4_or_higher() != 0 {
-            self.send_command(SDCommand::SET_BUS_WIDTH, self.configuration.relative_card_address as u32 | 2).unwrap();
+        if self
+            .configuration
+            .configuration
+            .get_spec_version_4_or_higher()
+            != 0
+        {
+            self.send_command(
+                SDCommand::SET_BUS_WIDTH,
+                self.configuration.relative_card_address as u32 | 2,
+            )
+            .unwrap();
             self.slot.borrow_mut().use_four_data_lines();
         }
 
-
-        self.configuration.configuration = self.configuration.configuration.set_command_support_bits(command_support_bits as u64);
-
+        self.configuration.configuration = self
+            .configuration
+            .configuration
+            .set_command_support_bits(command_support_bits as u64);
     }
-    
+
     pub fn read_blocks(&mut self, start: u32, buffer: &mut [u8], num: u32) -> u32 {
         let mut c = 0;
 
         let length = buffer.len() / 4;
         // TODO; this is awful
-        let buffer = unsafe { core::slice::from_raw_parts_mut(buffer.as_mut_ptr() as *mut u32, length)};
+        let buffer =
+            unsafe { core::slice::from_raw_parts_mut(buffer.as_mut_ptr() as *mut u32, length) };
 
-        self.slot.borrow_mut().wait_for_status(StatusSetting::DataInhibit).expect("Data is inhibited?");
+        self.slot
+            .borrow_mut()
+            .wait_for_status(StatusSetting::DataInhibit)
+            .expect("Data is inhibited?");
 
         if self.configuration.configuration.get_command_support_bits() != 0 {
-            if num > 1 && self.configuration.configuration.get_support_set_block_count() != 0 {
+            if num > 1
+                && self
+                    .configuration
+                    .configuration
+                    .get_support_set_block_count()
+                    != 0
+            {
                 self.send_command(SDCommand::SET_BLOCK_COUNT, num).unwrap();
             }
 
             self.slot.borrow_mut().set_block_size_and_count(512, 16);
 
-            let command = if num == 1 { SDCommand::READ_SINGLE_BLOCK } else {SDCommand::READ_MULTIPLE_BLOCKS };
+            let command = if num == 1 {
+                SDCommand::READ_SINGLE_BLOCK
+            } else {
+                SDCommand::READ_MULTIPLE_BLOCKS
+            };
 
             self.send_command(command, start).unwrap();
         } else {
@@ -406,33 +476,46 @@ impl<'a> EMMCController<'a> {
         let mut buffer_offset = 0;
         while c < num {
             if self.configuration.configuration.get_command_support_bits() == 0 {
-                self.send_command(SDCommand::READ_SINGLE_BLOCK,  start + c).unwrap();
+                self.send_command(SDCommand::READ_SINGLE_BLOCK, start + c)
+                    .unwrap();
             }
 
-            self.slot.borrow_mut().wait_for_interrupt(InterruptType::ReadReady).expect("Timeout waiting to read sd");
+            self.slot
+                .borrow_mut()
+                .wait_for_interrupt(InterruptType::ReadReady)
+                .expect("Timeout waiting to read sd");
 
             for d in 0..128 {
                 buffer[buffer_offset + d] = self.slot.borrow().read_data();
             }
-            
+
             c += 1;
             buffer_offset += 128;
         }
 
         if num > 1
-            && self.configuration.configuration.get_support_set_block_count() == 0
+            && self
+                .configuration
+                .configuration
+                .get_support_set_block_count()
+                == 0
             && self.configuration.configuration.get_command_support_bits() != 0
         {
             self.send_command(SDCommand::STOP_TRANSMISSION, 0).unwrap();
         }
 
-        return if c!= num {0} else {num *512};
+        return if c != num { 0 } else { num * 512 };
     }
 
-    fn read_configuration(&mut self) -> Result<SDConfigurationRegister, &str> {    //TODO: check errors
-        self.send_command(SDCommand::SEND_SD_CONFIGURATION_REGISTER, 0).unwrap();
-        
-        self.slot.borrow_mut().wait_for_interrupt(InterruptType::ReadReady).expect("Something failed");
+    fn read_configuration(&mut self) -> Result<SDConfigurationRegister, &str> {
+        //TODO: check errors
+        self.send_command(SDCommand::SEND_SD_CONFIGURATION_REGISTER, 0)
+            .unwrap();
+
+        self.slot
+            .borrow_mut()
+            .wait_for_interrupt(InterruptType::ReadReady)
+            .expect("Something failed");
 
         let mut r = 0;
         let mut cnt = 100_000;
@@ -454,7 +537,7 @@ impl<'a> EMMCController<'a> {
         // TODO: error handling
         let configuration = SDConfigurationRegister::from_array(scr);
 
-        return Ok(configuration)
+        return Ok(configuration);
     }
 }
 
@@ -486,7 +569,7 @@ pub struct EMMCRegisters {
     pub tune_steps_std: Volatile<TuneStepsStd>,
     pub tune_steps_ddr: Volatile<TuneStepsDdr>,
     pub spi_int_spt: Volatile<SpiIntSpt>,
-    pub slotisr_ver: Volatile<SlotInterruptStatusAndVersion>
+    pub slotisr_ver: Volatile<SlotInterruptStatusAndVersion>,
 }
 
 impl EMMCRegisters {
@@ -511,7 +594,7 @@ impl EMMCRegisters {
 
         Err("Timed out while waiting for status")
     }
-    
+
     const INTERRUPT_WAIT_TIMEOUT: u32 = 1_000_000;
 
     pub fn wait_for_interrupt(&mut self, interrupt_type: InterruptType) -> Result<(), &str> {
@@ -526,7 +609,8 @@ impl EMMCRegisters {
                     self.interrupt.set(interrupt);
                     return Err("Error in interrupt");
                 } else {
-                    self.interrupt.set(Interrupt::new().set_interrupt_mask(interrupt_type));
+                    self.interrupt
+                        .set(Interrupt::new().set_interrupt_mask(interrupt_type));
                     return Ok(());
                 }
             }
@@ -535,28 +619,31 @@ impl EMMCRegisters {
         return Err("Timed out waiting for interrupt");
     }
 
-    fn parse_response(&self, response: u32, command: SDCommand, argument: u32) -> Result<u32, &str> {
-        if command == SDCommand::GO_IDLE
-            || command == SDCommand::APPPLICATION_SPECIFIC_COMMAND  {
+    fn parse_response(
+        &self,
+        response: u32,
+        command: SDCommand,
+        argument: u32,
+    ) -> Result<u32, &str> {
+        if command == SDCommand::GO_IDLE || command == SDCommand::APPPLICATION_SPECIFIC_COMMAND {
             return Ok(0);
-        } else if command == SDCommand::APPPLICATION_SPECIFIC_COMMAND
-            .set_response_type(ResponseType::Response48Bit as u32) {
+        } else if command
+            == SDCommand::APPPLICATION_SPECIFIC_COMMAND
+                .set_response_type(ResponseType::Response48Bit as u32)
+        {
             return Ok(response & StatusSetting::AppCommand as u32);
-        } else if command == SDCommand::SEND_OP_COND  {
+        } else if command == SDCommand::SEND_OP_COND {
             return Ok(response);
-        } else if command == SDCommand::SEND_INTERFACE_CONDITIONS  {
+        } else if command == SDCommand::SEND_INTERFACE_CONDITIONS {
             if response == argument {
                 return Ok(0);
             } else {
                 return Err("?");
             }
-        } else if  command == SDCommand::SEND_CARD_IDENTIFICATION  {
-            let response = response
-                | self.resp3.get()
-                | self.resp2.get()
-                | self.resp1.get();
+        } else if command == SDCommand::SEND_CARD_IDENTIFICATION {
+            let response = response | self.resp3.get() | self.resp2.get() | self.resp1.get();
             return Ok(response);
-        } else if  command == SDCommand::SEND_RELATIVE_ADDRESS  {
+        } else if command == SDCommand::SEND_RELATIVE_ADDRESS {
             return Ok(response & CommandFlag::RcaMask as u32);
         }
 
@@ -567,7 +654,7 @@ impl EMMCRegisters {
     fn wait_for_command_response(&mut self) -> Result<u32, &str> {
         match self.wait_for_interrupt(InterruptType::CommandDone) {
             Err(_) => Err("ERROR: Error while waiting for command response."),
-            Ok(_) => Ok(self.resp0.get())
+            Ok(_) => Ok(self.resp0.get()),
         }
     }
 
@@ -577,15 +664,11 @@ impl EMMCRegisters {
     }
 
     fn disable_clock(&mut self) {
-        self.control1.map(|control1|
-            control1.set_clock_enabled(0)
-        )
+        self.control1.map(|control1| control1.set_clock_enabled(0))
     }
 
     fn enable_clock(&mut self) {
-        self.control1.map(|control1|
-            control1.set_clock_enabled(1)
-        )
+        self.control1.map(|control1| control1.set_clock_enabled(1))
     }
 
     fn is_clock_enabled(&self) -> bool {
@@ -594,18 +677,15 @@ impl EMMCRegisters {
 
     fn configure_clock(&mut self, d: u32) {
         // TODO: should this be a set or a map?
-        self.control1.set(
-            Control1 {
-                value: (self.control1.get().as_u32() & 0xffff_003f) | d,
-            }
-        );
+        self.control1.set(Control1 {
+            value: (self.control1.get().as_u32() & 0xffff_003f) | d,
+        });
     }
 
     fn start_reset(&mut self) {
         self.control0.set(Control0::empty());
-        self.control1.map(|control1|
-            control1.set_reset_complete_host_circuit(1)
-        );
+        self.control1
+            .map(|control1| control1.set_reset_complete_host_circuit(1));
     }
 
     fn is_reset_complete(&self) -> bool {
@@ -618,15 +698,13 @@ impl EMMCRegisters {
     }
 
     fn set_block_size_and_count(&mut self, size: u32, count: u32) {
-        self.block_size_and_count.set(
-            BlockSizeAndCount::with_size_and_count(size, count)
-        );
+        self.block_size_and_count
+            .set(BlockSizeAndCount::with_size_and_count(size, count));
     }
 
     fn use_four_data_lines(&mut self) {
-        self.control0.map(|control0|
-            control0.set_use_four_data_lines(1)
-        );
+        self.control0
+            .map(|control0| control0.set_use_four_data_lines(1));
     }
 
     fn read_data(&self) -> u32 {
@@ -646,14 +724,17 @@ impl EMMCRegisters {
     }
 
     fn configure_internal_clocks(&mut self, d: u32) {
-        self.control1.map_closure(&|control1|
-            control1.set_enable_internal_clocks(1)
-            .set_data_timeout_unit_exponent(d)
-        );
+        self.control1.map_closure(&|control1| {
+            control1
+                .set_enable_internal_clocks(1)
+                .set_data_timeout_unit_exponent(d)
+        });
     }
 
     fn get_host_controller_specification_version(&self) -> u32 {
-        self.slotisr_ver.get().get_host_controller_specification_version()
+        self.slotisr_ver
+            .get()
+            .get_host_controller_specification_version()
     }
 }
 
@@ -748,21 +829,21 @@ bitfield! {
 enum AutoCommand {
     None = 0,
     CMD12 = 0b01,
-    CMD23 = 0b10
+    CMD23 = 0b10,
 }
 
 enum ResponseType {
     NoResponse = 0,
     Response136Bit = 01,
     Response48Bit = 10,
-    Response48BitUsingBusy = 11
+    Response48BitUsingBusy = 11,
 }
 
 enum CommandType {
     Normal = 00,
     Suspend = 01,
     Resume = 10,
-    Abort = 11
+    Abort = 11,
 }
 
 bitfield! {
@@ -843,7 +924,7 @@ bitfield! {
 #[derive(Copy, Clone)]
 pub enum InterruptType {
     CommandDone,
-    ReadReady
+    ReadReady,
 }
 
 bitfield! {
@@ -994,7 +1075,7 @@ bitfield! {
         data_status_after_erases: 55-55,
         sd_card_spec_version: 56-59,
         support_set_block_count: 57-57,
-        scr_structure: 60-63    
+        scr_structure: 60-63
     } with {
         pub const fn uninitialized() -> Self {
             Self { value: 0 }

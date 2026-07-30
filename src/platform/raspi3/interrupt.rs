@@ -1,4 +1,3 @@
-use crate::aarch64::interrupt;
 use crate::bitfield;
 use crate::println;
 use crate::volatile::Volatile;

@@ -14,7 +14,7 @@ macro_rules! read {
 macro_rules! write {
     ($sysreg: literal, $value: expr) => {
         unsafe {
-            asm!(concat!("msr ", $sysreg, ", {}"), in(reg) $value);
+            asm!(concat!("msr ", $sysreg, ", {0:x}"), in(reg) $value);
         }
     };
 }
@@ -85,7 +85,9 @@ registers! {
     },
     ExceptionSyndromeRegister("esr_el1") {
         exception_class: 26-31,
-        instruction_number: 0-15
+
+        instruction_number: 0-15,
+        data_fault_status_code: 0-5
     },
     ExceptionLinkRegister("elr_el1") {},
     FaultAddressRegister("far_el1") {}

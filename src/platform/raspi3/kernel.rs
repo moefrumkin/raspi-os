@@ -1,46 +1,35 @@
 use super::thread::ThreadID;
-use alloc::rc::Rc;
 use alloc::sync::Arc;
 use alloc::vec;
-use core::{
-    cell::{Ref, RefCell},
-    slice, str,
-    time::Duration,
-};
+use core::{slice, str};
 
 use crate::{
     aarch64::{
-        cpu,
         interrupt::IRQLock,
-        mmu,
         syscall::{Syscall, SyscallArgs},
     },
     allocator::{
         id_allocator::IDAllocator,
-        page_allocator::{self, Page, PageAllocator, PageRef, PAGE_SIZE},
+        page_allocator::{PageAllocator, PageRef, StackPointer},
     },
-    elf::{ELF64Header, ProgramHeader},
-    filesystem::{
-        self,
-        fat32::{FAT32DirectoryEntry, FAT32Filesystem},
-    },
+    filesystem::fat32::{FAT32DirectoryEntry, FAT32Filesystem},
     platform::{
-        framebuffer::FrameBuffer,
-        kernel_object::{FileObject, Stdio},
+        kernel_object::{FileObject, ObjectHandle, Stdio},
         page_table::PageTable,
         platform_devices::{get_platform, PLATFORM},
-        raspi3::exception::InterruptFrame,
-        thread::{Scheduler, Thread, ThreadStatus},
+        raspi3::exception::{
+            DataFaultStatus, Exception, ExceptionClass, ExceptionType, InterruptFrame,
+        },
+        scheduler::Scheduler,
+        thread::{Thread, ThreadStatus},
     },
 };
 
-use alloc::boxed::Box;
 use alloc::string::String;
-
-use super::kernel_object::ObjectHandle;
 
 pub const TICK: u32 = 1_000;
 
+#[derive(Debug)]
 pub struct Kernel<'a> {
     pub scheduler: Scheduler<'a>,
     pub page_allocator: IRQLock<PageAllocator<'a>>,
@@ -63,6 +52,7 @@ impl<'a> Kernel<'a> {
         }
     }
 
+    // TODO: should be able to eliminate
     pub fn allocate_page(&mut self) -> PageRef {
         self.page_allocator
             .lock()
@@ -70,123 +60,194 @@ impl<'a> Kernel<'a> {
             .expect("Error allocationg page")
     }
 
-    pub fn create_thread(&mut self, entry: usize, args: SyscallArgs) {
-        let page_ref = self
-            .page_allocator
-            .lock()
-            .allocate_page()
-            .expect("Unable to Allocate Page");
-
-        let stack_pointer;
-        let name;
-
-        unsafe {
-            let page = page_ref.page;
-
-            let page64 = page as *mut u64;
-
-            let mut sp = PAGE_SIZE / 8;
-
-            sp -= 106; // TODO: use size_of instead of a magic number
-
-            let frame = &mut *(page64.offset(sp as isize) as *mut InterruptFrame);
-
-            frame.regs[0] = args[2] as u64;
-
-            frame.elr = entry as u64;
-            frame.spsr = 0b101; // EL1 with SP_EL1h
-
-            stack_pointer = IRQLock::new(page64.offset(sp as isize) as *const u64);
-
-            name = String::from(&*(args[1] as *mut String));
-        }
-
-        let id = self.thread_id_allocator.allocate_id();
-
-        let kernel_table = IRQLock::new(*self.scheduler.current_thread.kernel_table.lock());
-
-        self.scheduler.add_thread(Thread {
-            stack_pointer,
-            parent: Some(self.scheduler.current_thread.clone()),
-            status: IRQLock::new(ThreadStatus::Ready),
-            name,
-            id,
-            children: IRQLock::new(vec![]),
-            objects: IRQLock::new(vec![]),
-            kernel_table, // Currently all kernel threads have the same mapping
-            user_table: IRQLock::new(PageTable::new_unmapped()),
-        });
-
-        self.scheduler.set_current_thread_return(id);
+    fn get_current_thread(&self) -> &Arc<Thread<'a>> {
+        &self.scheduler.current_thread
     }
 
+    /// Handles a fault and returns to a thread
+    pub fn handle_exception(
+        &mut self,
+        exception: Exception,
+        interrupt_frame: &'a mut InterruptFrame,
+        stack_pointer: StackPointer,
+    ) -> ! {
+        match exception.get_type() {
+            ExceptionType::Interrupt => {
+                self.push_frame(interrupt_frame, stack_pointer);
+                self.tick();
+                PLATFORM.get_timer().clear_matches();
+                PLATFORM.set_kernel_timeout(TICK);
+            }
+            ExceptionType::Synchronous => {
+                self.handle_synchronous_exception(exception, interrupt_frame, stack_pointer);
+            }
+            ExceptionType::FastInterrupt => {
+                unimplemented!()
+            }
+            ExceptionType::SystemError => {
+                panic!("A system error occured");
+            }
+        }
+
+        self.get_current_thread().return_to();
+
+        // Just here to make the compiler happy. TODO: remove
+    }
+
+    /// Processess a system call with the given number and arguments. Does not return control to a thread but may change scheduling depending on the system call.
+    /// TODO: add pointer validity checks
     pub fn handle_syscall(&mut self, number: usize, args: SyscallArgs) {
-        let syscall = Syscall::from_u64(number as u64).expect("Invalid Syscall Number");
+        let syscall = Syscall::try_from(number as u64).expect("Invalid Syscall Number");
         match syscall {
             Syscall::Thread => self.create_thread(args[0], args),
-            Syscall::Exit => self.exit_current_thread(args[0] as u64),
-            Syscall::Wait => self.delay_current_thread(args[0] as u64),
-            Syscall::Join => self.join_current_thread(args[0] as ThreadID),
+            Syscall::Exit => self.scheduler.exit_current_thread(args[0] as u64),
+            Syscall::Wait => self
+                .scheduler
+                .delay_current_thread(PLATFORM.get_timer().get_micros() + args[0] as u64),
+            Syscall::Join => self.scheduler.join_current_thread(args[0] as ThreadID),
             Syscall::Yield => self.scheduler.yield_current_thread(),
             Syscall::Open => {
-                self.open_object(unsafe { str::from_raw_parts(args[0] as *const u8, args[1]) })
+                let name = unsafe { str::from_raw_parts(args[0] as *const u8, args[1]) };
+                self.open_object(name);
             }
-            Syscall::Close => self
-                .scheduler
-                .remove_object_from_current_thread(args[0] as u64),
-            Syscall::Read => self.read_object(args[0] as u64, unsafe {
-                slice::from_raw_parts_mut(args[1] as *mut u8, args[2])
-            }),
-            Syscall::Write => self.write_object(args[0] as u64, unsafe {
-                slice::from_raw_parts_mut(args[1] as *mut u8, args[2])
-            }),
+            Syscall::Close => self.get_current_thread().remove_object(args[0] as u64),
+            Syscall::Read => {
+                let handle = args[0] as ObjectHandle;
+                let buffer = unsafe { slice::from_raw_parts_mut(args[1] as *mut u8, args[2]) };
+                self.read(handle, buffer);
+            }
+            Syscall::Write => {
+                let handle = args[0] as ObjectHandle;
+                let buffer = unsafe { slice::from_raw_parts_mut(args[1] as *mut u8, args[2]) };
+                self.write(handle, buffer);
+            }
             _ => panic!("Unsupported Syscall"),
         }
     }
 
-    pub fn exec(&mut self, program_name: &str) {
-        self.scheduler.current_thread.exec(program_name);
+    fn handle_synchronous_exception(
+        &mut self,
+        exception: Exception,
+        interrupt_frame: &mut InterruptFrame,
+        stack_pointer: StackPointer,
+    ) {
+        let exception_class: ExceptionClass = exception.get_exception_class();
+
+        if exception_class == ExceptionClass::SystemCall {
+            let syscall_number = exception.get_syscall_number();
+
+            self.push_frame(interrupt_frame, stack_pointer);
+            self.handle_syscall(syscall_number, interrupt_frame.get_syscall_arguments());
+        } else if exception_class == ExceptionClass::DataAbort {
+            let fault_class = exception.get_data_fault_class();
+
+            self.handle_data_fault(
+                exception.is_kernel(),
+                fault_class,
+                exception.get_address(),
+                interrupt_frame,
+                stack_pointer,
+            );
+        } else {
+            crate::println!("elr: {:x}", interrupt_frame.get_exception_link_register());
+            crate::println!("esr: {:#x}", exception.get_esr());
+            crate::println!("far: {:#x}", exception.get_address());
+
+            crate::println!("{:?}", interrupt_frame);
+
+            loop {}
+        }
     }
 
+    /// Does not return to a thread
+    /// Data fault on current thread
+    pub fn handle_data_fault(
+        &mut self,
+        kernel: bool,
+        fault_class: DataFaultStatus,
+        far: usize,
+        interrupt_frame: &mut InterruptFrame,
+        sp: StackPointer,
+    ) {
+        if fault_class.is_translation_fault() {
+            self.handle_translation_fault(kernel, far, interrupt_frame, sp);
+        } else {
+            unimplemented!()
+        }
+    }
+
+    /// Does not return to a thread
+    /// Page fault on the current thread
+    fn handle_translation_fault(
+        &mut self,
+        kernel: bool,
+        far: usize,
+        interrupt_frame: &mut InterruptFrame,
+        sp: StackPointer,
+    ) {
+        if kernel {
+            if PageTable::is_kernel_address(far) {
+                // Check if address is valid stack address
+                let stack_offset = (0xFFFF_FFFF_FFFF_FFFF - far) >> 12;
+                // Maximum stack growth?
+                if stack_offset < 512 {
+                    let page_virtual_address = far & !0xFFF;
+                    let page = get_platform().allocate_zeroed_page();
+
+                    self.get_current_thread()
+                        .kernel_table
+                        .lock()
+                        .map_user_address(page_virtual_address as u64, page.page as u64);
+
+                    // TODO: do we need to have a data or instruction buffer now?
+
+                    // We dont want the interrupt frame to overflow this
+                    self.push_frame(interrupt_frame, sp);
+                } else {
+                    panic!("Kernel Stack Overflow");
+                }
+            } else {
+                // Should only occur when a syscall receives and invalid buffer
+                unimplemented!();
+            }
+        } else {
+            // TODO: Kill thread
+            unimplemented!();
+        }
+    }
+
+    /// Handles a system tick:
+    /// 1. Wakes sleeping threads
+    /// 2. Updates scheduling decisions
+    ///
+    /// Does not return to a thread
     pub fn tick(&mut self) {
         self.scheduler.wake_sleeping();
         self.scheduler.schedule();
     }
 
+    pub fn exec(&mut self, program_name: &str) {
+        self.get_current_thread().exec(program_name);
+    }
     pub fn get_return_thread(&mut self) -> Arc<Thread<'a>> {
         self.scheduler.choose_thread()
     }
 
     pub fn return_from_exception(&self) {
-        self.scheduler.return_to_current();
+        self.get_current_thread().return_to();
     }
 
-    pub fn save_current_frame(&mut self, frame: &mut InterruptFrame) {
-        self.scheduler
-            .set_current_stack_pointer(frame as *const InterruptFrame as *const u64);
+    pub fn push_frame(&mut self, frame: &mut InterruptFrame, mut sp: StackPointer) {
+        let sp = sp.push(*frame);
+        self.get_current_thread().set_stack_pointer(sp.get());
     }
 
-    pub fn exit_current_thread(&mut self, code: u64) {
-        self.scheduler.exit_current_thread(code);
+    pub fn readfile(&self, entry: FAT32DirectoryEntry, buffer: &mut [u8]) -> usize {
+        self.filesystem.lock().read_file(entry, buffer)
     }
 
-    pub fn delay_current_thread(&mut self, delay: u64) {
-        // TODO: what is wake up time is before the current time because of the time the computations take?
-        let current_time = PLATFORM.get_timer().get_micros();
-        let delay_end = current_time + delay;
-
-        self.scheduler.delay_current_thread(delay_end);
-
-        //let new_timeout = self.scheduler.get_next_thread_wakeup().unwrap() - current_time;
-
-        //PLATFORM.get_timer().set_timeout(new_timeout as u32);
-    }
-
-    pub fn join_current_thread(&mut self, thread_id: ThreadID) {
-        self.scheduler.join_current_thread(thread_id);
-    }
-
-    pub fn open_object(&mut self, name: &str) {
+    // Syscall helpers
+    fn open_object(&mut self, name: &str) {
         let mut split = name.split(":");
         let prefix = split.next().unwrap();
 
@@ -197,30 +258,92 @@ impl<'a> Kernel<'a> {
             if let Some(entry) = entry {
                 let id = self.object_id_allocator.allocate_id();
 
-                self.scheduler
-                    .add_object_to_current_thread(Box::new(FileObject::from_entry(entry)), id);
+                self.get_current_thread()
+                    .add_object(Arc::new(FileObject::from_entry(entry)), id);
 
-                self.scheduler.set_current_thread_return(id);
+                self.get_current_thread().set_return_value(id);
             } else {
-                self.scheduler.set_current_thread_return(0);
+                self.get_current_thread().set_return_value(0);
             }
         } else if prefix == "stdio" {
             let id = self.object_id_allocator.allocate_id();
-            self.scheduler
-                .add_object_to_current_thread(Box::new(Stdio::new()), id);
-            self.scheduler.set_current_thread_return(id);
+            self.get_current_thread()
+                .add_object(Arc::new(Stdio::new()), id);
+            self.get_current_thread().set_return_value(id);
         }
     }
 
-    pub fn read_object(&mut self, handle: ObjectHandle, buffer: &mut [u8]) {
-        self.scheduler.read(handle, buffer);
+    fn create_thread(&mut self, entry: usize, args: SyscallArgs) {
+        let page_ref = self
+            .page_allocator
+            .lock()
+            .allocate_page()
+            .expect("Unable to Allocate Page");
+
+        let mut sp = page_ref.get_initial_stack_pointer();
+
+        let mut initial_frame = InterruptFrame::with_kernel_entry(entry as u64);
+        initial_frame.set_arg(args[2] as u64);
+
+        sp = sp.push(0 as u64).push(0 as u64);
+        let sp = sp.push(initial_frame);
+
+        let top_page: u64 = 0xFFFF_FFFF_FFFF_F000;
+        let stack_phys_page = (page_ref.page as u64) & !(0xFFF) & (0xFFFF_FFFF_FFFF);
+
+        let sp = sp.get() as u64 | top_page;
+
+        let stack_pointer = IRQLock::new(sp as *const u64);
+
+        let name;
+        unsafe {
+            name = String::from(&*(args[1] as *mut String));
+        }
+
+        let id = self.thread_id_allocator.allocate_id();
+
+        let mut kernel_table = PageTable::new_kernel();
+
+        kernel_table.map_user_address(top_page, stack_phys_page);
+
+        self.scheduler.add_thread(Thread {
+            stack_pointer,
+            parent: Some(self.scheduler.current_thread.clone()),
+            status: IRQLock::new(ThreadStatus::Ready),
+            name,
+            id,
+            children: IRQLock::new(vec![]),
+            objects: IRQLock::new(vec![]),
+            kernel_table: IRQLock::new(kernel_table), // Currently all kernel threads have the same mapping
+            user_table: IRQLock::new(PageTable::new_unmapped()),
+        });
+
+        self.get_current_thread().set_return_value(id);
     }
 
-    pub fn write_object(&mut self, handle: ObjectHandle, buffer: &mut [u8]) {
-        self.scheduler.write(handle, buffer);
+    fn read(&self, handle: ObjectHandle, buffer: &mut [u8]) {
+        let thread = self.get_current_thread();
+
+        let object = thread.get_object(handle);
+
+        if let Some(o) = object {
+            let len = o.read(self, buffer);
+            thread.set_return_value(len as u64);
+        } else {
+            // TODO: kill thread
+        }
     }
 
-    pub fn read(&self, entry: FAT32DirectoryEntry, buffer: &mut [u8]) -> usize {
-        self.filesystem.lock().read_file(entry, buffer)
+    fn write(&self, handle: ObjectHandle, buffer: &mut [u8]) {
+        let thread = self.get_current_thread();
+
+        let object = thread.get_object(handle);
+
+        if let Some(o) = object {
+            let len = o.write(self, buffer);
+            thread.set_return_value(len as u64);
+        } else {
+            // TODO: kill thread
+        }
     }
 }

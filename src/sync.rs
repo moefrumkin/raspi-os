@@ -1,12 +1,12 @@
 use core::{
-    sync::atomic::{AtomicBool, Ordering},
     cell::UnsafeCell,
-    ops::{Deref, DerefMut}
+    ops::{Deref, DerefMut},
+    sync::atomic::AtomicBool,
 };
 
 pub struct SpinMutex<T> {
     lock: AtomicBool,
-    data: UnsafeCell<T>
+    data: UnsafeCell<T>,
 }
 
 impl<'a, T> SpinMutex<T> {
@@ -14,18 +14,17 @@ impl<'a, T> SpinMutex<T> {
     pub const fn new(data: T) -> Self {
         Self {
             lock: AtomicBool::new(false),
-            data: UnsafeCell::new(data)
+            data: UnsafeCell::new(data),
         }
     }
 
     pub fn lock(&'a self) -> SpinMutexGuard<'a, T> {
-
         //TODO: implement lock on rpi
         //while self.lock.compare_exchange_weak(false, true, Ordering::SeqCst, Ordering::SeqCst).is_err() {}
 
         SpinMutexGuard {
             lock: &self.lock,
-            data: unsafe { &mut *self.data.get() }
+            data: unsafe { &mut *self.data.get() },
         }
     }
 
@@ -42,7 +41,7 @@ unsafe impl<T> Sync for SpinMutex<T> {}
 
 pub struct SpinMutexGuard<'a, T> {
     lock: &'a AtomicBool,
-    data: &'a mut T
+    data: &'a mut T,
 }
 
 impl<'a, T> Deref for SpinMutexGuard<'a, T> {
@@ -67,7 +66,7 @@ impl<'a, T> Drop for SpinMutexGuard<'a, T> {
 
 #[cfg(test)]
 mod tests {
-    use super::{SpinMutex};
+    use super::SpinMutex;
 
     #[test]
     fn test_spin_mutex() {

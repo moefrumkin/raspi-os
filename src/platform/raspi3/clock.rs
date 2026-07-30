@@ -1,17 +1,11 @@
-use crate::bitfield;
 use super::{
     mailbox::MailboxController,
     mailbox_property::{
-        MessageBuilder,
-        SimpleRequest,
-        ToMailboxBuffer,
-        FromMailboxBuffer,
-        MailboxBufferSlice,
-        MailboxInstruction
-    }
+        FromMailboxBuffer, MailboxBufferSlice, MessageBuilder, SimpleRequest, ToMailboxBuffer,
+    },
 };
-use core::{cell::RefCell, fmt};
-use alloc::rc::Rc;
+use crate::bitfield;
+use core::fmt;
 
 #[repr(u32)]
 #[derive(Copy, Clone)]
@@ -29,32 +23,50 @@ pub enum Clock {
     HEVC = 0xb,
     EMMC2 = 0xc,
     M2MC = 0xd,
-    PixelBVB = 0xe
+    PixelBVB = 0xe,
 }
 
-pub const CLOCKS: [Clock; 14] = [Clock::EMMC, Clock::UART, Clock::ARM, Clock::CORE, Clock::V3D, Clock::H264, Clock::ISP, Clock::SDRAM, Clock::PIXEL, Clock::PWM, Clock::HEVC, Clock::EMMC2, Clock::M2MC, Clock::PixelBVB];
+pub const CLOCKS: [Clock; 14] = [
+    Clock::EMMC,
+    Clock::UART,
+    Clock::ARM,
+    Clock::CORE,
+    Clock::V3D,
+    Clock::H264,
+    Clock::ISP,
+    Clock::SDRAM,
+    Clock::PIXEL,
+    Clock::PWM,
+    Clock::HEVC,
+    Clock::EMMC2,
+    Clock::M2MC,
+    Clock::PixelBVB,
+];
 
 impl fmt::Display for Clock {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", match *self {
-            Clock::EMMC => "EMMC",
-            Clock::UART => "UART",
-            Clock::ARM => "ARM",
-            Clock::CORE => "CORE",
-            Clock::V3D => "V3D",
-            Clock::H264 => "H264",
-            Clock::ISP => "ISP",
-            Clock::SDRAM => "SDRAM",
-            Clock::PIXEL => "PIXEL",
-            Clock::PWM => "PWM",
-            Clock::HEVC => "HEVC",
-            Clock::EMMC2 => "EMMC2",
-            Clock::M2MC => "M2MC",
-            Clock::PixelBVB => "PIXEL BVB"
-        })
+        write!(
+            f,
+            "{}",
+            match *self {
+                Clock::EMMC => "EMMC",
+                Clock::UART => "UART",
+                Clock::ARM => "ARM",
+                Clock::CORE => "CORE",
+                Clock::V3D => "V3D",
+                Clock::H264 => "H264",
+                Clock::ISP => "ISP",
+                Clock::SDRAM => "SDRAM",
+                Clock::PIXEL => "PIXEL",
+                Clock::PWM => "PWM",
+                Clock::HEVC => "HEVC",
+                Clock::EMMC2 => "EMMC2",
+                Clock::M2MC => "M2MC",
+                Clock::PixelBVB => "PIXEL BVB",
+            }
+        )
     }
 }
-
 
 impl Clock {
     const GET_CLOCK_STATE: u32 = 0x30001;
@@ -83,13 +95,14 @@ impl Clock {
             0xc => Clock::EMMC2,
             0xd => Clock::M2MC,
             0xe => Clock::PixelBVB,
-            _ => panic!("Invalid Clock id")
+            _ => panic!("Invalid Clock id"),
         }
     }
 
     // TODO: find some abstraction for these functions
     pub fn get_clock_rate(self, mailbox: &dyn MailboxController) -> u32 {
-        let mut request = SimpleRequest::<Clock, ClockRateResponse, { Self::GET_CLOCK_RATE} >::with_request(self);
+        let mut request =
+            SimpleRequest::<Clock, ClockRateResponse, { Self::GET_CLOCK_RATE }>::with_request(self);
 
         let mut message = MessageBuilder::new().request(&mut request);
 
@@ -98,18 +111,25 @@ impl Clock {
         return request.get_response().1;
     }
 
-    pub fn get_clock_rate_measured(self, mailbox: & dyn MailboxController) -> u32 {
-        let mut request = SimpleRequest::<Clock, ClockRateResponse, { Self::GET_CLOCK_RATE_MEASURED} >::with_request(self);
+    pub fn get_clock_rate_measured(self, mailbox: &dyn MailboxController) -> u32 {
+        let mut request = SimpleRequest::<
+            Clock,
+            ClockRateResponse,
+            { Self::GET_CLOCK_RATE_MEASURED },
+        >::with_request(self);
 
         let mut message = MessageBuilder::new().request(&mut request);
 
         message.send(mailbox);
 
         return request.get_response().1;
-    }    
+    }
 
     pub fn get_max_clock_rate(self, mailbox: &dyn MailboxController) -> u32 {
-        let mut request = SimpleRequest::<Clock, ClockRateResponse, { Self::GET_MAX_CLOCK_RATE} >::with_request(self);
+        let mut request =
+            SimpleRequest::<Clock, ClockRateResponse, { Self::GET_MAX_CLOCK_RATE }>::with_request(
+                self,
+            );
 
         let mut message = MessageBuilder::new().request(&mut request);
 
@@ -119,7 +139,10 @@ impl Clock {
     }
 
     pub fn get_min_clock_rate(self, mailbox: &dyn MailboxController) -> u32 {
-        let mut request = SimpleRequest::<Clock, ClockRateResponse, { Self::GET_MIN_CLOCK_RATE} >::with_request(self);
+        let mut request =
+            SimpleRequest::<Clock, ClockRateResponse, { Self::GET_MIN_CLOCK_RATE }>::with_request(
+                self,
+            );
 
         let mut message = MessageBuilder::new().request(&mut request);
 
@@ -129,7 +152,10 @@ impl Clock {
     }
 
     pub fn get_clock_state(self, mailbox: &dyn MailboxController) -> ClockState {
-        let mut request = SimpleRequest::<Clock, ClockStateResponse, { Self::GET_CLOCK_STATE } >::with_request(self);
+        let mut request =
+            SimpleRequest::<Clock, ClockStateResponse, { Self::GET_CLOCK_STATE }>::with_request(
+                self,
+            );
 
         let mut message = MessageBuilder::new().request(&mut request);
 
@@ -137,7 +163,6 @@ impl Clock {
 
         return request.get_response().1;
     }
-
 }
 
 impl ToMailboxBuffer for Clock {
@@ -158,7 +183,7 @@ impl FromMailboxBuffer for ClockRateResponse {
 bitfield! {
     ClockState(u32) {
         on: 0-0,
-        exists: 1-1 
+        exists: 1-1
     } with {
         pub fn from_u32(value: u32) -> Self {
             Self {
@@ -181,6 +206,9 @@ struct ClockStateResponse(Clock, ClockState);
 
 impl FromMailboxBuffer for ClockStateResponse {
     fn read_from_mailbox_buffer(buffer: &MailboxBufferSlice) -> Self {
-        Self(Clock::from_u32(buffer[0].get()), ClockState::from_u32(buffer[1].get()))
+        Self(
+            Clock::from_u32(buffer[0].get()),
+            ClockState::from_u32(buffer[1].get()),
+        )
     }
 }

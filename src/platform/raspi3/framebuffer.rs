@@ -1,24 +1,15 @@
-
-use core::cell::RefCell;
-use core::fmt::{Display, Formatter};
-use core::fmt;
-use alloc::rc::Rc;
-use crate::platform::raspi3::mailbox::{MailboxController};
+use crate::platform::raspi3::mailbox::MailboxController;
 use crate::platform::raspi3::mailbox_property::{
-    MessageBuilder,
-    GetFrameBuffer,
-    SetDepth,
-    SetPhysicalDimensions,
-    SetVirtualDimensions,
-    GetPitch,
-    MailboxInstruction,
-    MailboxBufferSlice
+    GetFrameBuffer, GetPitch, MailboxBufferSlice, MailboxInstruction, MessageBuilder, SetDepth,
+    SetPhysicalDimensions, SetVirtualDimensions,
 };
 use crate::volatile::Volatile;
+use core::fmt;
+use core::fmt::{Display, Formatter};
 
 pub struct FrameBuffer<'a> {
     config: FrameBufferConfig,
-    buffer: &'a mut [Volatile<u32>]
+    buffer: &'a mut [Volatile<u32>],
 }
 
 impl<'a> FrameBuffer<'a> {
@@ -31,7 +22,7 @@ impl<'a> FrameBuffer<'a> {
         let mut pixel_order = FramebufferPropertyRequest::<PixelOrder>::set(config.pixel_order);
         let mut virtual_dimensions = SetVirtualDimensions::new(config.virtual_dimensions);
         let mut virtual_offset = FramebufferPropertyRequest::<Offset>::get();
-        let mut frame_buffer_request = GetFrameBuffer::with_aligment(32); 
+        let mut frame_buffer_request = GetFrameBuffer::with_aligment(32);
 
         let mut frame_buffer_message = MessageBuilder::new()
             .request(&mut depth)
@@ -46,10 +37,14 @@ impl<'a> FrameBuffer<'a> {
         frame_buffer_message.send(mailbox);
 
         // TODO remove magic number
-        let start_addr = (frame_buffer_request.get_start() &0x3fffffff) as u64;
+        let start_addr = (frame_buffer_request.get_start() & 0x3fffffff) as u64;
 
         let buffer = unsafe {
-            core::slice::from_raw_parts_mut(start_addr as *mut Volatile<u32>, (config.virtual_dimensions.get_width() * config.virtual_dimensions.get_height()) as usize)
+            core::slice::from_raw_parts_mut(
+                start_addr as *mut Volatile<u32>,
+                (config.virtual_dimensions.get_width() * config.virtual_dimensions.get_height())
+                    as usize,
+            )
         };
 
         let actual_config = FrameBufferConfig {
@@ -59,12 +54,12 @@ impl<'a> FrameBuffer<'a> {
             pitch: pitch.get(),
             pixel_order: pixel_order.get_response(),
             virtual_dimensions: virtual_dimensions.get(),
-            virtual_offset: Offset::none()
+            virtual_offset: Offset::none(),
         };
 
         Self {
             config: actual_config,
-            buffer
+            buffer,
         }
     }
 
@@ -93,19 +88,19 @@ pub trait FramebufferProperty {
 enum FramebufferPropertyRequestType<T: FramebufferProperty> {
     Get,
     Test(T),
-    Set(T)
+    Set(T),
 }
 
 struct FramebufferPropertyRequest<T: FramebufferProperty> {
     request: FramebufferPropertyRequestType<T>,
-    response: Option<T>
+    response: Option<T>,
 }
 
 impl<T: FramebufferProperty> FramebufferPropertyRequest<T> {
     fn with_request(request: FramebufferPropertyRequestType<T>) -> Self {
         Self {
             request,
-            response: Option::None
+            response: Option::None,
         }
     }
 
@@ -120,14 +115,13 @@ impl<T: FramebufferProperty> FramebufferPropertyRequest<T> {
     pub fn set(value: T) -> Self {
         Self::with_request(FramebufferPropertyRequestType::Set(value))
     }
-
 }
 
 impl<T: FramebufferProperty + Copy> FramebufferPropertyRequest<T> {
     pub fn get_response(&self) -> T {
-        self.response.expect("Attempted to get response for an unsent message")
+        self.response
+            .expect("Attempted to get response for an unsent message")
     }
-
 }
 
 const GET_ENCODING: u32 = 0x0;
@@ -139,7 +133,7 @@ impl<T: FramebufferProperty> MailboxInstruction for FramebufferPropertyRequest<T
         let modifier = match self.request {
             FramebufferPropertyRequestType::Get => GET_ENCODING,
             FramebufferPropertyRequestType::Test(_) => TEST_ENCODING,
-            FramebufferPropertyRequestType::Set(_) => SET_ENCODING
+            FramebufferPropertyRequestType::Set(_) => SET_ENCODING,
         };
 
         T::BASE_ENCODING | modifier
@@ -152,11 +146,12 @@ impl<T: FramebufferProperty> MailboxInstruction for FramebufferPropertyRequest<T
     fn write_data_at_offset(&self, buffer: &mut MailboxBufferSlice) {
         match &self.request {
             FramebufferPropertyRequestType::Get => {}
-            FramebufferPropertyRequestType::Test(value) | FramebufferPropertyRequestType::Set(value) =>  {
+            FramebufferPropertyRequestType::Test(value)
+            | FramebufferPropertyRequestType::Set(value) => {
                 value.write_to_buffer(buffer);
             }
         };
-    } 
+    }
 
     fn read_data_at_offset(&mut self, buffer: &MailboxBufferSlice) {
         self.response = Some(T::read_from_buffer(buffer));
@@ -168,15 +163,12 @@ pub type Depth = u32;
 #[derive(Copy, Clone, Debug)]
 pub struct Dimensions {
     width: u32,
-    height: u32
+    height: u32,
 }
 
 impl Dimensions {
     pub fn new(width: u32, height: u32) -> Self {
-        Self {
-            width,
-            height
-        }
+        Self { width, height }
     }
 
     pub fn get_width(&self) -> u32 {
@@ -198,7 +190,7 @@ impl Dimensions {
 
 impl Display for Dimensions {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{} x {}", self.width, self.height) 
+        write!(f, "{} x {}", self.width, self.height)
     }
 }
 
@@ -207,7 +199,7 @@ pub type Pitch = u32;
 #[derive(Copy, Clone, Debug)]
 pub enum PixelOrder {
     BGR,
-    RGB
+    RGB,
 }
 
 impl PixelOrder {
@@ -215,7 +207,7 @@ impl PixelOrder {
     pub fn to_u32(self) -> u32 {
         match self {
             PixelOrder::BGR => 0x0,
-            PixelOrder::RGB => 0x1
+            PixelOrder::RGB => 0x1,
         }
     }
 
@@ -223,7 +215,7 @@ impl PixelOrder {
         match int {
             0 => PixelOrder::BGR,
             1 => PixelOrder::RGB,
-            _ => panic!("Unknown pixel order") // Better error handling
+            _ => panic!("Unknown pixel order"), // Better error handling
         }
     }
 }
@@ -243,25 +235,26 @@ impl FramebufferProperty for PixelOrder {
 
 impl Display for PixelOrder {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", match self {
-            PixelOrder::BGR => "BGR",
-            PixelOrder::RGB => "RGB"
-        })
+        write!(
+            f,
+            "{}",
+            match self {
+                PixelOrder::BGR => "BGR",
+                PixelOrder::RGB => "RGB",
+            }
+        )
     }
 }
 
 #[derive(Copy, Clone, Debug)]
 pub struct Offset {
     x: u32,
-    y: u32
+    y: u32,
 }
 
 impl Offset {
     pub fn new(x: u32, y: u32) -> Self {
-        Self {
-            x, 
-            y
-        }
+        Self { x, y }
     }
 
     pub fn none() -> Self {
@@ -294,12 +287,17 @@ pub struct Overscan {
     pub top: u32,
     pub bottom: u32,
     pub left: u32,
-    pub right: u32
+    pub right: u32,
 }
 
 impl Overscan {
     pub fn new(top: u32, bottom: u32, left: u32, right: u32) -> Self {
-        Self { top, bottom, left, right }
+        Self {
+            top,
+            bottom,
+            left,
+            right,
+        }
     }
 
     pub fn none() -> Self {
@@ -319,20 +317,24 @@ impl FramebufferProperty for Overscan {
     }
 
     fn read_from_buffer(buffer: &MailboxBufferSlice) -> Self {
-        Self::new(buffer[0].get(), buffer[1].get(), buffer[2].get(), buffer[3].get())
+        Self::new(
+            buffer[0].get(),
+            buffer[1].get(),
+            buffer[2].get(),
+            buffer[3].get(),
+        )
     }
 }
 
 impl Display for Overscan {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "(top: {}, bottom: {}, left: {}, right: {})",
-            self.top,
-            self.bottom,
-            self.left,
-            self.right)
+        write!(
+            f,
+            "(top: {}, bottom: {}, left: {}, right: {})",
+            self.top, self.bottom, self.left, self.right
+        )
     }
 }
-
 
 #[derive(Copy, Clone, Debug)]
 pub struct FrameBufferConfig {
@@ -342,12 +344,14 @@ pub struct FrameBufferConfig {
     pub pixel_order: PixelOrder,
     pub physical_dimensions: Dimensions,
     pub virtual_dimensions: Dimensions,
-    pub virtual_offset: Offset
+    pub virtual_offset: Offset,
 }
 
 impl Display for FrameBufferConfig {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "\n\
+        write!(
+            f,
+            "\n\
         \t -depth: {} \n\
         \t -overscan: {} \n\
         \t -pitch: {} \n\
@@ -355,13 +359,14 @@ impl Display for FrameBufferConfig {
         \t -physical dimensions: {} \n\
         \t -virtual dimensions: {} \n\
         \t -virtual offset: {} \n",
-        self.depth,
-        self.overscan,
-        self.pitch,
-        self.pixel_order,
-        self.physical_dimensions,
-        self.virtual_dimensions,
-        self.virtual_offset)
+            self.depth,
+            self.overscan,
+            self.pitch,
+            self.pixel_order,
+            self.physical_dimensions,
+            self.virtual_dimensions,
+            self.virtual_offset
+        )
     }
 }
 
@@ -371,7 +376,7 @@ pub struct FrameBufferConfigBuilder {
     pixel_order: Option<PixelOrder>,
     physical_dimensions: Option<Dimensions>,
     virtual_dimensions: Option<Dimensions>,
-    virtual_offset: Option<Offset>
+    virtual_offset: Option<Offset>,
 }
 
 impl FrameBufferConfigBuilder {
@@ -382,7 +387,7 @@ impl FrameBufferConfigBuilder {
             pixel_order: Option::None,
             physical_dimensions: Option::None,
             virtual_dimensions: Option::None,
-            virtual_offset: Option::None
+            virtual_offset: Option::None,
         }
     }
 
@@ -394,7 +399,7 @@ impl FrameBufferConfigBuilder {
             pixel_order: self.pixel_order.unwrap(),
             physical_dimensions: self.physical_dimensions.unwrap(),
             virtual_dimensions: self.virtual_dimensions.unwrap(),
-            virtual_offset: self.virtual_offset.unwrap()
+            virtual_offset: self.virtual_offset.unwrap(),
         }
     }
 

@@ -7,7 +7,6 @@
 #![feature(slice_ptr_get)]
 //TODO: temporary, just to make development easier
 #![allow(dead_code)]
-#![allow(unused_imports)]
 #![feature(ptr_as_ref_unchecked)]
 #![feature(str_from_raw_parts)]
 

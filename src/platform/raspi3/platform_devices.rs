@@ -1,17 +1,15 @@
 use crate::{
-    aarch64::{interrupt::IRQLock, syscall::SyscallArgs},
-    allocator::page_allocator::{Page, PageAllocator, PageRef, PAGE_SIZE},
+    aarch64::interrupt::IRQLock,
+    allocator::page_allocator::{PageRef, StackPointer, PAGE_SIZE},
     device::sector_device::{Sector, SectorDevice},
-    filesystem::fat32::{FAT32DirectoryEntry, FAT32Filesystem},
     platform::{
-        self,
-        emmc::{self, EMMCConfiguration, EMMCController, EMMCRegisters},
-        gpio::{GPIOController, GPIORegisters, StatusLight},
+        emmc::{EMMCConfiguration, EMMCController, EMMCRegisters},
+        gpio::{GPIOController, GPIORegisters},
         hardware_config::HardwareConfig,
-        interrupt::{InterruptRegisters, InterruptType},
-        kernel::{self, Kernel, TICK},
+        interrupt::InterruptRegisters,
+        kernel::Kernel,
         mailbox::{MailboxBuffer, MailboxController, MailboxRegisters},
-        raspi3::exception::InterruptFrame,
+        raspi3::exception::{Exception, InterruptFrame},
         thread::Thread,
         timer::TimerRegisters,
     },
@@ -21,17 +19,10 @@ use alloc::sync::Arc;
 
 use super::{mini_uart::MiniUARTRegisters, mmio};
 
-use alloc::boxed::Box;
 use alloc::rc::Rc;
-use core::{
-    cell::{Cell, Ref, RefCell, RefMut, UnsafeCell},
-    fmt::Arguments,
-    mem::MaybeUninit,
-};
+use core::{cell::RefCell, fmt::Arguments};
 
 use crate::device::{console::Console, timer::Timer};
-
-use alloc::rc::Weak;
 
 #[macro_export]
 macro_rules! print {
@@ -62,7 +53,7 @@ pub fn get_platform() -> &'static Platform<'static> {
 
 unsafe extern "C" {
     unsafe static PAGE_SECTION_START: usize;
-    unsafe static PAGE_SECTION_SIZE: usize;
+    unsafe static PAGE_SECTION_SIZE: &'static usize;
 }
 
 pub struct Platform<'a> {
@@ -121,28 +112,6 @@ impl<'a> Platform<'a> {
             .map(|kernel| Arc::clone(&kernel.scheduler.current_thread))
     }
 
-    pub fn handle_interrupt(&self) {
-        let interrupt_type = self.devices.interrupts.borrow().get_interrupt_type();
-        if let Some(InterruptType::KernelTimerInterrupt) = interrupt_type {
-            //println!("interrupt type {:?}", interrupt_type);
-            if let Some(ref mut kernel) = *self.kernel.lock() {
-                // TODO: are the clears necessary?
-                kernel.tick();
-                self.get_timer().clear_matches();
-
-                self.set_kernel_timeout(TICK);
-
-                kernel.return_from_exception();
-            }
-        }
-
-        // Note: we could also just wake thread as part of the tick?
-        if let Some(InterruptType::TimerInterrupt) = interrupt_type {
-            panic!("Non-kernel timer interrupt occured");
-            if let Some(ref mut kernel) = *self.kernel.lock() {}
-        }
-    }
-
     pub fn exec(&self, program: &str) {
         if let Some(ref mut kernel) = *self.kernel.lock() {
             kernel.exec(program);
@@ -169,10 +138,16 @@ impl<'a> Platform<'a> {
         }
     }
 
-    pub fn handle_syscall(&self, syscall_number: usize, args: SyscallArgs) {
+    pub fn handle_exception(
+        &self,
+        exception: Exception,
+        interrupt_frame: &'a mut InterruptFrame,
+        stack_pointer: StackPointer,
+    ) -> ! {
         if let Some(ref mut kernel) = *self.kernel.lock() {
-            kernel.handle_syscall(syscall_number, args);
-            kernel.return_from_exception();
+            kernel.handle_exception(exception, interrupt_frame, stack_pointer)
+        } else {
+            panic!("Exception received before a kernel was registered")
         }
     }
 
@@ -180,17 +155,9 @@ impl<'a> Platform<'a> {
         *self.kernel.lock() = Some(kernel);
     }
 
-    pub fn update_frame(&self, frame: &mut InterruptFrame) {
+    pub fn push_frame(&self, frame: &mut InterruptFrame, sp: StackPointer) {
         if let Some(ref mut kernel) = *self.kernel.lock() {
-            kernel.save_current_frame(frame);
-        }
-    }
-
-    pub fn read(&self, entry: FAT32DirectoryEntry, buffer: &mut [u8]) -> usize {
-        if let Some(ref mut kernel) = *self.kernel.lock() {
-            kernel.read(entry, buffer)
-        } else {
-            0
+            kernel.push_frame(frame, sp);
         }
     }
 }

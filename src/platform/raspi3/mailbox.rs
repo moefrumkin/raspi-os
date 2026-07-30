@@ -1,7 +1,8 @@
-use core::{arch::asm, cell::RefCell};
-use alloc::{vec, vec::Vec};
-use crate::{aarch64::{self, cpu}, bitfield, volatile::{AlignedBuffer, Volatile}};
-use alloc::rc::Rc;
+use crate::{
+    aarch64::cpu,
+    bitfield,
+    volatile::{AlignedBuffer, Volatile},
+};
 
 pub trait MailboxController {
     // TODO: Should buffer be mutable since it is modified by the call?
@@ -19,7 +20,7 @@ pub struct MailboxRegisters {
     res0: [u32; 5],
     status: Volatile<MailboxStatus>,
     res1: [u32; 1],
-    write: Volatile<MailboxWriteData>
+    write: Volatile<MailboxWriteData>,
 }
 
 bitfield! {
@@ -42,8 +43,7 @@ impl MailboxRegisters {
 
         self.write.map_closure(&|write|
             // TODO: find better way instead of bit shifting data
-            write.set_channel(channel as u32).set_data(message >> 4)
-        );
+            write.set_channel(channel as u32).set_data(message >> 4));
 
         loop {
             self.wait_until_not_empty();
@@ -84,12 +84,11 @@ pub enum Channel {
     Prop = 8,
 }
 
-
 #[repr(C)]
 #[repr(align(16))]
 #[derive(Debug, Copy, Clone)]
 pub struct AlignedWord {
-    pub word: u32
+    pub word: u32,
 }
 
 pub type MailboxBuffer = AlignedBuffer<Volatile<u32>>;

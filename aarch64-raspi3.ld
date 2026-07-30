@@ -1,7 +1,9 @@
 ENTRY(_start)
 SECTIONS
 {
-    . = 0x80000;
+    ENTRY_POINT = 0x80000;
+
+    . = ENTRY_POINT;
 
     .text.boot : {
         KEEP( *(.text.boot))
@@ -10,6 +12,10 @@ SECTIONS
     VM_START = 0xffff000000000000;
     
     . = . + VM_START;
+
+    ENTRY_STACK = . + ENTRY_POINT;    
+    EXCEPTION_STACK = ENTRY_STACK - 0x10000;
+
 
     .text : AT(ADDR(.text) - VM_START) {
          *(.text .text.* .gnu.linkonce.t*) 

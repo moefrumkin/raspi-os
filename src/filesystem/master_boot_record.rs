@@ -1,14 +1,11 @@
-use core::cell::RefCell;
-use alloc::rc::Rc;
-
-use crate::{device::sector_device::{Sector, SectorAddress, SectorDevice}, filesystem::master_boot_record};
+use crate::device::sector_device::{Sector, SectorAddress, SectorDevice};
 
 #[repr(C)]
 #[derive(Copy, Clone, Debug)]
 pub struct MasterBootRecord {
     bootstrap_code_area: [u8; 446],
     pub partition_entries: [MastBootRecordPartitionEntry; 4],
-    boot_signature: u16
+    boot_signature: u16,
 }
 
 #[repr(packed)]
@@ -19,15 +16,17 @@ pub struct MastBootRecordPartitionEntry {
     partition_type: u8,
     chs_end_address: [u8; 3],
     first_sector_lba: u32,
-    sectors_in_partition: u32
+    sectors_in_partition: u32,
 }
 
 impl<'a> MasterBootRecord {
     const BOOT_SIGNATURE: u16 = 0xAA55;
 
-    pub fn scan_device_for_mbr(sector_device: &'a dyn SectorDevice<'a>, start: SectorAddress, end: SectorAddress) -> 
-        Result<(SectorAddress, MasterBootRecord), ()> 
-    {
+    pub fn scan_device_for_mbr(
+        sector_device: &'a dyn SectorDevice<'a>,
+        start: SectorAddress,
+        end: SectorAddress,
+    ) -> Result<(SectorAddress, MasterBootRecord), ()> {
         for address in start..end {
             let sector = sector_device.read_sector(address);
 
@@ -38,19 +37,17 @@ impl<'a> MasterBootRecord {
 
         Err(())
     }
-
 }
 
 impl TryFrom<Sector> for MasterBootRecord {
     type Error = ();
 
     fn try_from(value: Sector) -> Result<Self, Self::Error> {
-        let master_boot_record_candidate = unsafe {
-            core::mem::transmute::<Sector, MasterBootRecord>(value)
-        };    
+        let master_boot_record_candidate =
+            unsafe { core::mem::transmute::<Sector, MasterBootRecord>(value) };
 
         if master_boot_record_candidate.boot_signature == Self::BOOT_SIGNATURE {
-            return Ok(master_boot_record_candidate)
+            return Ok(master_boot_record_candidate);
         } else {
             return Err(());
         }

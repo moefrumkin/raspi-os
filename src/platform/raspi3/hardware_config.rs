@@ -1,28 +1,23 @@
 use super::{
     mailbox::MailboxController,
-    mailbox_property::{
-        MessageBuilder, 
-        MailboxInstruction, 
-        MailboxBufferSlice
-    },
+    mailbox_property::{MailboxBufferSlice, MailboxInstruction, MessageBuilder},
 };
 
-use core::{cell::RefCell, fmt};
-use alloc::rc::Rc;
- 
-
+use core::fmt;
 
 pub struct HardwareConfig {
     firmware_revision: u32,
     board_model: u32,
     board_revision: u32,
     mac_address: MACAddress,
-    board_serial: u64
+    board_serial: u64,
 }
 
 impl fmt::Display for HardwareConfig {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "\n\
+        write!(
+            f,
+            "\n\
             \t-firmware revision: {} \n\
             \t-board model: {} \n\
             \t-board revision: {}\n\
@@ -39,15 +34,23 @@ impl fmt::Display for HardwareConfig {
 
 #[derive(Copy, Clone)]
 pub struct MACAddress {
-    pub bytes: [u8; 6]
+    pub bytes: [u8; 6],
 }
 
 impl fmt::Display for MACAddress {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{:x}:{:x}:{:x}:{:x}:{:x}:{:x}", self.bytes[0], self.bytes[1], self.bytes[2], self.bytes[3], self.bytes[4], self.bytes[5])
+        write!(
+            f,
+            "{:x}:{:x}:{:x}:{:x}:{:x}:{:x}",
+            self.bytes[0],
+            self.bytes[1],
+            self.bytes[2],
+            self.bytes[3],
+            self.bytes[4],
+            self.bytes[5]
+        )
     }
 }
-
 
 impl HardwareConfig {
     pub fn from_mailbox(mailbox: &dyn MailboxController) -> Self {
@@ -56,7 +59,6 @@ impl HardwareConfig {
         let mut board_revision = GetBoardRevision::new();
         let mut mac_address = GetBoardMAC::new();
         let mut board_serial = GetBoardSerial::new();
-
 
         let mut config_request = MessageBuilder::new()
             .request(&mut firmware_revision)
@@ -72,21 +74,18 @@ impl HardwareConfig {
             board_model: board_revision.get_response(),
             board_revision: board_revision.get_response(),
             mac_address: mac_address.get_address(),
-            board_serial: board_serial.get_response()
+            board_serial: board_serial.get_response(),
         }
     }
 }
 
 struct GetFirmwareRevision {
-    revision: u32
+    revision: u32,
 }
-
 
 impl GetFirmwareRevision {
     fn new() -> Self {
-        Self {
-            revision: 0
-        }
+        Self { revision: 0 }
     }
 
     fn get_response(&self) -> u32 {
@@ -113,15 +112,12 @@ impl MailboxInstruction for GetFirmwareRevision {
 }
 
 pub struct GetBoardModel {
-    model: u32
+    model: u32,
 }
-
 
 impl GetBoardModel {
     fn new() -> Self {
-        Self {
-            model: 0
-        }
+        Self { model: 0 }
     }
 
     fn get_response(&self) -> u32 {
@@ -143,17 +139,13 @@ impl MailboxInstruction for GetBoardModel {
     }
 }
 
-
 pub struct GetBoardRevision {
-    revision: u32
+    revision: u32,
 }
-
 
 impl GetBoardRevision {
     fn new() -> Self {
-        Self {
-            revision: 0
-        }
+        Self { revision: 0 }
     }
 
     fn get_response(&self) -> u32 {
@@ -176,13 +168,13 @@ impl MailboxInstruction for GetBoardRevision {
 }
 
 pub struct GetBoardMAC {
-    address: MACAddress
+    address: MACAddress,
 }
 
 impl GetBoardMAC {
     fn new() -> Self {
         Self {
-            address: MACAddress { bytes: [0; 6] }
+            address: MACAddress { bytes: [0; 6] },
         }
     }
 
@@ -192,8 +184,12 @@ impl GetBoardMAC {
 }
 
 impl MailboxInstruction for GetBoardMAC {
-    fn get_encoding(&self) -> u32 { 0x10003 }
-    fn get_buffer_words(&self) -> u32 { 2}
+    fn get_encoding(&self) -> u32 {
+        0x10003
+    }
+    fn get_buffer_words(&self) -> u32 {
+        2
+    }
 
     fn read_data_at_offset(&mut self, buffer: &MailboxBufferSlice) {
         let first_word = buffer[0].get();
@@ -204,22 +200,19 @@ impl MailboxInstruction for GetBoardMAC {
         self.address.bytes[1] = ((first_word >> 16) & 0xFF) as u8;
         self.address.bytes[2] = ((first_word >> 8) & 0xFF) as u8;
         self.address.bytes[3] = (first_word & 0xFF) as u8;
-        
+
         self.address.bytes[4] = (second_word >> 24) as u8;
         self.address.bytes[5] = ((second_word >> 16) & 0xFF) as u8;
     }
 }
 
 pub struct GetBoardSerial {
-    serial: u64
+    serial: u64,
 }
-
 
 impl GetBoardSerial {
     fn new() -> Self {
-        Self {
-            serial: 0
-        }
+        Self { serial: 0 }
     }
 
     fn get_response(&self) -> u64 {
@@ -243,5 +236,3 @@ impl MailboxInstruction for GetBoardSerial {
         self.serial = (first_half << 32) | second_half;
     }
 }
-
-

@@ -1,30 +1,39 @@
 .global _exception_vector
 
+// This macro generates an appropriate exception handler that pushes an interrupt frame and invokes the kernel's exception handler.
+// This macro does not return—the kernel exception handler is responsible for that.
+// Because the handler is invoked by page faults we cannot safely push the interrupt frame to the kernel stack.
+// Instead, we have a temporary "exception" stack that is guaranteed to be correctly mapped for all kernel threads.
 .macro call_handler handler source type
-    msr daifset, 0b1111 // Disable interrupts
-    str lr, [sp, #-16]! // Note: lr is x30 which is overwritten by bl
+    msr daifset, 0b1111 // Disable interrupts. TODO: could a system call be called when an IRQ lock is in use
+
+    msr tpidr_el1, x1 // Save x0
+    msr tpidr_el0, x0 // Save x1
+
+    mov x0, sp // Save the stack pointer
+    ldr x1, =EXCEPTION_STACK // TODO: need to be careful about interrupts in interrupts
+    mov sp, x1 // Interrupt stack pointer
+
+    str x0, [sp, #-8]! // TODO; could we compress with next line?
+    str lr, [sp, #-8]! // Note: lr is x30 which is overwritten by bl
+    mrs x0, tpidr_el0
+    mrs x1, tpidr_el1 // Restore x0
+
+    msr tpidr_el1, lr
     bl push_frame
+    mrs lr, tpidr_el1
+    str lr, [sp, 0xF0]
     mov     x0, \source
     mov     x1, \type
     mov     x2, sp
-    bl       \handler
-    bl pop_frame
-    ldr lr, [sp], #16 
-    //msr daifclr, 0b111 // Enable Interrupts
-    eret
+    ldr     x3, [sp, 0x328] // x6 is the old stack pointer
+    b       \handler
 .endm   
 
 .align 11
 _exception_vector:
 .org 0x0
-    msr daifset, 0b1111
-    str lr, [sp, #-16]!
-    bl push_frame
-    mov x3, sp
-    bl handle_synchronous_exception
-    bl pop_frame
-    ldr lr, [sp], #16
-    eret
+    call_handler handle_exception 0 0
 .org 0x80
     call_handler handle_exception 0 1
 .org 0x100
@@ -33,15 +42,7 @@ _exception_vector:
     call_handler handle_exception 0 3
 
 .org 0x200
-    msr daifset, 0b1111 // Disable interrupts
-    str lr, [sp, #-16]!
-    bl push_frame
-    mov x3, sp // third arg is sp?
-    bl handle_synchronous_exception
-    bl pop_frame
-    ldr lr, [sp], #16
-    //msr daifclr, 0b10 // Enable Interrupts
-    eret
+    call_handler handle_exception 1 0
 .org 0x280
     call_handler handle_exception 1 1
 .org 0x300
@@ -50,14 +51,7 @@ _exception_vector:
     call_handler handle_exception 1 3
 
 .org 0x400
-    msr daifset, 0b1111 // Disable interrupts
-    str lr, [sp, #-16]!
-    bl push_frame
-    mov x3, sp // third arg is sp?
-    bl handle_synchronous_exception
-    bl pop_frame
-    ldr lr, [sp], #16
-    //msr daifclr, 0b10 // Enable Interrupts
+    call_handler handle_exception 2 0
 .org 0x480
     call_handler handle_exception 2 1
 .org 0x500
@@ -76,7 +70,7 @@ _exception_vector:
 
 
 push_frame: // TODO: push all registers
-    sub sp, sp, 0x360 // TODO: check math
+    sub sp, sp, 0x320 // TODO: check math
     stp x0, x1, [sp, 0x0]
     stp x2, x3, [sp, 0x10]
     stp x4, x5, [sp, 0x20]
@@ -85,42 +79,43 @@ push_frame: // TODO: push all registers
     stp x10, x11, [sp, 0x50]
     stp x12, x13, [sp, 0x60]
     stp x14, x15, [sp, 0x70]
-    stp x16, x17, [sp, 0x90]
-    stp x18, x19, [sp, 0xa0]
-    stp x20, x21, [sp, 0xb0]
-    stp x22, x23, [sp, 0xc0]
-    stp x24, x25, [sp, 0xd0]
-    stp x26, x27, [sp, 0xe0]
-    stp x28, x29, [sp, 0xf0]
+    stp x16, x17, [sp, 0x80]
+    stp x18, x19, [sp, 0x90]
+    stp x20, x21, [sp, 0xa0]
+    stp x22, x23, [sp, 0xb0]
+    stp x24, x25, [sp, 0xc0]
+    stp x26, x27, [sp, 0xd0]
+    stp x28, x29, [sp, 0xe0]
+
     mrs x21, elr_el1 // TODO: with user programs may also need to save spsr
     mrs x22, spsr_el1
-    stp x21, x22, [sp, 0x100] // Dont want to mess with syscall argument registers
 
+    stp x21, x22, [sp, 0x100] // Dont want to mess with syscall argument registers
     stp q0, q1, [sp, 0x110]
     stp q2, q3, [sp, 0x130]
     stp q4, q5, [sp, 0x150]
     stp q6, q7, [sp, 0x170]
     stp q8, q9, [sp, 0x190]
     stp q10, q11, [sp, 0x1b0]
-    stp q12, q13, [sp, 0x1e0]
-    stp q14, q15, [sp, 0x210]
-    stp q16, q17, [sp, 0x230]
-    stp q18, q19, [sp, 0x250]
-    stp q20, q21, [sp, 0x270]
-    stp q22, q23, [sp, 0x290]
-    stp q24, q25, [sp, 0x2b0]
-    stp q26, q27, [sp, 0x2e0]
-    stp q28, q29, [sp, 0x310]
-    stp q30, q31, [sp, 0x330]
+    stp q12, q13, [sp, 0x1d0]
+    stp q14, q15, [sp, 0x1f0]
+    stp q16, q17, [sp, 0x210]
+    stp q18, q19, [sp, 0x230]
+    stp q20, q21, [sp, 0x250]
+    stp q22, q23, [sp, 0x270]
+    stp q24, q25, [sp, 0x290]
+    stp q26, q27, [sp, 0x2b0]
+    stp q28, q29, [sp, 0x2d0]
+    stp q30, q31, [sp, 0x2f0]
     mrs x21, fpsr
-    str x21, [sp, 0x350]
+    str x21, [sp, 0x310]
     ret
 
 pop_frame:
     ldp x0, x1, [sp, 0x100]
     msr elr_el1, x0
     msr spsr_el1, x1
-    ldr x1, [sp, 0x350]
+    ldr x1, [sp, 0x310]
     msr fpsr, x1
     ldp x0, x1, [sp, 0x0]
     ldp x2, x3, [sp, 0x10]
@@ -144,15 +139,15 @@ pop_frame:
     ldp q6, q7, [sp, 0x170]
     ldp q8, q9, [sp, 0x190]
     ldp q10, q11, [sp, 0x1b0]
-    ldp q12, q13, [sp, 0x1e0]
-    ldp q14, q15, [sp, 0x210]
-    ldp q16, q17, [sp, 0x230]
-    ldp q18, q19, [sp, 0x250]
-    ldp q20, q21, [sp, 0x270]
-    ldp q22, q23, [sp, 0x290]
-    ldp q24, q25, [sp, 0x2b0]
-    ldp q26, q27, [sp, 0x2e0]
-    ldp q28, q29, [sp, 0x310]
-    ldp q30, q31, [sp, 0x330]
-    add sp, sp, 0x360
+    ldp q12, q13, [sp, 0x1d0]
+    ldp q14, q15, [sp, 0x1f0]
+    ldp q16, q17, [sp, 0x210]
+    ldp q18, q19, [sp, 0x230]
+    ldp q20, q21, [sp, 0x250]
+    ldp q22, q23, [sp, 0x270]
+    ldp q24, q25, [sp, 0x290]
+    ldp q26, q27, [sp, 0x2a0]
+    ldp q28, q29, [sp, 0x2c0]
+    ldp q30, q31, [sp, 0x2f0]
+    add sp, sp, 0x320
     ret

@@ -23,21 +23,16 @@ QEMU_CMD = $(QEMU_ARCH) \
 	-serial mon:stdio \
 	-drive file=raspi.img,if=sd,format=raw
 
-#	-m 1024M -cpu $(CPU) \
-#	-smp $(CORES) \
-#	-d int,mmu,guest_errors,page \
-
 OBJDUMP = objdump
 OBJDUMP_CMD = $(OBJDUMP) -C --disassemble-all $(KERNEL_ELF)
 
-GDB = gdb #rust-gdb
-#gdb-multiarch
+GDB = gdb
 GDB_SCRIPT = debug.gdb
 GDB_CMD = $(GDB) -x $(GDB_SCRIPT)
 
 .PHONY: all dump
 
-all: build doc-noopen
+all: build
 
 qemu:
 	$(QEMU_CMD) -S -s
@@ -54,20 +49,11 @@ image:
 run: $(KERNEL_ELF)
 	$(QEMU_CMD)
 
-run-trace: $(KERNEL_ELF)
-	$(QEMU_CMD) --trace "exec_tb,file=trace.log"
-
 run-nogui: $(KERNEL_ELF)
 	$(QEMU_CMD) -nographic
 
 dump:
 	$(OBJDUMP_CMD)
-
-nm:
-	nm $(KERNEL_ELF)
-
-readelf:
-	aarch64-none-elf-readelf --header $(KERNEL_ELF)
 
 gdb: 
 	$(GDB_CMD)
@@ -77,10 +63,10 @@ clean:
 	rm -f kernel8.img
 
 doc:
-	cargo doc --features=$(PLATFORM) --open
-
-doc-noopen:
 	cargo doc --features=$(PLATFORM)
+
+doc-open:
+	cargo doc --features=$(PLATFORM) --open
 
 test:
 	cargo test --features=$(PLATFORM) -- --nocapture
@@ -95,4 +81,4 @@ detach-fs:
 	hdiutil detach $(IMG_MOUNT_PT)
 
 copy-programs:
-	cp programs/*.elf $(IMG_MOUNT_PT)/users/moe
+	cp programs/build/*.elf $(IMG_MOUNT_PT)/users/moe

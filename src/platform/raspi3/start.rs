@@ -1,43 +1,21 @@
 use super::kernel::Kernel;
 use super::kernel::TICK;
-use super::programs::ls;
-use super::programs::{counter, readelf, write};
+use super::programs::write;
 use crate::aarch64::interrupt::IRQLock;
-use crate::aarch64::{cpu, interrupt, mmu, syscall::Syscall};
+use crate::aarch64::{interrupt, syscall};
 use crate::allocator::page_allocator::PageAllocator;
-use crate::canvas::{canvas2d::Canvas2D, line::Line, matrix::Matrix, vector::Vector};
+use crate::println;
 use crate::ALLOCATOR;
-use crate::{print, println, read, write};
-use alloc::boxed::Box;
-use alloc::rc::Rc;
-use alloc::slice;
 use alloc::string::String;
-use alloc::sync::Arc;
-use alloc::vec::Vec;
 use core::arch::global_asm;
-use core::cell::RefCell;
-use core::time::Duration;
 
-use crate::device::timer::Timer;
-
-use crate::{
-    device::sector_device::SectorDevice,
-    filesystem::{fat32::FAT32Filesystem, master_boot_record::MasterBootRecord},
-};
+use crate::filesystem::{fat32::FAT32Filesystem, master_boot_record::MasterBootRecord};
 
 use super::{
-    clock::{self, Clock, ClockState, CLOCKS},
-    emmc::{EMMCController, EMMCRegisters},
-    framebuffer::{
-        Dimensions, FrameBuffer, FrameBufferConfig, FrameBufferConfigBuilder, Offset, Overscan,
-        PixelOrder,
-    },
-    gpio::{GPIOController, OutputLevel, Pin, StatusLight},
-    hardware_config::HardwareConfig,
+    clock::CLOCKS,
     interrupt::InterruptController,
-    mailbox::{Channel, MailboxController},
     platform_devices::{get_platform, PLATFORM},
-    power::{Device, PowerState, DEVICES},
+    power::DEVICES,
 };
 
 unsafe extern "C" {
@@ -48,25 +26,13 @@ unsafe extern "C" {
 global_asm!(include_str!("start.s"));
 
 #[no_mangle]
-pub extern "C" fn main(heap_start: usize, heap_size: usize, table_start: usize) {
+pub extern "C" fn main(heap_start: usize, heap_size: usize) {
     ALLOCATOR.lock().init(heap_start, heap_size);
     let platform = get_platform();
 
     platform.init();
-    // let status_light = PLATFORM.get_status_light().unwrap();
 
-    // blink_sequence(&status_light.borrow(), timer, 100);
-
-    println!("Starting");
-
-    println!("Entering Boot Sequence (with new build system?)");
-    println!("Initializing Memory Virtualization");
-
-    /*unsafe {
-        mmu::init(table_start as *mut usize);
-    };*/
-
-    println!("Memory Virtualization Initialized");
+    println!("Booting");
 
     println!(
         "Heap Allocator initialized at {:#x} with size {}",
@@ -118,15 +84,11 @@ pub extern "C" fn main(heap_start: usize, heap_size: usize, table_start: usize) 
     )
     .expect("Unable to initialize a FAT32 filesystem in partition");
 
-    let root_dir = filesystem.get_root_directory();
-
-    println!("Root directory: {}", root_dir);
-
     let page_allocator: IRQLock<PageAllocator>;
 
     unsafe {
         let page_start: usize = &PAGE_SECTION_START as *const usize as usize;
-        let page_size: usize = 6553600;
+        let page_size: usize = 6553600; // TODO: what!?
         println!(
             "Initializing Page allocator at {:#x} with size {}",
             page_start, page_size
@@ -146,115 +108,16 @@ pub extern "C" fn main(heap_start: usize, heap_size: usize, table_start: usize) 
 
     let mut interrupt_controller = InterruptController::new();
 
-    //interrupt_controller.enable_timer_interrupt_3();
     interrupt_controller.enable_timer_interrupt_1();
     interrupt_controller.enable_auxiliary_device_interrupts();
 
     println!("Timer interrupt enabled!");
 
-    //cpu::create_thread(graphics_thread, String::from("Graphics"), 0);
-
-    //cpu::create_thread(long_count, String::from("Long Count"), 0);
-
-    //cpu::create_thread(counter::run_count, String::from("Counters"), 20);
-
-    //cpu::create_thread(readelf::readelf, String::from("readelf"), 0);
-
-    cpu::create_thread(write::write, String::from("write"), 0);
-
-    //cpu::create_thread(ls::ls, String::from("ls"), 0);
+    syscall::create_thread(write::write, String::from("write"), 0);
 
     PLATFORM.set_kernel_timeout(TICK);
 
-    //status_light.borrow_mut().set_green(OutputLevel::High);
-
     loop {
-        cpu::yield_thread();
-    }
-}
-
-pub extern "C" fn long_count(_: usize) {
-    let timer = get_platform().get_timer();
-    println!("Starting long count");
-    loop {
-        cpu::sleep(1_000_000);
-        println!(
-            "Long Count Timer: {:?}",
-            Duration::from_micros(timer.get_micros())
-        );
-    }
-}
-
-pub extern "C" fn graphics_thread(_arg: usize) {
-    let platform = get_platform();
-    let resolution = Dimensions::new(1920, 1080);
-
-    let fb_config = FrameBufferConfigBuilder::new()
-        .depth(32)
-        .physical_dimensions(resolution)
-        .virtual_dimensions(resolution)
-        .pixel_order(PixelOrder::RGB)
-        .virtual_offset(Offset::none())
-        .overscan(Overscan::none())
-        .build();
-
-    println!("Initializing Frame Buffer with config {}", fb_config);
-
-    let mut fb = FrameBuffer::from_config(fb_config, platform.get_mailbox_controller());
-
-    println!("Actual config is {}", fb.get_config());
-
-    loop {
-        for i in 0..(1920 * 1080) {
-            fb.write_idx(i, 0xff00ffff);
-        }
-
-        for j in 0..1920 {
-            for i in 0..1080 {
-                fb.write_pixel(
-                    j,
-                    i,
-                    0xff000000 + ((255 * i / 1080) << 16) + ((255 * j / 1920) << 8) + 0xff,
-                );
-            }
-        }
-    }
-}
-
-pub fn blink_sequence(status_light: &mut StatusLight, timer: &dyn Timer, interval: u64) {
-    status_light.set_green(OutputLevel::High);
-
-    timer.delay_micros(interval);
-
-    status_light.set_green(OutputLevel::Low);
-    status_light.set_blue(OutputLevel::High);
-
-    timer.delay_micros(interval);
-
-    status_light.set_blue(OutputLevel::Low);
-    status_light.set_red(OutputLevel::High);
-
-    timer.delay_micros(interval);
-
-    status_light.set_red(OutputLevel::Low);
-}
-
-pub fn test_allocator(limit: usize) {
-    let mut vec_vec: Vec<Vec<usize>> = alloc::vec!();
-
-    for n in 0..limit {
-        let num_vec: Vec<usize> = alloc::vec!();
-        vec_vec.push(num_vec);
-        for m in 0..n {
-            vec_vec[n].push(m * n);
-        }
-    }
-
-    for n in 1..limit {
-        for m in 1..n {
-            if vec_vec[n][m] != m * n {
-                panic!("Expected {:?}, received {:?}", m * n, vec_vec[n][m]);
-            }
-        }
+        syscall::yield_thread();
     }
 }

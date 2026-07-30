@@ -1,5 +1,3 @@
-use crate::elf;
-
 #[repr(C)]
 #[derive(Debug)]
 pub struct ELF64Header {

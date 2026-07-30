@@ -1,19 +1,11 @@
-use crate::bitfield;
 use super::{
     mailbox::MailboxController,
     mailbox_property::{
-        MessageBuilder,
-        SimpleRequest,
-        ToMailboxBuffer,
-        FromMailboxBuffer,
-        MailboxBufferSlice,
-        MailboxInstruction
-    }
+        FromMailboxBuffer, MailboxBufferSlice, MessageBuilder, SimpleRequest, ToMailboxBuffer,
+    },
 };
-use core::{cell::RefCell, fmt};
-use alloc::vec;
-use alloc::vec::Vec;
-use alloc::rc::Rc;
+use crate::bitfield;
+use core::fmt;
 
 #[repr(u32)]
 #[derive(Copy, Clone)]
@@ -26,10 +18,20 @@ pub enum Device {
     I2C1 = 0x5,
     I2C2 = 0x6,
     SPI = 0x7,
-    CCP2TX = 0x8
+    CCP2TX = 0x8,
 }
 
-pub const DEVICES: [Device; 9] = [Device::SDCard, Device::UART0, Device::UART1, Device::USBHCD, Device::I2C0, Device::I2C1, Device::I2C2, Device::SPI, Device::CCP2TX];
+pub const DEVICES: [Device; 9] = [
+    Device::SDCard,
+    Device::UART0,
+    Device::UART1,
+    Device::USBHCD,
+    Device::I2C0,
+    Device::I2C1,
+    Device::I2C2,
+    Device::SPI,
+    Device::CCP2TX,
+];
 
 impl Device {
     const GET_POWER_STATE: u32 = 0x20001;
@@ -50,47 +52,52 @@ impl Device {
             0x6 => Device::I2C2,
             0x7 => Device::SPI,
             0x8 => Device::CCP2TX,
-            _ => panic!("Unknown device id")
+            _ => panic!("Unknown device id"),
         }
     }
 
     pub fn get_power_state(self, mailbox: &dyn MailboxController) -> PowerState {
-        let mut request = SimpleRequest::<Device, PowerStateResponse, { Self::GET_POWER_STATE } >::with_request(self);
+        let mut request =
+            SimpleRequest::<Device, PowerStateResponse, { Self::GET_POWER_STATE }>::with_request(
+                self,
+            );
 
         let mut message = MessageBuilder::new().request(&mut request);
 
         message.send(mailbox);
 
         return request.get_response().1;
- 
     }
 
     pub fn get_timing(self, mailbox: &dyn MailboxController) -> u32 {
-        let mut request = SimpleRequest::<Device, TimingResponse, { Self::GET_TIMING } >::with_request(self);
+        let mut request =
+            SimpleRequest::<Device, TimingResponse, { Self::GET_TIMING }>::with_request(self);
 
         let mut message = MessageBuilder::new().request(&mut request);
 
         message.send(mailbox);
 
         return request.get_response().1;
- 
     }
-
 }
 
 impl fmt::Display for Device {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", match *self {
-            Device::SDCard => "SD Card Reader",
-            Device::UART0 => "UART Controller 0",
-            Device::UART1 => "UART Controller 1",
-            Device::USBHCD => "USB HCD",
-            Device::I2C0 => "I2C Controller 0",
-            Device::I2C1 => "I2C Controller 1",
-            Device::I2C2 => "I2C Controller 2",
-            Device::SPI => "SPI Controller",
-            Device::CCP2TX => "CCP2TX"
-        })
+        write!(
+            f,
+            "{}",
+            match *self {
+                Device::SDCard => "SD Card Reader",
+                Device::UART0 => "UART Controller 0",
+                Device::UART1 => "UART Controller 1",
+                Device::USBHCD => "USB HCD",
+                Device::I2C0 => "I2C Controller 0",
+                Device::I2C1 => "I2C Controller 1",
+                Device::I2C2 => "I2C Controller 2",
+                Device::SPI => "SPI Controller",
+                Device::CCP2TX => "CCP2TX",
+            }
+        )
     }
 }
 
@@ -103,7 +110,7 @@ impl ToMailboxBuffer for Device {
 bitfield! {
     PowerState(u32) {
         on: 0-0,
-        exists: 1-1 
+        exists: 1-1
     } with {
         pub fn is_on(&self) -> bool {
             self.get_on() == 1
@@ -126,10 +133,12 @@ struct PowerStateResponse(Device, PowerState);
 
 impl FromMailboxBuffer for PowerStateResponse {
     fn read_from_mailbox_buffer(buffer: &MailboxBufferSlice) -> Self {
-        Self(Device::from_u32(buffer[0].get()), PowerState::from_u32(buffer[1].get()))
+        Self(
+            Device::from_u32(buffer[0].get()),
+            PowerState::from_u32(buffer[1].get()),
+        )
     }
 }
-
 
 #[derive(Copy, Clone)]
 struct TimingResponse(Device, u32);

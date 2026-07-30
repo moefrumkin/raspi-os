@@ -7,25 +7,30 @@ pub const PAGE_SIZE: usize = 4096;
 pub type Page = [u8; PAGE_SIZE];
 
 #[repr(C)]
+#[derive(Debug)]
 pub struct PageAllocator<'a> {
     free_list: &'a mut [BitArray<usize>],
     pages: &'a mut [Page],
 }
 
+/// A reference to an allocated page
 #[derive(Debug)]
 pub struct PageRef {
     pub page: *mut Page,
     pub page_number: usize,
 }
 
+/// A stack pointer in an allocated page
+#[repr(C)]
+pub struct StackPointer {
+    sp: *mut u8,
+}
+
 impl<'a> PageAllocator<'a> {
     pub fn allocate_page(&mut self) -> Option<PageRef> {
-        //TODO: skipping first page now because of possible stack underflow
-        for i in 1..self.free_list.len() {
+        for i in 0..self.free_list.len() {
             // TODO: check edge cases to make sure we don't go over the number of pages allocated
-            for j in 0..4 {
-                // TODO n * j is hacky to prevent overflow
-                let j = 16 * j;
+            for j in 0..64 {
                 let is_allocated = self.free_list[i].get_bit(j);
 
                 if is_allocated == 0 {
@@ -65,5 +70,32 @@ impl<'a> PageAllocator<'a> {
 
             Self { free_list, pages }
         }
+    }
+}
+
+impl PageRef {
+    /// Get the stack pointer that starts at the top of this page
+    pub fn get_initial_stack_pointer(&self) -> StackPointer {
+        // TODO: where to put unsafeness?
+        StackPointer::from(unsafe { (self.page as *mut u8).offset(PAGE_SIZE as isize) })
+    }
+}
+
+impl StackPointer {
+    pub fn from(sp: *mut u8) -> Self {
+        Self { sp }
+    }
+
+    /// Pushes a value to the stack and returns the new stack pointer
+    pub fn push<T>(&mut self, value: T) -> Self {
+        let ptr = unsafe { (self.sp as *mut T).offset(-1) };
+
+        unsafe { ptr.write_unaligned(value) };
+
+        Self::from(ptr as *mut u8)
+    }
+
+    pub fn get(&self) -> *const u64 {
+        self.sp as *const u64
     }
 }
