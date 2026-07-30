@@ -1,18 +1,23 @@
 .global _exception_vector
 
+// This macro generates an appropriate exception handler that pushes an interrupt frame and invokes the kernel's exception handler.
+// This macro does not return—the kernel exception handler is responsible for that.
+// Because the handler is invoked by page faults we cannot safely push the interrupt frame to the kernel stack.
+// Instead, we have a temporary "exception" stack that is guaranteed to be correctly mapped for all kernel threads.
 .macro call_handler handler source type
     msr daifset, 0b1111 // Disable interrupts. TODO: could a system call be called when an IRQ lock is in use
-    msr tpidr_el1, x0 // Save x0
-    msr tpidr_el0, x1 // Save x1
+
+    msr tpidr_el1, x1 // Save x0
+    msr tpidr_el0, x0 // Save x1
 
     mov x0, sp // Save the stack pointer
-    ldr x1, =EXCEPTION_STACK
+    ldr x1, =EXCEPTION_STACK // TODO: need to be careful about interrupts in interrupts
     mov sp, x1 // Interrupt stack pointer
 
     str x0, [sp, #-8]! // TODO; could we compress with next line?
     str lr, [sp, #-8]! // Note: lr is x30 which is overwritten by bl
-    mrs x0, tpidr_el1 // Restore x0
-    mrs x1, tpidr_el0
+    mrs x0, tpidr_el0
+    mrs x1, tpidr_el1 // Restore x0
 
     msr tpidr_el1, lr
     bl push_frame
@@ -22,7 +27,6 @@
     mov     x1, \type
     mov     x2, sp
     ldr     x3, [sp, 0x328] // x6 is the old stack pointer
-    # add     x6, x6, #0x328
     b       \handler
 .endm   
 
